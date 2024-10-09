@@ -96,7 +96,7 @@ export async function optimizeText(
   title: string,
   description: string,
   version: number,
-  storeUrl?: string, // Make storeUrl optional
+  storeUrl?: string // Make storeUrl optional
 ): Promise<{ title: string; description: string }> {
   if (!API_KEY) {
     throw new Error("OpenAI API key is missing. Please check your .env file.");
@@ -136,26 +136,35 @@ export async function optimizeText(
     if (result.length < 2) {
       throw new Error("Unexpected response format from OpenAI API");
     }
-
+    console.log("merging");
     const optimizedTitle = result[0].replace("Title: ", "").trim();
     let optimizedDescription = result
       .slice(1)
       .join("\n")
       .replace("Description: ", "")
       .trim()
-      .replace(/^\s+/gm, ''); // Remove leading spaces from each line
+      .replace(/^\s+/gm, ""); // Remove leading spaces from each line
 
     // Add a double line break before section headers
-    optimizedDescription = optimizedDescription.replace(/\n+([A-Z]+)\n+/g, '\n\n$1\n');
+    optimizedDescription = optimizedDescription.replace(
+      /\n+([A-Z]+)\n+/g,
+      "\n\n$1\n"
+    );
 
     // Ensure there's a line break after each bullet point list
-    optimizedDescription = optimizedDescription.replace(/(\n• [^\n]+)+\n+/g, '$&\n');
+    optimizedDescription = optimizedDescription.replace(
+      /(\n• [^\n]+)+\n+/g,
+      "$&\n"
+    );
 
     // Ensure there's a line break after each paragraph (non-bullet point, non-header lines)
-    optimizedDescription = optimizedDescription.replace(/([^•\n][^\n]+)\n+(?![A-Z]+\n|• )/g, '$1\n\n');
+    optimizedDescription = optimizedDescription.replace(
+      /([^•\n][^\n]+)\n+(?![A-Z]+\n|• )/g,
+      "$1\n\n"
+    );
 
     // Remove any remaining multiple consecutive line breaks
-    optimizedDescription = optimizedDescription.replace(/\n{3,}/g, '\n\n');
+    optimizedDescription = optimizedDescription.replace(/\n{3,}/g, "\n\n");
 
     // Append "Back to shop" URL if store name is provided
     if (storeUrl) {
@@ -172,7 +181,9 @@ export async function optimizeText(
       console.error("OpenAI API error response:", (error as any).response.data);
     }
     throw new Error(
-      `Optimization failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Optimization failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
@@ -192,7 +203,7 @@ export interface OptimizedBulkItem {
 
 export async function optimizeBulk(
   data: BulkOptimizeItem[],
-  version: number,
+  version: number
 ): Promise<OptimizedBulkItem[]> {
   console.log("Data received for bulk optimization:", data); // Log incoming data
 
@@ -202,14 +213,14 @@ export async function optimizeBulk(
         item.title,
         item.description,
         version,
-        item.storeUrl,
+        item.storeUrl
       );
       return {
         listingId: item.listingId,
         optimizedTitle: optimized.title,
         optimizedDescription: optimized.description,
       };
-    }),
+    })
   );
 
   console.log("Optimized bulk results:", results); // Log outgoing results
