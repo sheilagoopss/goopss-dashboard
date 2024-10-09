@@ -1,0 +1,21 @@
+run = "npm start"
+build = "npm run build"
+modules = ["nodejs-20"]
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+PATH = "/root/.local/share/fnm:$PATH"
+
+[deployment]
+deploymentTarget = "static"
+publicDir = "build"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
