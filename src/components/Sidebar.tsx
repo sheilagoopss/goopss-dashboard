@@ -52,7 +52,7 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
       {isAdmin && (
         <>
           <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
-          <Link to="/social-posts" style={styles.link}>Social Posts</Link>
+          <Link to="/social" style={styles.link}>Social</Link>
         </>
       )}
       <Link to="/design-hub" style={styles.link}>Design Hub</Link>
@@ -60,7 +60,6 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
       {isAdmin ? (
         <Link to="/pinterest-automation" style={styles.link}>Pinterest</Link>
       ) : <Link to="/pinterest" style={styles.link}>Pinterest</Link>}
-      <Link to="/social" style={styles.link}>Social</Link> {/* Add this line */}
       <div style={styles.footer}>
         <div>
             {user ? (
