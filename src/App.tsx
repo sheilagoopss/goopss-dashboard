@@ -164,6 +164,7 @@ function App() {
         { path: "/social-posts", element: <SocialPostCreator /> },
         { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
         { path: "/pinterest-automation", element: <PinterestAutomation /> },
+        { path: "/pinterest", element: <div>Pinterest</div> },
         { path: "/design-hub", element: <DesignHub customerId={selectedCustomer?.customer_id || ''} isAdmin={isAdmin} /> },
         { 
           path: "/etsy-ads-recommendation", 
