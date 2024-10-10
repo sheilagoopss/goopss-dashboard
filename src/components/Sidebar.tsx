@@ -28,6 +28,7 @@ function Sidebar({ isAdmin }: SidebarProps) {
   return (
     <div style={styles.sidebar}>
       <Link to="/" style={styles.link}>{isAdmin ? 'Customers' : 'Dashboard'}</Link>
+      <Link to="/plan" style={styles.link}>Plan</Link>
       {isAdmin && (
         <>
           <Link to="/social-posts" style={styles.link}>Social Posts</Link>

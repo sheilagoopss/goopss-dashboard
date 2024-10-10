@@ -12,7 +12,7 @@ import CustomersPage from './components/CustomersPage';
 import LoginForm from './components/LoginForm';
 import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component
 import PinterestAutomation from './components/PinterestAutomation';
-
+import Plan from './components/Plan';
 const styles = {
   app: {
     fontFamily: "'Inter', sans-serif",
@@ -157,6 +157,10 @@ function App() {
             isAdmin={isAdmin}
           /> 
         },
+        { path: "/plan", element: <Plan customers={isAdmin ? customers : [selectedCustomer].filter(Boolean) as Customer[]} 
+            selectedCustomer={selectedCustomer} 
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={isAdmin} /> },
         { path: "/social-posts", element: <SocialPostCreator /> },
         { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
         { path: "/pinterest-automation", element: <PinterestAutomation /> },
