@@ -145,10 +145,14 @@ function App() {
     }
   };
 
+  const openLoginModal = () => {
+    setIsLoginModalOpen(true);
+  };
+
   const router = createBrowserRouter([
     {
       path: "/",
-      element: <DashboardLayout />,
+      element: <DashboardLayout openLoginModal={openLoginModal} />,
       children: [
         { 
           path: "/", 
@@ -186,36 +190,6 @@ function App() {
             <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
           </div>
           <h1 style={styles.title}>Goopss Dashboard</h1>
-          <div>
-            {user ? (
-              <>
-                <span>Welcome, {selectedCustomer?.store_owner_name.split(' ')[0]}</span>
-                <button style={styles.button} onClick={handleLogout}>
-                  Logout
-                </button>
-                {(!selectedCustomer || selectedCustomer.isAdmin) && (
-                  <button 
-                    style={styles.button} 
-                    onClick={() => setIsAdmin(!isAdmin)}
-                  >
-                    Switch to {isAdmin ? 'User' : 'Admin'} Mode
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button style={styles.button} onClick={() => setIsLoginModalOpen(true)}>
-                  Login
-                </button>
-                <button 
-                  style={styles.button} 
-                  onClick={() => setIsAdmin(!isAdmin)}
-                >
-                  Switch to {isAdmin ? 'User' : 'Admin'} Mode
-                </button>
-              </>
-            )}
-          </div>
         </header>
         <RouterProvider router={router} />
         <Modal

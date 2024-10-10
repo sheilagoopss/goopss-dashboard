@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   isOpen?: boolean;
-  isAdmin: boolean;  // Add this line
+  isAdmin: boolean;
+  openLoginModal: () => void;
 }
 
 const styles = {
@@ -30,19 +31,19 @@ const styles = {
     paddingTop: '20px',
   },
   button: {
-    display: 'block',
-    width: '100%',
-    padding: '10px',
-    marginBottom: '10px',
-    backgroundColor: '#f3f4f6',
-    border: '1px solid #d1d5db',
-    borderRadius: '4px',
+    padding: '10px 20px',
+    backgroundColor: '#007bff',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '5px',
     cursor: 'pointer',
+    marginBottom: '10px',
+    width: '100%',
   },
 };
 
-function Sidebar({ isOpen, isAdmin }: SidebarProps) {  // Update this line
-  const { user, logout, toggleAdminMode, isAdmin: isAdminMode, login } = useAuth();
+function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
+  const { user, logout, toggleAdminMode } = useAuth();
 
   return (
     <div style={styles.sidebar}>
@@ -78,7 +79,7 @@ function Sidebar({ isOpen, isAdmin }: SidebarProps) {  // Update this line
               </>
             ) : (
               <>
-                <button style={styles.button} onClick={()=>login}>
+                <button style={styles.button} onClick={openLoginModal}>
                   Login
                 </button>
                 <button 
