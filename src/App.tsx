@@ -11,6 +11,9 @@ import { DesignHub } from './components/DesignHub';
 import CustomersPage from './components/CustomersPage';
 import LoginForm from './components/LoginForm';
 import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component
+import PinterestAutomation from './components/PinterestAutomation';
+import Plan from './components/Plan';
+import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 
 const styles = {
   app: {
@@ -142,10 +145,14 @@ function App() {
     }
   };
 
+  const openLoginModal = () => {
+    setIsLoginModalOpen(true);
+  };
+
   const router = createBrowserRouter([
     {
       path: "/",
-      element: <DashboardLayout isAdmin={isAdmin} />,
+      element: <DashboardLayout openLoginModal={openLoginModal} />,
       children: [
         { 
           path: "/", 
@@ -156,9 +163,13 @@ function App() {
             isAdmin={isAdmin}
           /> 
         },
+        { path: "/plan", element: <Plan customers={isAdmin ? customers : [selectedCustomer].filter(Boolean) as Customer[]} 
+            selectedCustomer={selectedCustomer} 
+            setSelectedCustomer={setSelectedCustomer} /> },
         { path: "/social-posts", element: <SocialPostCreator /> },
         { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
-        { path: "/pinterest-automation", element: <div>Pinterest Automation</div> },
+        { path: "/pinterest-automation", element: <PinterestAutomation /> },
+        { path: "/pinterest", element: <div>Pinterest</div> },
         { path: "/design-hub", element: <DesignHub customerId={selectedCustomer?.customer_id || ''} isAdmin={isAdmin} /> },
         { 
           path: "/etsy-ads-recommendation", 
@@ -172,52 +183,24 @@ function App() {
   ]);
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <div style={styles.logoContainer}>
-          <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
-        </div>
-        <h1 style={styles.title}>Goopss Dashboard</h1>
-        <div>
-          {user ? (
-            <>
-              <span>Welcome, {selectedCustomer?.store_owner_name.split(' ')[0]}</span>
-              <button style={styles.button} onClick={handleLogout}>
-                Logout
-              </button>
-              {(!selectedCustomer || selectedCustomer.isAdmin) && (
-                <button 
-                  style={styles.button} 
-                  onClick={() => setIsAdmin(!isAdmin)}
-                >
-                  Switch to {isAdmin ? 'User' : 'Admin'} Mode
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button style={styles.button} onClick={() => setIsLoginModalOpen(true)}>
-                Login
-              </button>
-              <button 
-                style={styles.button} 
-                onClick={() => setIsAdmin(!isAdmin)}
-              >
-                Switch to {isAdmin ? 'User' : 'Admin'} Mode
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-      <RouterProvider router={router} />
-      <Modal
-        isOpen={isLoginModalOpen}
-        onRequestClose={() => setIsLoginModalOpen(false)}
-        contentLabel="Login Modal"
-      >
-        <LoginForm onLogin={handleLogin} error={loginError} />
-      </Modal>
-    </div>
+    <AuthProvider> {/* Wrap the entire app with AuthProvider */}
+      <div style={styles.app}>
+        <header style={styles.header}>
+          <div style={styles.logoContainer}>
+            <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
+          </div>
+          <h1 style={styles.title}>Goopss Dashboard</h1>
+        </header>
+        <RouterProvider router={router} />
+        <Modal
+          isOpen={isLoginModalOpen}
+          onRequestClose={() => setIsLoginModalOpen(false)}
+          contentLabel="Login Modal"
+        >
+          <LoginForm onLogin={handleLogin} error={loginError} />
+        </Modal>
+      </div>
+    </AuthProvider>
   );
 }
 
