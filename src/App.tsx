@@ -11,6 +11,7 @@ import { DesignHub } from './components/DesignHub';
 import CustomersPage from './components/CustomersPage';
 import LoginForm from './components/LoginForm';
 import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component
+import PinterestAutomation from './components/PinterestAutomation';
 
 const styles = {
   app: {
@@ -158,7 +159,7 @@ function App() {
         },
         { path: "/social-posts", element: <SocialPostCreator /> },
         { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
-        { path: "/pinterest-automation", element: <div>Pinterest Automation</div> },
+        { path: "/pinterest-automation", element: <PinterestAutomation /> },
         { path: "/design-hub", element: <DesignHub customerId={selectedCustomer?.customer_id || ''} isAdmin={isAdmin} /> },
         { 
           path: "/etsy-ads-recommendation", 
