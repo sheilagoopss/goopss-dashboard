@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
+import { Search } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -11,10 +12,20 @@ interface Customer {
   logo: string;
 }
 
+interface EtsyListing {
+  id: string;
+  listingID: string;  // Changed from id to listingID
+  listingName: string;  // Changed from title to listingName
+  scheduled_post_date?: string;
+}
+
 export default function Social() {
   const { isAdmin, user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [listings, setListings] = useState<EtsyListing[]>([]);
+  const [filteredListings, setFilteredListings] = useState<EtsyListing[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -42,6 +53,37 @@ export default function Social() {
 
     fetchCustomers();
   }, [isAdmin, user]);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      if (selectedCustomer) {
+        try {
+          const listingsCollection = collection(db, `customers/${selectedCustomer.id}/listings`);
+          const listingsSnapshot = await getDocs(listingsCollection);
+          const listingsList = listingsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            listingID: doc.data().listingID,  // Use listingID field
+            listingName: doc.data().listingName,  // Use listingName field
+            scheduled_post_date: doc.data().scheduled_post_date
+          } as EtsyListing));
+          setListings(listingsList);
+          setFilteredListings(listingsList);
+        } catch (error) {
+          console.error("Error fetching listings:", error);
+        }
+      }
+    };
+
+    fetchListings();
+  }, [selectedCustomer]);
+
+  useEffect(() => {
+    const filtered = listings.filter(listing => 
+      listing.listingID.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.listingName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredListings(filtered);
+  }, [searchQuery, listings]);
 
   const handleCustomerSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const customer = customers.find(c => c.id === event.target.value);
@@ -79,26 +121,81 @@ export default function Social() {
       </div>
 
       {selectedCustomer && (
-        <div style={{ 
-          backgroundColor: 'white', 
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-          borderRadius: '8px', 
-          padding: '16px', 
-          marginBottom: '20px' 
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img 
-              src={selectedCustomer.logo || '/placeholder-logo.png'} 
-              alt={`${selectedCustomer.store_name} logo`}
-              style={{ width: '64px', height: '64px', borderRadius: '50%' }}
-            />
-            <div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600' }}>{selectedCustomer.store_name}</h2>
-              <p style={{ color: '#666' }}>{selectedCustomer.store_owner_name}</p>
-              <p style={{ fontSize: '14px', color: '#888' }}>Customer ID: {selectedCustomer.customer_id}</p>
+        <>
+          <div style={{ 
+            backgroundColor: 'white', 
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
+            borderRadius: '8px', 
+            padding: '16px', 
+            marginBottom: '20px' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <img 
+                src={selectedCustomer.logo || '/placeholder-logo.png'} 
+                alt={`${selectedCustomer.store_name} logo`}
+                style={{ width: '64px', height: '64px', borderRadius: '50%' }}
+              />
+              <div>
+                <h2 style={{ fontSize: '20px', fontWeight: '600' }}>{selectedCustomer.store_name}</h2>
+                <p style={{ color: '#666' }}>{selectedCustomer.store_owner_name}</p>
+                <p style={{ fontSize: '14px', color: '#888' }}>Customer ID: {selectedCustomer.customer_id}</p>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+              <Search style={{ width: '20px', height: '20px', marginRight: '10px', color: '#666' }} />
+              <input
+                type="text"
+                placeholder="Search by Listing ID or Title"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ccc'
+                }}
+              />
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Scheduled Post Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredListings.slice(0, 5).map((listing) => (
+                    <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                      <td style={{ padding: '12px' }}>{listing.listingID}</td>
+                      <td style={{ padding: '12px' }}>{listing.listingName}</td>
+                      <td style={{ padding: '12px' }}>{listing.scheduled_post_date || 'Not scheduled'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {filteredListings.length > 5 && (
+              <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                <button style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#007bff',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}>
+                  Load More
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Rest of the component */}
