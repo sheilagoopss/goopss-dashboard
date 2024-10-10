@@ -14,6 +14,7 @@ import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'l
 import PinterestAutomation from './components/PinterestAutomation';
 import Plan from './components/Plan';
 import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
+import Social from './components/Social'; // Add this import
 
 const styles = {
   app: {
@@ -178,6 +179,7 @@ function App() {
             isAdmin={isAdmin} 
           />
         },
+        { path: "/social", element: <Social /> }, // Add this line
       ],
     },
   ]);

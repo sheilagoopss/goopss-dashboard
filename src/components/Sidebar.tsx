@@ -60,6 +60,7 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
       {isAdmin ? (
         <Link to="/pinterest-automation" style={styles.link}>Pinterest</Link>
       ) : <Link to="/pinterest" style={styles.link}>Pinterest</Link>}
+      <Link to="/social" style={styles.link}>Social</Link> {/* Add this line */}
       <div style={styles.footer}>
         <div>
             {user ? (
