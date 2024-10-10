@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
-  isAdmin: boolean;
+  isOpen?: boolean;
+  isAdmin: boolean;  // Add this line
 }
 
 const styles = {
@@ -22,22 +24,73 @@ const styles = {
     textDecoration: 'none',
     fontSize: '18px',
   },
+  footer: {
+    marginTop: 'auto',
+    borderTop: '1px solid #e5e7eb',
+    paddingTop: '20px',
+  },
+  button: {
+    display: 'block',
+    width: '100%',
+    padding: '10px',
+    marginBottom: '10px',
+    backgroundColor: '#f3f4f6',
+    border: '1px solid #d1d5db',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  },
 };
 
-function Sidebar({ isAdmin }: SidebarProps) {
+function Sidebar({ isOpen, isAdmin }: SidebarProps) {  // Update this line
+  const { user, logout, toggleAdminMode, isAdmin: isAdminMode, login } = useAuth();
+
   return (
     <div style={styles.sidebar}>
-      <Link to="/" style={styles.link}>{isAdmin ? 'Customers' : 'Dashboard'}</Link>
+      <Link to="/" style={styles.link}>{isAdmin ? 'Customers' : 'Home'}</Link>
       <Link to="/plan" style={styles.link}>Plan</Link>
       {isAdmin && (
         <>
+          <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
           <Link to="/social-posts" style={styles.link}>Social Posts</Link>
-          <Link to="/listing-optimizer" style={styles.link}>Listing Optimizer</Link>
-          <Link to="/pinterest-automation" style={styles.link}>Pinterest Automation</Link>
         </>
       )}
       <Link to="/design-hub" style={styles.link}>Design Hub</Link>
       <Link to="/etsy-ads-recommendation" style={styles.link}>Etsy Ads Recommendation</Link>
+      {isAdmin ? (
+        <Link to="/pinterest-automation" style={styles.link}>Pinterest</Link>
+      ) : <Link to="/pinterest" style={styles.link}>Pinterest</Link>}
+      <div style={styles.footer}>
+        <div>
+            {user ? (
+              <>
+                <span>Welcome, {user?.store_owner_name.split(' ')[0]}</span>
+                <button style={styles.button} onClick={logout}>
+                  Logout
+                </button>
+                {(!user || user.isAdmin) && (
+                  <button 
+                    style={styles.button} 
+                    onClick={toggleAdminMode}
+                  >
+                    Switch to {isAdmin ? 'User' : 'Admin'} Mode
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button style={styles.button} onClick={()=>login}>
+                  Login
+                </button>
+                <button 
+                  style={styles.button} 
+                  onClick={toggleAdminMode}
+                >
+                  Switch to {isAdmin ? 'User' : 'Admin'} Mode
+                </button>
+              </>
+            )}
+          </div>
+      </div>
     </div>
   );
 }

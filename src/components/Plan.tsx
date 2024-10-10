@@ -1,4 +1,5 @@
-import React, { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import React, { useState, useEffect, SetStateAction, Dispatch } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import CustomersDropdown from './CustomersDropdown';
 import { Customer } from '../types/Customer';
 import { db } from '../firebase/config';
@@ -8,7 +9,6 @@ interface PlanPageProps {
   customers: Customer[];
   selectedCustomer: Customer | null;
   setSelectedCustomer: Dispatch<SetStateAction<Customer | null>>;
-  isAdmin: boolean;
 }
 
 interface PlanTask {
@@ -17,7 +17,8 @@ interface PlanTask {
   is_done: boolean;
 }
 
-function Plan({ customers, selectedCustomer, setSelectedCustomer, isAdmin }: PlanPageProps) {
+function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanPageProps) {
+  const { isAdmin } = useAuth();
   const [planTasks, setPlanTasks] = useState<PlanTask[]>([]);
   const [newTask, setNewTask] = useState('');
 
@@ -112,11 +113,9 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer, isAdmin }: Pla
     <div>
       <h2>Plan</h2>
       {isAdmin && <CustomersDropdown 
-        customers={customers} 
-        selectedCustomer={selectedCustomer} 
-        setSelectedCustomer={setSelectedCustomer}
-        isAdmin={isAdmin} 
-      />}
+              customers={customers}
+              selectedCustomer={selectedCustomer}
+              setSelectedCustomer={setSelectedCustomer} isAdmin={isAdmin}      />}
       
       {selectedCustomer && (
         <div>

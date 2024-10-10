@@ -13,6 +13,8 @@ import LoginForm from './components/LoginForm';
 import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component
 import PinterestAutomation from './components/PinterestAutomation';
 import Plan from './components/Plan';
+import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
+
 const styles = {
   app: {
     fontFamily: "'Inter', sans-serif",
@@ -146,7 +148,7 @@ function App() {
   const router = createBrowserRouter([
     {
       path: "/",
-      element: <DashboardLayout isAdmin={isAdmin} />,
+      element: <DashboardLayout />,
       children: [
         { 
           path: "/", 
@@ -159,8 +161,7 @@ function App() {
         },
         { path: "/plan", element: <Plan customers={isAdmin ? customers : [selectedCustomer].filter(Boolean) as Customer[]} 
             selectedCustomer={selectedCustomer} 
-            setSelectedCustomer={setSelectedCustomer}
-            isAdmin={isAdmin} /> },
+            setSelectedCustomer={setSelectedCustomer} /> },
         { path: "/social-posts", element: <SocialPostCreator /> },
         { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
         { path: "/pinterest-automation", element: <PinterestAutomation /> },
@@ -178,52 +179,54 @@ function App() {
   ]);
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <div style={styles.logoContainer}>
-          <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
-        </div>
-        <h1 style={styles.title}>Goopss Dashboard</h1>
-        <div>
-          {user ? (
-            <>
-              <span>Welcome, {selectedCustomer?.store_owner_name.split(' ')[0]}</span>
-              <button style={styles.button} onClick={handleLogout}>
-                Logout
-              </button>
-              {(!selectedCustomer || selectedCustomer.isAdmin) && (
+    <AuthProvider> {/* Wrap the entire app with AuthProvider */}
+      <div style={styles.app}>
+        <header style={styles.header}>
+          <div style={styles.logoContainer}>
+            <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
+          </div>
+          <h1 style={styles.title}>Goopss Dashboard</h1>
+          <div>
+            {user ? (
+              <>
+                <span>Welcome, {selectedCustomer?.store_owner_name.split(' ')[0]}</span>
+                <button style={styles.button} onClick={handleLogout}>
+                  Logout
+                </button>
+                {(!selectedCustomer || selectedCustomer.isAdmin) && (
+                  <button 
+                    style={styles.button} 
+                    onClick={() => setIsAdmin(!isAdmin)}
+                  >
+                    Switch to {isAdmin ? 'User' : 'Admin'} Mode
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button style={styles.button} onClick={() => setIsLoginModalOpen(true)}>
+                  Login
+                </button>
                 <button 
                   style={styles.button} 
                   onClick={() => setIsAdmin(!isAdmin)}
                 >
                   Switch to {isAdmin ? 'User' : 'Admin'} Mode
                 </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button style={styles.button} onClick={() => setIsLoginModalOpen(true)}>
-                Login
-              </button>
-              <button 
-                style={styles.button} 
-                onClick={() => setIsAdmin(!isAdmin)}
-              >
-                Switch to {isAdmin ? 'User' : 'Admin'} Mode
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-      <RouterProvider router={router} />
-      <Modal
-        isOpen={isLoginModalOpen}
-        onRequestClose={() => setIsLoginModalOpen(false)}
-        contentLabel="Login Modal"
-      >
-        <LoginForm onLogin={handleLogin} error={loginError} />
-      </Modal>
-    </div>
+              </>
+            )}
+          </div>
+        </header>
+        <RouterProvider router={router} />
+        <Modal
+          isOpen={isLoginModalOpen}
+          onRequestClose={() => setIsLoginModalOpen(false)}
+          contentLabel="Login Modal"
+        >
+          <LoginForm onLogin={handleLogin} error={loginError} />
+        </Modal>
+      </div>
+    </AuthProvider>
   );
 }
 

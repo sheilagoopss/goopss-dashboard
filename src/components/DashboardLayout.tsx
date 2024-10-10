@@ -1,12 +1,11 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import { useAuth } from '../contexts/AuthContext';  // Add this import
 
-interface DashboardLayoutProps {
-  isAdmin: boolean;
-}
+function DashboardLayout() {
+  const { isAdmin } = useAuth();  // Get isAdmin from AuthContext
 
-function DashboardLayout({ isAdmin }: DashboardLayoutProps) {
   return (
     <div style={{ display: 'flex' }}>
       <Sidebar isAdmin={isAdmin} />
