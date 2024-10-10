@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search } from 'lucide-react';
@@ -14,9 +14,17 @@ interface Customer {
 
 interface EtsyListing {
   id: string;
-  listingID: string;  // Changed from id to listingID
-  listingName: string;  // Changed from title to listingName
+  listingID: string;
+  listingName: string;
   scheduled_post_date?: string;
+}
+
+interface Post {
+  id: string;
+  content: string;
+  date: Date;
+  platform: "facebook" | "instagram" | "both";
+  listingId: string;
 }
 
 export default function Social() {
@@ -26,6 +34,11 @@ export default function Social() {
   const [listings, setListings] = useState<EtsyListing[]>([]);
   const [filteredListings, setFilteredListings] = useState<EtsyListing[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedPlatform, setSelectedPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
+  const [currentListing, setCurrentListing] = useState<EtsyListing | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -62,8 +75,8 @@ export default function Social() {
           const listingsSnapshot = await getDocs(listingsCollection);
           const listingsList = listingsSnapshot.docs.map(doc => ({
             id: doc.id,
-            listingID: doc.data().listingID,  // Use listingID field
-            listingName: doc.data().listingName,  // Use listingName field
+            listingID: doc.data().listingID,
+            listingName: doc.data().listingName,
             scheduled_post_date: doc.data().scheduled_post_date
           } as EtsyListing));
           setListings(listingsList);
@@ -89,6 +102,54 @@ export default function Social() {
     const customer = customers.find(c => c.id === event.target.value);
     setSelectedCustomer(customer || null);
   };
+
+  const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", date: Date) => {
+    const createPost = (plt: "facebook" | "instagram") => ({
+      content: plt === "facebook"
+        ? `Check out our ${listing.listingName}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
+        : `✨ New arrival! ${listing.listingName} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`,
+      date: date,
+      platform: plt,
+      listingId: listing.listingID,
+    });
+
+    try {
+      if (selectedCustomer) {
+        const socialCollection = collection(db, `customers/${selectedCustomer.id}/social`);
+        if (platform === "both") {
+          await addDoc(socialCollection, createPost("facebook"));
+          await addDoc(socialCollection, createPost("instagram"));
+        } else {
+          await addDoc(socialCollection, createPost(platform));
+        }
+        // Refresh posts after adding new ones
+        fetchPosts();
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+    }
+  };
+
+  const fetchPosts = async () => {
+    if (selectedCustomer) {
+      try {
+        const socialCollection = collection(db, `customers/${selectedCustomer.id}/social`);
+        const socialSnapshot = await getDocs(socialCollection);
+        const postsList = socialSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          date: doc.data().date.toDate(),
+        } as Post));
+        setPosts(postsList);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, [selectedCustomer]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
@@ -167,6 +228,7 @@ export default function Social() {
                     <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Scheduled Post Date</th>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,6 +237,24 @@ export default function Social() {
                       <td style={{ padding: '12px' }}>{listing.listingID}</td>
                       <td style={{ padding: '12px' }}>{listing.listingName}</td>
                       <td style={{ padding: '12px' }}>{listing.scheduled_post_date || 'Not scheduled'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <button 
+                          onClick={() => {
+                            setCurrentListing(listing);
+                            setIsDateDialogOpen(true);
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            backgroundColor: '#007bff',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Schedule Post
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -198,7 +278,93 @@ export default function Social() {
         </>
       )}
 
-      {/* Rest of the component */}
+      {isDateDialogOpen && currentListing && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            width: '100%'
+          }}>
+            <h3 style={{ marginBottom: '15px' }}>Choose Publishing Date and Platform</h3>
+            <input 
+              type="date" 
+              value={selectedDate.toISOString().split('T')[0]}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              style={{ marginBottom: '15px', width: '100%', padding: '8px' }}
+            />
+            <div style={{ marginBottom: '15px' }}>
+              <label>
+                <input 
+                  type="radio" 
+                  value="facebook" 
+                  checked={selectedPlatform === "facebook"}
+                  onChange={() => setSelectedPlatform("facebook")}
+                /> Facebook
+              </label>
+              <label style={{ marginLeft: '10px' }}>
+                <input 
+                  type="radio" 
+                  value="instagram" 
+                  checked={selectedPlatform === "instagram"}
+                  onChange={() => setSelectedPlatform("instagram")}
+                /> Instagram
+              </label>
+              <label style={{ marginLeft: '10px' }}>
+                <input 
+                  type="radio" 
+                  value="both" 
+                  checked={selectedPlatform === "both"}
+                  onChange={() => setSelectedPlatform("both")}
+                /> Both
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setIsDateDialogOpen(false)}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#6c757d',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginRight: '10px'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  generatePost(currentListing, selectedPlatform, selectedDate);
+                  setIsDateDialogOpen(false);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#28a745',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Create Post
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
