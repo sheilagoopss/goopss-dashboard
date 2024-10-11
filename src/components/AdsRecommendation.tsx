@@ -87,10 +87,12 @@ const AdsRecommendation: React.FC = () => {
         if (data.listingsData && Array.isArray(data.listingsData)) {
           data.listingsData.forEach((listing: any) => {
             if (parseInt(listing.views) > 0) {
+              // Extract the full-size image URL
+              const fullSizeImageUrl = listing.image.replace('_75x75.', '_1588xN.');
               recommendedListings.push({
                 listingId: listing.listingId,
                 title: listing.title,
-                image: listing.image
+                image: fullSizeImageUrl
               });
             }
           });
@@ -166,16 +168,33 @@ const AdsRecommendation: React.FC = () => {
             <div 
               key={listing.listingId} 
               style={{
-                width: '200px',
+                width: '250px',
                 border: '1px solid #ddd',
                 borderRadius: '8px',
                 overflow: 'hidden',
                 cursor: 'pointer',
-                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
               }}
               onClick={() => handleCardClick(listing.listingId)}
             >
-              <img src={listing.image} alt={listing.title} style={{ width: '100%', height: '150px', objectFit: 'cover' }} />
+              <div style={{ 
+                width: '100%', 
+                height: '250px', 
+                overflow: 'hidden', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center' 
+              }}>
+                <img 
+                  src={listing.image} 
+                  alt={listing.title} 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover',
+                    objectPosition: 'center'
+                  }} 
+                />
+              </div>
               <div style={{ padding: '10px', height: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <h3 style={{ 
                   fontSize: '16px', 
