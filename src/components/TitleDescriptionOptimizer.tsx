@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { optimizeText } from '../services/OptimizationService';
 import BulkOptimizer from './BulkOptimizer';
 import OptimizedResult from './OptimizedResult';
+import { useAuth } from '../contexts/AuthContext';
 
 const styles = {
   container: {
@@ -75,6 +76,7 @@ const styles = {
 };
 
 function TitleDescriptionOptimizer() {
+  const { isAdmin } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storeName, setStoreName] = useState('');
@@ -109,6 +111,8 @@ function TitleDescriptionOptimizer() {
     setOptimizedResult(null);
     setError(null);
   };
+
+  if(!isAdmin) return <div>Title Description Optimizer</div>
 
   return (
     <div style={styles.container}>

@@ -18,6 +18,34 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
   },
+  userInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    marginBottom: '20px',
+  },
+  avatar: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    marginRight: '12px',
+    backgroundColor: '#007bff',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+  },
+  userDetails: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  userName: {
+    fontWeight: 'bold',
+  },
+  userEmail: {
+    fontSize: '14px',
+    color: '#6c757d',
+  },
   link: {
     display: 'block',
     padding: '10px 0',
@@ -47,14 +75,21 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
 
   return (
     <div style={styles.sidebar}>
+      {user && !isAdmin && (
+        <div style={styles.userInfo}>
+          <div style={styles.avatar}>
+            {user.store_owner_name.charAt(0)}
+          </div>
+          <div style={styles.userDetails}>
+            <span style={styles.userName}>{user.store_owner_name}</span>
+            <span style={styles.userEmail}>{user.email}</span>
+          </div>
+        </div>
+      )}
       <Link to="/" style={styles.link}>{isAdmin ? 'Customers' : 'Home'}</Link>
       <Link to="/plan" style={styles.link}>Plan</Link>
-      {isAdmin && (
-        <>
-          <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
-          <Link to="/social-posts" style={styles.link}>Social Posts</Link>
-        </>
-      )}
+      <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
+      <Link to="/social" style={styles.link}>Social</Link>
       <Link to="/design-hub" style={styles.link}>Design Hub</Link>
       <Link to="/etsy-ads-recommendation" style={styles.link}>Etsy Ads Recommendation</Link>
       {isAdmin ? (
@@ -64,7 +99,6 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
         <div>
             {user ? (
               <>
-                <span>Welcome, {user?.store_owner_name.split(' ')[0]}</span>
                 <button style={styles.button} onClick={logout}>
                   Logout
                 </button>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from '../contexts/AuthContext'; // Import the useAuth hook
 
 const styles = {
   container: {
@@ -128,34 +129,20 @@ function PinterestConnectButton({ onConnect }: { onConnect: () => void }) {
 }
 
 function PinterestAutomation() {
+  const { user } = useAuth(); // Get the current user from AuthContext
   const [isPinterestConnected, setIsPinterestConnected] = useState(false);
-  const [stores, setStores] = useState([
-    { id: 1, name: "CraftyCorner", pinterestAccount: "craftycorner" },
-    { id: 2, name: "VintageFinds", pinterestAccount: "vintagefinds2023" },
-  ]);
+  const [stores, setStores] = useState<Array<{ id: number, name: string, pinterestAccount: string }>>([]);
 
-  const [rules, setRules] = useState([
-    {
-      id: 1,
-      name: "Daily Craft Pins",
-      store: "CraftyCorner",
-      board: "Handmade Crafts",
-      frequency: 6,
-      timezone: "America/New_York",
-      images: "main",
-      active: true,
-    },
-    {
-      id: 2,
-      name: "Vintage Kitchen Items",
-      store: "VintageFinds",
-      board: "Retro Collectibles",
-      frequency: 8,
-      timezone: "America/Chicago",
-      images: "all",
-      active: true,
-    },
-  ]);
+  const [rules, setRules] = useState<Array<{
+    id: number,
+    name: string,
+    store: string,
+    board: string,
+    frequency: number,
+    timezone: string,
+    images: string,
+    active: boolean,
+  }>>([]);
 
   const [boards, setBoards] = useState([
     { id: 1, name: "Handmade Crafts" },
@@ -178,6 +165,15 @@ function PinterestAutomation() {
     "Europe/London",
     "Asia/Tokyo",
   ];
+
+  useEffect(() => {
+    // If there's a logged-in user, set their store as the only option
+    if (user) {
+      setStores([
+        { id: 1, name: user.store_name, pinterestAccount: "" }
+      ]);
+    }
+  }, [user]);
 
   const addStore = () => {
     const newStore = {
@@ -269,24 +265,28 @@ function PinterestAutomation() {
             <h2 style={styles.cardTitle}>Automation Rules</h2>
           </div>
           <div style={styles.cardContent}>
-            <div>
-              {rules.map((rule) => (
-                <div key={rule.id} style={styles.storeItem}>
-                  <div>
-                    <p style={styles.storeName}>{rule.name}</p>
-                    <p style={styles.storeAccount}>
-                      {rule.store} → {rule.board} | Every {rule.frequency} hours
-                      | {rule.timezone} | Images:{" "}
-                      {rule.images === "main" ? "Main only" : "All"}
-                    </p>
+            {rules.length > 0 ? (
+              <div>
+                {rules.map((rule) => (
+                  <div key={rule.id} style={styles.storeItem}>
+                    <div>
+                      <p style={styles.storeName}>{rule.name}</p>
+                      <p style={styles.storeAccount}>
+                        {rule.store} → {rule.board} | Every {rule.frequency} hours
+                        | {rule.timezone} | Images:{" "}
+                        {rule.images === "main" ? "Main only" : "All"}
+                      </p>
+                    </div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                      <input type="checkbox" checked={rule.active} readOnly />
+                      <button style={{...styles.button, ...styles.buttonOutline}}>🗑️</button>
+                    </div>
                   </div>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                    <input type="checkbox" checked={rule.active} readOnly />
-                    <button style={{...styles.button, ...styles.buttonOutline}}>🗑️</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p>No automation rules have been set up yet.</p>
+            )}
           </div>
         </div>
 

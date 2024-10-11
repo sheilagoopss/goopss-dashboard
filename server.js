@@ -2,12 +2,54 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const WebSocket = require('ws');
 const path = require('path');
+const OpenAI = require('openai');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Make sure this environment variable is set
+});
+
+// Middleware to parse JSON bodies
+app.use(express.json());
+
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, 'build')));
+
+// New endpoint for generating content
+app.post('/api/generate-content', async (req, res) => {
+  try {
+    const { listing, platform } = req.body;
+    const prompt = `
+      Create a social media post for an Etsy listing with the following details:
+      - Product: ${listing.listingTitle}
+      - Platform: ${platform}
+      - Store Type: Handmade crafts and gifts
+
+      Guidelines:
+      - Keep the tone friendly and engaging
+      - Highlight the unique, handmade aspect of the product
+      - Include relevant hashtags
+      - For Facebook, aim for about 2-3 sentences
+      - For Instagram, keep it shorter and more visual-oriented, with emojis
+
+      The post should encourage users to check out the product and visit the Etsy store.
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 100,
+    });
+
+    res.json({ content: response.choices[0].message.content });
+  } catch (error) {
+    console.error('Error generating content:', error);
+    res.status(500).json({ error: 'Failed to generate content' });
+  }
+});
 
 // Proxy API requests
 app.use(
