@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import './AdsRecommendation.css'; // Make sure this CSS file exists
 
 interface Listing {
   listingId: string;
@@ -15,6 +14,21 @@ interface Customer {
   store_name: string;
   store_owner_name: string;
 }
+
+const styles = {
+  listingCard: {
+    width: '200px',
+    border: '1px solid #ddd',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    cursor: 'pointer',
+    transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+    '&:hover': {
+      transform: 'scale(1.05)',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+    },
+  },
+};
 
 const AdsRecommendation: React.FC = () => {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -151,13 +165,32 @@ const AdsRecommendation: React.FC = () => {
           {listings.map((listing) => (
             <div 
               key={listing.listingId} 
-              className="listing-card"
+              style={{
+                width: '200px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              }}
               onClick={() => handleCardClick(listing.listingId)}
             >
               <img src={listing.image} alt={listing.title} style={{ width: '100%', height: '150px', objectFit: 'cover' }} />
-              <div style={{ padding: '10px' }}>
-                <h3 style={{ fontSize: '16px', marginBottom: '5px' }}>{listing.title}</h3>
-                <p>ID: {listing.listingId}</p>
+              <div style={{ padding: '10px', height: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <h3 style={{ 
+                  fontSize: '16px', 
+                  marginBottom: '5px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  lineHeight: '1.2em',
+                  maxHeight: '2.4em'
+                }}>
+                  {listing.title}
+                </h3>
+                <p style={{ margin: 0 }}>ID: {listing.listingId}</p>
               </div>
             </div>
           ))}

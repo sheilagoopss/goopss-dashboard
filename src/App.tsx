@@ -7,7 +7,7 @@ import { db } from './firebase/config';
 import DashboardLayout from './components/DashboardLayout';
 import TitleDescriptionOptimizer from './components/TitleDescriptionOptimizer';
 import SocialPostCreator from './components/SocialPostCreator';
-import { DesignHub } from './components/DesignHub';
+import DesignHub from './components/DesignHub';
 import CustomersPage from './components/CustomersPage';
 import LoginForm from './components/LoginForm';
 import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component

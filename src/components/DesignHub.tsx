@@ -79,7 +79,8 @@ interface Image {
 
 interface Customer {
   id: string;
-  store_owner_name: string; // Changed from storeName to store_owner_name
+  store_name: string;
+  store_owner_name: string;
 }
 
 const ImageModal = ({ isOpen, onClose, imageUrl, title }: { isOpen: boolean; onClose: () => void; imageUrl: string; title: string }) => (
@@ -302,9 +303,10 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           const customersSnapshot = await getDocs(customersCollection);
           const customersList = customersSnapshot.docs.map(doc => ({
             id: doc.id,
+            store_name: doc.data().store_name,
             store_owner_name: doc.data().store_owner_name,
           }));
-          console.log("Fetched customers:", customersList); // Add this line
+          console.log("Fetched customers:", customersList);
           setCustomers(customersList);
         } catch (error) {
           console.error("Error fetching customers:", error);
@@ -657,53 +659,50 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   return (
     <div style={styles.container}>
-      <h2>Design Hub - {isAdmin ? 'Admin View' : 'User View'}</h2>
-      {isAdmin && (
-        <div style={styles.uploadForm}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2>Design Hub</h2>
+        {isAdmin && (
           <select 
-            value={selectedCustomerId} 
-            onChange={(e) => {
-              console.log("Selected customer ID:", e.target.value);
-              setSelectedCustomerId(e.target.value);
-            }}
-            style={styles.input}
+            value={selectedCustomerId}
+            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
           >
             <option value="">Select a customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
-                {customer.store_owner_name}
+                {customer.store_name} - {customer.store_owner_name}
               </option>
             ))}
           </select>
-          <input 
-            type="file" 
-            onChange={handleFileChange} 
-            accept="image/*" 
-            style={styles.input}
-          />
-          <button 
-            onClick={handleUpload} 
-            style={styles.button}
-            disabled={!selectedFile || (isAdmin && !selectedCustomerId)}
-          >
-            Upload Image
-          </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* File upload form */}
+      <div style={styles.uploadForm}>
+        <input
+          type="file"
+          onChange={handleFileChange}
+          accept="image/*"
+          style={styles.input}
+        />
+        <button onClick={handleUpload} style={styles.button}>Upload</button>
+      </div>
+
+      {/* Filters and controls */}
       <div style={{ marginBottom: '20px' }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
-          <option value="all">All Images</option>
-          <option value="pending">To Approve</option>
-          <option value="revision">For Revision</option>
-          <option value="approved">Approved</option>
-        </select>
         <input
           type="text"
-          placeholder="Search listings..."
+          placeholder="Search by title"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={styles.input}
         />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
+          <option value="all">All</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="revision">Revision</option>
+        </select>
         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={styles.input}>
           <option value="newest">Newest First</option>
           <option value="oldest">Oldest First</option>
@@ -714,6 +713,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           </button>
         )}
       </div>
+
+      {/* Image grid */}
       <div style={styles.imageGrid}>
         {filteredAndSortedImages.map((image) => (
           <div key={image.id}>
@@ -730,6 +731,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           </div>
         ))}
       </div>
+
+      {/* Revision Modal */}
       <Modal
         isOpen={isRevisionModalOpen}
         onRequestClose={() => setIsRevisionModalOpen(false)}
@@ -783,5 +786,4 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   );
 };
 
-// Change the export statement
-export { DesignHub };
+export default DesignHub;

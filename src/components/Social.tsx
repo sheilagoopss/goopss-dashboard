@@ -316,18 +316,17 @@ export default function Social() {
         
         {isAdmin && (
           <select 
-            onChange={handleCustomerSelect}
-            style={{ 
-              width: '200px', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid #ccc' 
+            value={selectedCustomer?.id || ''}
+            onChange={(e) => {
+              const customer = customers.find(c => c.id === e.target.value) || null;
+              setSelectedCustomer(customer);
             }}
+            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
           >
             <option value="">Select a customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
-                {customer.store_owner_name}
+                {customer.store_name} - {customer.store_owner_name}
               </option>
             ))}
           </select>
