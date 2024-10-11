@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, doc, limit, startAfter, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
@@ -43,6 +43,9 @@ export default function Social() {
   const [calendarPosts, setCalendarPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedDatePosts, setSelectedDatePosts] = useState<Post[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const LISTINGS_PER_PAGE = 5;
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -71,19 +74,28 @@ export default function Social() {
     fetchCustomers();
   }, [isAdmin, user]);
 
-  const fetchListings = async () => {
+  const fetchListings = async (pageNumber = 1) => {
     if (selectedCustomer) {
       try {
         const listingsCollection = collection(db, `customers/${selectedCustomer.id}/listings`);
-        const listingsSnapshot = await getDocs(listingsCollection);
+        let q = query(listingsCollection, orderBy('listingID'), limit(LISTINGS_PER_PAGE));
+
+        if (pageNumber > 1 && lastVisible) {
+          q = query(listingsCollection, orderBy('listingID'), startAfter(lastVisible), limit(LISTINGS_PER_PAGE));
+        }
+
+        const listingsSnapshot = await getDocs(q);
         const listingsList = listingsSnapshot.docs.map(doc => ({
           id: doc.id,
           listingID: doc.data().listingID,
           listingTitle: doc.data().listingTitle,
           scheduled_post_date: doc.data().scheduled_post_date
         } as EtsyListing));
+
         setListings(listingsList);
         setFilteredListings(listingsList);
+        setLastVisible(listingsSnapshot.docs[listingsSnapshot.docs.length - 1]);
+        setCurrentPage(pageNumber);
       } catch (error) {
         console.error("Error fetching listings:", error);
       }
@@ -256,6 +268,16 @@ export default function Social() {
     setSelectedDatePosts(posts);
   };
 
+  const handleNextPage = () => {
+    fetchListings(currentPage + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      fetchListings(currentPage - 1);
+    }
+  };
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       {/* Customer selection and info */}
@@ -314,72 +336,55 @@ export default function Social() {
           {/* Listings table */}
           <div style={{ marginBottom: '40px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-              <Search style={{ width: '20px', height: '20px', marginRight: '10px', color: '#666' }} />
+            <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <input
                 type="text"
-                placeholder="Search by Listing ID or Title"
+                placeholder="Search listings..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ccc'
-                }}
+                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
               />
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredListings.slice(0, 5).map((listing) => (
-                    <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                      <td style={{ padding: '12px' }}>{listing.listingID}</td>
-                      <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
-                      <td style={{ padding: '12px' }}>
-                        <button 
-                          onClick={() => {
-                            setCurrentListing(listing);
-                            setIsDateDialogOpen(true);
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            backgroundColor: '#007bff',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Schedule Post
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {filteredListings.length > 5 && (
-              <div style={{ textAlign: 'center', marginTop: '10px' }}>
-                <button style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#007bff',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}>
-                  Load More
-                </button>
+              <div>
+                <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
+                <span>Page {currentPage}</span>
+                <button onClick={handleNextPage} disabled={filteredListings.length < LISTINGS_PER_PAGE} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
               </div>
-            )}
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredListings.map((listing) => (
+                  <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                    <td style={{ padding: '12px' }}>{listing.listingID}</td>
+                    <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
+                    <td style={{ padding: '12px' }}>
+                      <button 
+                        onClick={() => {
+                          setCurrentListing(listing);
+                          setIsDateDialogOpen(true);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          backgroundColor: '#007bff',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Schedule Post
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Calendar and side panel container */}
