@@ -16,6 +16,8 @@ import Plan from './components/Plan';
 import { AuthProvider } from './contexts/AuthContext';
 import Social from './components/Social';
 import AdsRecommendation from './components/AdsRecommendation';
+import CustomersDropdown from './components/CustomersDropdown';
+import SEOListings from './components/SEOListings'; // Add this import
 
 const styles = {
   app: {
@@ -246,79 +248,30 @@ function App() {
           element: (
             <div style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2>Optimized Listings</h2>
+                <h1>SEO Optimizer</h1>
                 {isAdmin && (
-                  <select 
-                    value={selectedCustomer?.id || ''}
-                    onChange={(e) => {
-                      const customer = customers.find(c => c.id === e.target.value) || null;
-                      setSelectedCustomer(customer);
-                      if (customer) {
-                        fetchListings(customer.customer_id);
-                      }
-                    }}
-                    style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
-                  >
-                    <option value="">Select a customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.store_name} - {customer.store_owner_name}
-                      </option>
-                    ))}
-                  </select>
+                  <CustomersDropdown 
+                    customers={customers}
+                    selectedCustomer={selectedCustomer}
+                    setSelectedCustomer={setSelectedCustomer}
+                    isAdmin={isAdmin}
+                  />
                 )}
               </div>
               {isAdmin ? (
-                <div>
-                  <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      placeholder="Search listings..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
+                <>
+                  {selectedCustomer && (
+                    <SEOListings 
+                      customerId={selectedCustomer.customer_id}
+                      storeName={selectedCustomer.store_name}
                     />
-                    <div>
-                      <button onClick={handlePreviousPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
-                      <span>Page {currentPage} of {totalPages}</span>
-                      <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
-                    </div>
-                  </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listings.map((listing) => (
-                        <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                          <td style={{ padding: '12px' }}>{listing.listingId}</td>
-                          <td style={{ padding: '12px' }}>{listing.title}</td>
-                          <td style={{ padding: '12px' }}>
-                            <button 
-                              onClick={() => console.log('Optimize', listing.id)}
-                              style={{
-                                padding: '8px 12px',
-                                backgroundColor: '#007bff',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Optimize
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  )}
+                </>
               ) : (
-                <div>This feature is coming soon!</div>
+                <SEOListings 
+                  customerId={selectedCustomer?.customer_id || ''}
+                  storeName={selectedCustomer?.store_name || ''}
+                />
               )}
             </div>
           )
