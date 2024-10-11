@@ -15,6 +15,7 @@ import PinterestAutomation from './components/PinterestAutomation';
 import Plan from './components/Plan';
 import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 import Social from './components/Social'; // Add this import
+import AdsRecommendation from './components/AdsRecommendation';
 
 const styles = {
   app: {
@@ -180,6 +181,7 @@ function App() {
           />
         },
         { path: "/social", element: <Social /> }, // Add this line
+        { path: "/ads-recommendation", element: <AdsRecommendation /> },
       ],
     },
   ]);

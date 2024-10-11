@@ -91,7 +91,7 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
       <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
       <Link to="/social" style={styles.link}>Social</Link>
       <Link to="/design-hub" style={styles.link}>Design Hub</Link>
-      <Link to="/etsy-ads-recommendation" style={styles.link}>Etsy Ads Recommendation</Link>
+      <Link to="/ads-recommendation" style={styles.link}>Ads Recommendation</Link>
       {isAdmin ? (
         <Link to="/pinterest-automation" style={styles.link}>Pinterest</Link>
       ) : <Link to="/pinterest" style={styles.link}>Pinterest</Link>}
