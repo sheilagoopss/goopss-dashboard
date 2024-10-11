@@ -15,7 +15,7 @@ interface Customer {
 interface EtsyListing {
   id: string;
   listingID: string;
-  listingName: string;
+  listingTitle: string;
   scheduled_post_date?: string;
 }
 
@@ -76,7 +76,7 @@ export default function Social() {
           const listingsList = listingsSnapshot.docs.map(doc => ({
             id: doc.id,
             listingID: doc.data().listingID,
-            listingName: doc.data().listingName,
+            listingTitle: doc.data().listingTitle,
             scheduled_post_date: doc.data().scheduled_post_date
           } as EtsyListing));
           setListings(listingsList);
@@ -93,7 +93,7 @@ export default function Social() {
   useEffect(() => {
     const filtered = listings.filter(listing => 
       listing.listingID.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      listing.listingName.toLowerCase().includes(searchQuery.toLowerCase())
+      listing.listingTitle.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredListings(filtered);
   }, [searchQuery, listings]);
@@ -106,8 +106,8 @@ export default function Social() {
   const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", date: Date) => {
     const createPost = (plt: "facebook" | "instagram") => ({
       content: plt === "facebook"
-        ? `Check out our ${listing.listingName}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
-        : `✨ New arrival! ${listing.listingName} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`,
+        ? `Check out our ${listing.listingTitle}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
+        : `✨ New arrival! ${listing.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`,
       date: date,
       platform: plt,
       listingId: listing.listingID,
@@ -235,7 +235,7 @@ export default function Social() {
                   {filteredListings.slice(0, 5).map((listing) => (
                     <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                       <td style={{ padding: '12px' }}>{listing.listingID}</td>
-                      <td style={{ padding: '12px' }}>{listing.listingName}</td>
+                      <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
                       <td style={{ padding: '12px' }}>{listing.scheduled_post_date || 'Not scheduled'}</td>
                       <td style={{ padding: '12px' }}>
                         <button 
