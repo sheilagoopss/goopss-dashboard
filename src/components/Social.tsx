@@ -3,7 +3,6 @@ import { collection, getDocs, query, where, addDoc, updateDoc, doc, limit, start
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
-import OpenAI from 'openai';
 
 interface Customer {
   id: string;
@@ -27,11 +26,6 @@ interface Post {
   platform: "facebook" | "instagram" | "both";
   listingId: string;
 }
-
-const openai = new OpenAI({
-  apiKey: process.env.REACT_APP_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-});
 
 export default function Social() {
   const { isAdmin, user } = useAuth();
@@ -132,30 +126,21 @@ export default function Social() {
   };
 
   const generateContentWithAI = async (listing: EtsyListing, platform: "facebook" | "instagram") => {
-    const prompt = `
-      Create a social media post for an Etsy listing with the following details:
-      - Product: ${listing.listingTitle}
-      - Platform: ${platform}
-      - Store Type: Handmade crafts and gifts
-
-      Guidelines:
-      - Keep the tone friendly and engaging
-      - Highlight the unique, handmade aspect of the product
-      - Include relevant hashtags
-      - For Facebook, aim for about 2-3 sentences
-      - For Instagram, keep it shorter and more visual-oriented, with emojis
-
-      The post should encourage users to check out the product and visit the Etsy store.
-    `;
-
     try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ listing, platform }),
       });
 
-      return response.choices[0].message.content || '';
+      if (!response.ok) {
+        throw new Error('Failed to generate content');
+      }
+
+      const data = await response.json();
+      return data.content;
     } catch (error) {
       console.error("Error generating content with AI:", error);
       return platform === "facebook"
