@@ -2,13 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
+import './AdsRecommendation.css'; // Make sure this CSS file exists
 
 interface Listing {
   listingId: string;
   title: string;
   image: string;
-  link: string;
-  views: string;
+}
+
+interface Customer {
+  id: string;
+  store_name: string;
+  store_owner_name: string;
 }
 
 const AdsRecommendation: React.FC = () => {
@@ -16,12 +21,12 @@ const AdsRecommendation: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isAdmin } = useAuth();
-  const [selectedStore, setSelectedStore] = useState<string>('');
-  const [stores, setStores] = useState<string[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
-      fetchStores();
+      fetchCustomers();
     } else if (user?.store_name) {
       console.log("User store name:", user.store_name);
       fetchListings(user.store_name);
@@ -31,14 +36,20 @@ const AdsRecommendation: React.FC = () => {
     }
   }, [isAdmin, user]);
 
-  const fetchStores = async () => {
+  const fetchCustomers = async () => {
     try {
-      const storesSnapshot = await getDocs(collection(db, 'customers'));
-      const storeNames = storesSnapshot.docs.map(doc => doc.data().store_name);
-      setStores(storeNames);
+      const customersCollection = collection(db, 'customers');
+      const customersSnapshot = await getDocs(customersCollection);
+      const customersList = customersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Customer));
+      setCustomers(customersList);
+      setLoading(false);
     } catch (err) {
-      console.error('Error fetching stores:', err);
-      setError('Failed to fetch stores');
+      console.error('Error fetching customers:', err);
+      setError('Failed to fetch customers');
+      setLoading(false);
     }
   };
 
@@ -65,9 +76,7 @@ const AdsRecommendation: React.FC = () => {
               recommendedListings.push({
                 listingId: listing.listingId,
                 title: listing.title,
-                image: listing.image,
-                link: listing.link,
-                views: listing.views
+                image: listing.image
               });
             }
           });
@@ -84,46 +93,71 @@ const AdsRecommendation: React.FC = () => {
     }
   };
 
-  const handleStoreSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const storeName = event.target.value;
-    setSelectedStore(storeName);
-    fetchListings(storeName);
+  const handleCustomerSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const customerId = event.target.value;
+    const customer = customers.find(c => c.id === customerId) || null;
+    setSelectedCustomer(customer);
+    if (customer) {
+      fetchListings(customer.store_name);
+    } else {
+      setListings([]);
+    }
   };
 
-  if (loading) return <div>Loading...</div>;
+  const getEtsyListingUrl = (storeName: string, listingId: string) => {
+    return `https://${storeName}.etsy.com/listing/${listingId}`;
+  };
+
+  const handleCardClick = (listingId: string) => {
+    const storeName = isAdmin ? selectedCustomer?.store_name : user?.store_name;
+    if (storeName) {
+      const url = getEtsyListingUrl(storeName, listingId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  if (loading && !isAdmin) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <div style={{ padding: '20px' }}>
-      <h1>Ads Recommendation</h1>
-      
-      {isAdmin && (
-        <select value={selectedStore} onChange={handleStoreSelect}>
-          <option value="">Select a store</option>
-          {stores.map((store) => (
-            <option key={store} value={store}>{store}</option>
-          ))}
-        </select>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1>Ads Recommendation</h1>
+        
+        {isAdmin && (
+          <select 
+            value={selectedCustomer?.id || ''} 
+            onChange={handleCustomerSelect}
+            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
+          >
+            <option value="">Select a customer</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.store_name} - {customer.store_owner_name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
 
       {!isAdmin && user && (
         <p>Store: {user.store_name}</p>
       )}
 
       {listings.length === 0 ? (
-        <p>No recommended listings found.</p>
+        <p>{isAdmin && !selectedCustomer ? "Please select a customer to view listings." : "No recommended listings found."}</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '20px' }}>
           {listings.map((listing) => (
-            <div key={listing.listingId} style={{ width: '200px', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
+            <div 
+              key={listing.listingId} 
+              className="listing-card"
+              onClick={() => handleCardClick(listing.listingId)}
+            >
               <img src={listing.image} alt={listing.title} style={{ width: '100%', height: '150px', objectFit: 'cover' }} />
               <div style={{ padding: '10px' }}>
                 <h3 style={{ fontSize: '16px', marginBottom: '5px' }}>{listing.title}</h3>
                 <p>ID: {listing.listingId}</p>
-                <p>Views: {listing.views}</p>
-                <a href={listing.link} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: '10px', textDecoration: 'none', color: '#007bff' }}>
-                  View on Etsy
-                </a>
               </div>
             </div>
           ))}
