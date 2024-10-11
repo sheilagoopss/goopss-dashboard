@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { collection, getDocs, DocumentData, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, DocumentData, doc, getDoc, query, where, limit, startAfter, orderBy } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import Modal from 'react-modal';
 import { db } from './firebase/config';
@@ -72,6 +72,13 @@ interface Customer {
   email: string; // Add this field
 }
 
+interface Listing {
+  id: string;
+  listingId: string;
+  title: string;
+  description: string;
+}
+
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -79,6 +86,12 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const LISTINGS_PER_PAGE = 5;
+  const [searchQuery, setSearchQuery] = useState('');
 
   const auth = getAuth();
 
@@ -127,37 +140,96 @@ function App() {
     fetchCustomers();
   }, []);
 
+  const openLoginModal = () => setIsLoginModalOpen(true);
+
   const handleLogin = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setIsLoginModalOpen(false);
       setLoginError(null);
     } catch (error) {
-      setLoginError('Invalid email or password');
+      console.error("Error signing in: ", error);
+      setLoginError("Invalid email or password");
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setSelectedCustomer(null);
-      setIsAdmin(false);
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out: ", error);
     }
   };
 
-  const openLoginModal = () => {
-    setIsLoginModalOpen(true);
+  const fetchListings = async (customerId: string, page: number = 1) => {
+    if (!customerId) return;
+
+    try {
+      const listingsRef = collection(db, 'listings');
+      let q = query(
+        listingsRef,
+        where('customer_id', '==', customerId),
+        orderBy('listingId'),
+        limit(LISTINGS_PER_PAGE)
+      );
+
+      if (page > 1 && lastVisible) {
+        q = query(
+          listingsRef,
+          where('customer_id', '==', customerId),
+          orderBy('listingId'),
+          startAfter(lastVisible),
+          limit(LISTINGS_PER_PAGE)
+        );
+      }
+
+      const querySnapshot = await getDocs(q);
+      const fetchedListings: Listing[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedListings.push({ id: doc.id, ...doc.data() } as Listing);
+      });
+
+      setListings(fetchedListings);
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+      setCurrentPage(page);
+
+      // Calculate total pages
+      const totalQuery = query(listingsRef, where('customer_id', '==', customerId));
+      const totalSnapshot = await getDocs(totalQuery);
+      setTotalPages(Math.ceil(totalSnapshot.size / LISTINGS_PER_PAGE));
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      fetchListings(selectedCustomer?.customer_id || '', currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      fetchListings(selectedCustomer?.customer_id || '', currentPage - 1);
+    }
   };
 
   const router = createBrowserRouter([
     {
       path: "/",
-      element: <DashboardLayout openLoginModal={openLoginModal} />,
+      element: <DashboardLayout openLoginModal={openLoginModal} />, // Remove toggleAdminMode prop
       children: [
         { 
           path: "/", 
+          element: <CustomersPage 
+            customers={isAdmin ? customers : [selectedCustomer].filter(Boolean) as Customer[]} 
+            selectedCustomer={selectedCustomer} 
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={isAdmin}
+          /> 
+        },
+        { 
+          path: "/customers", 
           element: <CustomersPage 
             customers={isAdmin ? customers : [selectedCustomer].filter(Boolean) as Customer[]} 
             selectedCustomer={selectedCustomer} 
@@ -169,9 +241,90 @@ function App() {
             selectedCustomer={selectedCustomer} 
             setSelectedCustomer={setSelectedCustomer} /> },
         { path: "/social-posts", element: <SocialPostCreator /> },
-        { path: "/listing-optimizer", element: <TitleDescriptionOptimizer /> },
+        { 
+          path: "/seo",
+          element: (
+            <div style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2>Optimized Listings</h2>
+                {isAdmin && (
+                  <select 
+                    value={selectedCustomer?.id || ''}
+                    onChange={(e) => {
+                      const customer = customers.find(c => c.id === e.target.value) || null;
+                      setSelectedCustomer(customer);
+                      if (customer) {
+                        fetchListings(customer.customer_id);
+                      }
+                    }}
+                    style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
+                  >
+                    <option value="">Select a customer</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.store_name} - {customer.store_owner_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {isAdmin ? (
+                <div>
+                  <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="Search listings..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
+                    />
+                    <div>
+                      <button onClick={handlePreviousPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
+                      <span>Page {currentPage} of {totalPages}</span>
+                      <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                        <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
+                        <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
+                        <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {listings.map((listing) => (
+                        <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '12px' }}>{listing.listingId}</td>
+                          <td style={{ padding: '12px' }}>{listing.title}</td>
+                          <td style={{ padding: '12px' }}>
+                            <button 
+                              onClick={() => console.log('Optimize', listing.id)}
+                              style={{
+                                padding: '8px 12px',
+                                backgroundColor: '#007bff',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Optimize
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div>This feature is coming soon!</div>
+              )}
+            </div>
+          )
+        },
         { path: "/pinterest-automation", element: <PinterestAutomation /> },
-        { path: "/pinterest", element: <div>Pinterest</div> },
+        { path: "/pinterest", element: <PinterestAutomation /> },
         { path: "/design-hub", element: <DesignHub customerId={selectedCustomer?.customer_id || ''} isAdmin={isAdmin} /> },
         { 
           path: "/etsy-ads-recommendation", 
@@ -180,7 +333,7 @@ function App() {
             isAdmin={isAdmin} 
           />
         },
-        { path: "/social", element: <Social /> }, // Add this line
+        { path: "/social", element: <Social /> },
         { path: "/ads-recommendation", element: <AdsRecommendation /> },
       ],
     },
