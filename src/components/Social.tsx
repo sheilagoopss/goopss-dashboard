@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, ChevronLeft, ChevronRight, Facebook, Instagram } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -41,6 +41,7 @@ export default function Social() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarPosts, setCalendarPosts] = useState<Post[]>([]);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -230,7 +231,12 @@ export default function Social() {
         <div key={`day-${day}`} className="calendar-day">
           <div className="day-number">{day}</div>
           {postsForDay.map(post => (
-            <div key={post.id} className={`post-indicator ${post.platform}`}>
+            <div 
+              key={post.id} 
+              className={`post-indicator ${post.platform}`}
+              onClick={() => setSelectedPost(post)}
+              style={{ cursor: 'pointer' }}
+            >
               {post.platform === 'facebook' ? <Facebook size={12} /> : <Instagram size={12} />}
             </div>
           ))}
@@ -473,6 +479,33 @@ export default function Social() {
                 Create Post
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedPost && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: '300px',
+          backgroundColor: 'white',
+          boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
+          padding: '20px',
+          overflowY: 'auto'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3>Post Details</h3>
+            <button onClick={() => setSelectedPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+          </div>
+          <div>
+            <p><strong>Date:</strong> {selectedPost.date.toLocaleDateString()}</p>
+            <p><strong>Platform:</strong> {selectedPost.platform}</p>
+            <p><strong>Content:</strong></p>
+            <p>{selectedPost.content}</p>
           </div>
         </div>
       )}

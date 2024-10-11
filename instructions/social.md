@@ -31,9 +31,7 @@ The Social Calendar App is designed for marketing teams to create and manage soc
 - Implement drag-and-drop functionality to reschedule posts
 
 ### 5. Upcoming Posts List
-- Show a scrollable list of upcoming posts
-- Display post date, platform, and content preview
-- Sort posts by date
+- When an indicator on the social calendar is clicked, it should open a dialog to display the post date, platform, and content preview on the right side of the screen.
 
 ## Sample Code to use but ignore the UI imports for now and just use the logic
 
