@@ -2,7 +2,7 @@
 
 The Listing Optimizer provides a user-friendly interface for administrators to view, search, and optimize product listings from various Etsy stores. It uses openAI to suggest improved titles and descriptions, enhancing the overall quality of product listings.
 
-## Features and Requirements
+## Core Functionalities
 
 ### 1. Store Selection
 - Provide a dropdown menu to select from available stores

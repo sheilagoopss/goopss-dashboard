@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Facebook, Instagram } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -39,6 +39,8 @@ export default function Social() {
   const [selectedPlatform, setSelectedPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
   const [currentListing, setCurrentListing] = useState<EtsyListing | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [calendarPosts, setCalendarPosts] = useState<Post[]>([]);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -67,26 +69,26 @@ export default function Social() {
     fetchCustomers();
   }, [isAdmin, user]);
 
-  useEffect(() => {
-    const fetchListings = async () => {
-      if (selectedCustomer) {
-        try {
-          const listingsCollection = collection(db, `customers/${selectedCustomer.id}/listings`);
-          const listingsSnapshot = await getDocs(listingsCollection);
-          const listingsList = listingsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            listingID: doc.data().listingID,
-            listingTitle: doc.data().listingTitle,
-            scheduled_post_date: doc.data().scheduled_post_date
-          } as EtsyListing));
-          setListings(listingsList);
-          setFilteredListings(listingsList);
-        } catch (error) {
-          console.error("Error fetching listings:", error);
-        }
+  const fetchListings = async () => {
+    if (selectedCustomer) {
+      try {
+        const listingsCollection = collection(db, `customers/${selectedCustomer.id}/listings`);
+        const listingsSnapshot = await getDocs(listingsCollection);
+        const listingsList = listingsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          listingID: doc.data().listingID,
+          listingTitle: doc.data().listingTitle,
+          scheduled_post_date: doc.data().scheduled_post_date
+        } as EtsyListing));
+        setListings(listingsList);
+        setFilteredListings(listingsList);
+      } catch (error) {
+        console.error("Error fetching listings:", error);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     fetchListings();
   }, [selectedCustomer]);
 
@@ -97,6 +99,12 @@ export default function Social() {
     );
     setFilteredListings(filtered);
   }, [searchQuery, listings]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchPostsForMonth(currentMonth);
+    }
+  }, [selectedCustomer, currentMonth]);
 
   const handleCustomerSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const customer = customers.find(c => c.id === event.target.value);
@@ -122,8 +130,14 @@ export default function Social() {
         } else {
           await addDoc(socialCollection, createPost(platform));
         }
-        // Refresh posts after adding new ones
+
+        // Update the scheduled_post_date in the listing
+        const listingRef = doc(db, `customers/${selectedCustomer.id}/listings`, listing.id);
+        await updateDoc(listingRef, { scheduled_post_date: date.toISOString() });
+
+        // Refresh posts and listings after adding new ones
         fetchPosts();
+        fetchListings();
       }
     } catch (error) {
       console.error("Error creating post:", error);
@@ -151,7 +165,71 @@ export default function Social() {
     fetchPosts();
   }, [selectedCustomer]);
 
-  if(!isAdmin) return <div>Social</div>
+  const fetchPostsForMonth = async (month: Date) => {
+    if (!selectedCustomer) return;
+
+    const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+    const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+
+    try {
+      const postsRef = collection(db, 'customers', selectedCustomer.id, 'social');
+      const q = query(
+        postsRef,
+        where('date', '>=', startOfMonth),
+        where('date', '<=', endOfMonth)
+      );
+      const querySnapshot = await getDocs(q);
+      const fetchedPosts = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date.toDate() // Convert Firestore Timestamp to JavaScript Date
+        } as Post;
+      });
+      setCalendarPosts(fetchedPosts);
+    } catch (error) {
+      console.error("Error fetching posts for calendar:", error);
+    }
+  };
+
+  const prevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const renderCalendar = () => {
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+
+    const calendarDays = [];
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      calendarDays.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+      const postsForDay = calendarPosts.filter(post => 
+        post.date.toDateString() === date.toDateString()
+      );
+
+      calendarDays.push(
+        <div key={`day-${day}`} className="calendar-day">
+          <div className="day-number">{day}</div>
+          {postsForDay.map(post => (
+            <div key={post.id} className={`post-indicator ${post.platform}`}>
+              {post.platform === 'facebook' ? <Facebook size={12} /> : <Instagram size={12} />}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return calendarDays;
+  };
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
@@ -276,6 +354,29 @@ export default function Social() {
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="calendar-view" style={{ marginTop: '40px' }}>
+            <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <ChevronLeft size={16} />
+              </button>
+              <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+              <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="calendar-grid" style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(7, 1fr)', 
+              gap: '8px',
+              gridAutoRows: 'minmax(100px, auto)'
+            }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>
+              ))}
+              {renderCalendar()}
+            </div>
           </div>
         </>
       )}
