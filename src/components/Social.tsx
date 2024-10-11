@@ -249,6 +249,7 @@ export default function Social() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+      {/* Customer selection and info */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -279,6 +280,7 @@ export default function Social() {
 
       {selectedCustomer && (
         <>
+          {/* Customer info */}
           <div style={{ 
             backgroundColor: 'white', 
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
@@ -300,7 +302,8 @@ export default function Social() {
             </div>
           </div>
 
-          <div style={{ marginTop: '20px' }}>
+          {/* Listings table */}
+          <div style={{ marginBottom: '40px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
               <Search style={{ width: '20px', height: '20px', marginRight: '10px', color: '#666' }} />
@@ -370,31 +373,80 @@ export default function Social() {
             )}
           </div>
 
-          <div className="calendar-view" style={{ marginTop: '40px' }}>
-            <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                <ChevronLeft size={16} />
-              </button>
-              <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
-              <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                <ChevronRight size={16} />
-              </button>
+          {/* Calendar and side panel container */}
+          <div style={{ display: 'flex', gap: '20px' }}>
+            {/* Calendar view */}
+            <div style={{ flex: 1 }}>
+              <div className="calendar-view">
+                <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+                  <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                <div className="calendar-grid" style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(7, 1fr)', 
+                  gap: '8px',
+                  gridAutoRows: 'minmax(100px, auto)'
+                }}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>
+                  ))}
+                  {renderCalendar()}
+                </div>
+              </div>
             </div>
-            <div className="calendar-grid" style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(7, 1fr)', 
-              gap: '8px',
-              gridAutoRows: 'minmax(100px, auto)'
+
+            {/* Side panel */}
+            <div style={{
+              width: '300px',
+              backgroundColor: 'white',
+              boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
+              padding: '20px',
+              overflowY: 'auto',
+              height: 'calc(100vh - 40px)',
+              position: 'sticky',
+              top: '20px'
             }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>
-              ))}
-              {renderCalendar()}
+              <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 'bold' }}>
+                {selectedPost ? 'Post Details' : 'Upcoming Posts'}
+              </h3>
+              {selectedPost ? (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                    <button onClick={() => setSelectedPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <p><strong>Date:</strong> {selectedPost.date.toLocaleDateString()}</p>
+                  <p><strong>Platform:</strong> {selectedPost.platform}</p>
+                  <p><strong>Content:</strong></p>
+                  <p>{selectedPost.content}</p>
+                </div>
+              ) : (
+                <div>
+                  {calendarPosts.length > 0 ? (
+                    calendarPosts.map((post) => (
+                      <div key={post.id} style={{ marginBottom: '15px', cursor: 'pointer' }} onClick={() => setSelectedPost(post)}>
+                        <p><strong>{post.date.toLocaleDateString()}</strong></p>
+                        <p>{post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />} {post.content.substring(0, 50)}...</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No upcoming posts for this month.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </>
       )}
 
+      {/* Date dialog */}
       {isDateDialogOpen && currentListing && (
         <div style={{
           position: 'fixed',
@@ -479,33 +531,6 @@ export default function Social() {
                 Create Post
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {selectedPost && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: '300px',
-          backgroundColor: 'white',
-          boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
-          padding: '20px',
-          overflowY: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3>Post Details</h3>
-            <button onClick={() => setSelectedPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              <X size={20} />
-            </button>
-          </div>
-          <div>
-            <p><strong>Date:</strong> {selectedPost.date.toLocaleDateString()}</p>
-            <p><strong>Platform:</strong> {selectedPost.platform}</p>
-            <p><strong>Content:</strong></p>
-            <p>{selectedPost.content}</p>
           </div>
         </div>
       )}
