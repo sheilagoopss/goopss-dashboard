@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, addDoc, updateDoc, doc, limit, start
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
+import OpenAI from 'openai';
 
 interface Customer {
   id: string;
@@ -26,6 +27,11 @@ interface Post {
   platform: "facebook" | "instagram" | "both";
   listingId: string;
 }
+
+const openai = new OpenAI({
+  apiKey: process.env.REACT_APP_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true
+});
 
 export default function Social() {
   const { isAdmin, user } = useAuth();
@@ -125,11 +131,42 @@ export default function Social() {
     setSelectedCustomer(customer || null);
   };
 
-  const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", date: Date) => {
-    const createPost = (plt: "facebook" | "instagram") => ({
-      content: plt === "facebook"
+  const generateContentWithAI = async (listing: EtsyListing, platform: "facebook" | "instagram") => {
+    const prompt = `
+      Create a social media post for an Etsy listing with the following details:
+      - Product: ${listing.listingTitle}
+      - Platform: ${platform}
+      - Store Type: Handmade crafts and gifts
+
+      Guidelines:
+      - Keep the tone friendly and engaging
+      - Highlight the unique, handmade aspect of the product
+      - Include relevant hashtags
+      - For Facebook, aim for about 2-3 sentences
+      - For Instagram, keep it shorter and more visual-oriented, with emojis
+
+      The post should encourage users to check out the product and visit the Etsy store.
+    `;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 100,
+      });
+
+      return response.choices[0].message.content || '';
+    } catch (error) {
+      console.error("Error generating content with AI:", error);
+      return platform === "facebook"
         ? `Check out our ${listing.listingTitle}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
-        : `✨ New arrival! ${listing.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`,
+        : `✨ New arrival! ${listing.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`;
+    }
+  };
+
+  const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", date: Date) => {
+    const createPost = async (plt: "facebook" | "instagram") => ({
+      content: await generateContentWithAI(listing, plt),
       date: date,
       platform: plt,
       listingId: listing.listingID,
@@ -141,15 +178,18 @@ export default function Social() {
         let newPosts: Post[] = [];
 
         if (platform === "both") {
-          const fbDoc = await addDoc(socialCollection, createPost("facebook"));
-          const igDoc = await addDoc(socialCollection, createPost("instagram"));
+          const fbPost = await createPost("facebook");
+          const igPost = await createPost("instagram");
+          const fbDoc = await addDoc(socialCollection, fbPost);
+          const igDoc = await addDoc(socialCollection, igPost);
           newPosts = [
-            { id: fbDoc.id, ...createPost("facebook") },
-            { id: igDoc.id, ...createPost("instagram") }
+            { id: fbDoc.id, ...fbPost },
+            { id: igDoc.id, ...igPost }
           ];
         } else {
-          const doc = await addDoc(socialCollection, createPost(platform));
-          newPosts = [{ id: doc.id, ...createPost(platform) }];
+          const post = await createPost(platform);
+          const doc = await addDoc(socialCollection, post);
+          newPosts = [{ id: doc.id, ...post }];
         }
 
         // Update the scheduled_post_date in the listing
