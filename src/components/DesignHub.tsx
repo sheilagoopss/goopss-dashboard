@@ -282,7 +282,7 @@ const DesignCard = ({ image, onApprove, onRevise, onSelect, isSelected, showChec
 const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [images, setImages] = useState<Record<string, Image[]>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('revision');
   const [selectedDesigns, setSelectedDesigns] = useState(new Set<string>());
   const [sortOrder, setSortOrder] = useState('newest');
   const [customers, setCustomers] = useState<Customer[]>([]);
