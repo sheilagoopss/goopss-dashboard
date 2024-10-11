@@ -35,13 +35,14 @@ export default function Social() {
   const [filteredListings, setFilteredListings] = useState<EtsyListing[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
   const [currentListing, setCurrentListing] = useState<EtsyListing | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarPosts, setCalendarPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [selectedDatePosts, setSelectedDatePosts] = useState<Post[]>([]);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -228,14 +229,17 @@ export default function Social() {
       );
 
       calendarDays.push(
-        <div key={`day-${day}`} className="calendar-day">
+        <div 
+          key={`day-${day}`} 
+          className="calendar-day"
+          onClick={() => handleDateClick(date, postsForDay)}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="day-number">{day}</div>
           {postsForDay.map(post => (
             <div 
               key={post.id} 
               className={`post-indicator ${post.platform}`}
-              onClick={() => setSelectedPost(post)}
-              style={{ cursor: 'pointer' }}
             >
               {post.platform === 'facebook' ? <Facebook size={12} /> : <Instagram size={12} />}
             </div>
@@ -245,6 +249,11 @@ export default function Social() {
     }
 
     return calendarDays;
+  };
+
+  const handleDateClick = (date: Date, posts: Post[]) => {
+    setSelectedDate(date);
+    setSelectedDatePosts(posts);
   };
 
   return (
@@ -413,33 +422,25 @@ export default function Social() {
               top: '20px'
             }}>
               <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 'bold' }}>
-                {selectedPost ? 'Post Details' : 'Upcoming Posts'}
+                {selectedDate ? `Posts for ${selectedDate.toLocaleDateString()}` : 'Select a date to view posts'}
               </h3>
-              {selectedPost ? (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-                    <button onClick={() => setSelectedPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                      <X size={20} />
-                    </button>
-                  </div>
-                  <p><strong>Date:</strong> {selectedPost.date.toLocaleDateString()}</p>
-                  <p><strong>Platform:</strong> {selectedPost.platform}</p>
-                  <p><strong>Content:</strong></p>
-                  <p>{selectedPost.content}</p>
-                </div>
-              ) : (
-                <div>
-                  {calendarPosts.length > 0 ? (
-                    calendarPosts.map((post) => (
-                      <div key={post.id} style={{ marginBottom: '15px', cursor: 'pointer' }} onClick={() => setSelectedPost(post)}>
-                        <p><strong>{post.date.toLocaleDateString()}</strong></p>
-                        <p>{post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />} {post.content.substring(0, 50)}...</p>
+              {selectedDate ? (
+                selectedDatePosts.length > 0 ? (
+                  selectedDatePosts.map(post => (
+                    <div key={post.id} style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                        {post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />}
+                        <span style={{ marginLeft: '5px', fontWeight: 'bold' }}>{post.platform}</span>
                       </div>
-                    ))
-                  ) : (
-                    <p>No upcoming posts for this month.</p>
-                  )}
-                </div>
+                      <p><strong>Content:</strong></p>
+                      <p>{post.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p>No posts scheduled for this date.</p>
+                )
+              ) : (
+                <p>Click on a date in the calendar to view its posts.</p>
               )}
             </div>
           </div>
@@ -469,7 +470,7 @@ export default function Social() {
             <h3 style={{ marginBottom: '15px' }}>Choose Publishing Date and Platform</h3>
             <input 
               type="date" 
-              value={selectedDate.toISOString().split('T')[0]}
+              value={selectedDate?.toISOString().split('T')[0]}
               onChange={(e) => setSelectedDate(new Date(e.target.value))}
               style={{ marginBottom: '15px', width: '100%', padding: '8px' }}
             />
@@ -516,7 +517,7 @@ export default function Social() {
               </button>
               <button 
                 onClick={() => {
-                  generatePost(currentListing, selectedPlatform, selectedDate);
+                  generatePost(currentListing, selectedPlatform, selectedDate!);
                   setIsDateDialogOpen(false);
                 }}
                 style={{
