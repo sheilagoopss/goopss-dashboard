@@ -88,12 +88,8 @@ function Sidebar({ isOpen, isAdmin, openLoginModal }: SidebarProps) {
       )}
       <Link to="/" style={styles.link}>{isAdmin ? 'Customers' : 'Home'}</Link>
       <Link to="/plan" style={styles.link}>Plan</Link>
-      {isAdmin && (
-        <>
-          <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
-          <Link to="/social" style={styles.link}>Social</Link>
-        </>
-      )}
+      <Link to="/listing-optimizer" style={styles.link}>SEO</Link>
+      <Link to="/social" style={styles.link}>Social</Link>
       <Link to="/design-hub" style={styles.link}>Design Hub</Link>
       <Link to="/etsy-ads-recommendation" style={styles.link}>Etsy Ads Recommendation</Link>
       {isAdmin ? (

@@ -151,6 +151,8 @@ export default function Social() {
     fetchPosts();
   }, [selectedCustomer]);
 
+  if(!isAdmin) return <div>Social</div>
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       <div style={{ 
