@@ -35,7 +35,7 @@ The Social Calendar App is designed for marketing teams to create and manage soc
 - Display post date, platform, and content preview
 - Sort posts by date
 
-## Sample Code to use
+## Sample Code to use but ignore the UI imports for now and just use the logic
 
 "use client"
 

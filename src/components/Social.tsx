@@ -104,7 +104,7 @@ export default function Social() {
     if (selectedCustomer) {
       fetchPostsForMonth(currentMonth);
     }
-  }, [selectedCustomer, currentMonth]);
+  }, [selectedCustomer, currentMonth, posts]);
 
   const handleCustomerSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const customer = customers.find(c => c.id === event.target.value);
@@ -124,19 +124,29 @@ export default function Social() {
     try {
       if (selectedCustomer) {
         const socialCollection = collection(db, `customers/${selectedCustomer.id}/social`);
+        let newPosts: Post[] = [];
+
         if (platform === "both") {
-          await addDoc(socialCollection, createPost("facebook"));
-          await addDoc(socialCollection, createPost("instagram"));
+          const fbDoc = await addDoc(socialCollection, createPost("facebook"));
+          const igDoc = await addDoc(socialCollection, createPost("instagram"));
+          newPosts = [
+            { id: fbDoc.id, ...createPost("facebook") },
+            { id: igDoc.id, ...createPost("instagram") }
+          ];
         } else {
-          await addDoc(socialCollection, createPost(platform));
+          const doc = await addDoc(socialCollection, createPost(platform));
+          newPosts = [{ id: doc.id, ...createPost(platform) }];
         }
 
         // Update the scheduled_post_date in the listing
         const listingRef = doc(db, `customers/${selectedCustomer.id}/listings`, listing.id);
         await updateDoc(listingRef, { scheduled_post_date: date.toISOString() });
 
-        // Refresh posts and listings after adding new ones
-        fetchPosts();
+        // Update local state
+        setPosts(prevPosts => [...prevPosts, ...newPosts]);
+        setCalendarPosts(prevPosts => [...prevPosts, ...newPosts]);
+
+        // Refresh listings
         fetchListings();
       }
     } catch (error) {
@@ -307,7 +317,6 @@ export default function Social() {
                   <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Scheduled Post Date</th>
                     <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
                   </tr>
                 </thead>
@@ -316,7 +325,6 @@ export default function Social() {
                     <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                       <td style={{ padding: '12px' }}>{listing.listingID}</td>
                       <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
-                      <td style={{ padding: '12px' }}>{listing.scheduled_post_date || 'Not scheduled'}</td>
                       <td style={{ padding: '12px' }}>
                         <button 
                           onClick={() => {
