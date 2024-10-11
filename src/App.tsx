@@ -7,14 +7,14 @@ import { db } from './firebase/config';
 import DashboardLayout from './components/DashboardLayout';
 import TitleDescriptionOptimizer from './components/TitleDescriptionOptimizer';
 import SocialPostCreator from './components/SocialPostCreator';
-import DesignHub from './components/DesignHub';
+import { DesignHub } from './components/DesignHub'; // Updated import
 import CustomersPage from './components/CustomersPage';
 import LoginForm from './components/LoginForm';
-import EtsyAdsRecommendation from './components/EtsyAdsRecommendation'; // You'll need to create this component
+import EtsyAdsRecommendation from './components/EtsyAdsRecommendation';
 import PinterestAutomation from './components/PinterestAutomation';
 import Plan from './components/Plan';
-import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
-import Social from './components/Social'; // Add this import
+import { AuthProvider } from './contexts/AuthContext';
+import Social from './components/Social';
 import AdsRecommendation from './components/AdsRecommendation';
 
 const styles = {
