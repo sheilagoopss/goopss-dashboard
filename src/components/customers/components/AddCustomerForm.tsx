@@ -1,24 +1,24 @@
-import React from "react";
-import { v4 } from "uuid";
-import { Form, Input, Select, Button, DatePicker, Row, Col } from "antd";
-import { StoreOwner } from "../types";
+import { Form, Input, Select, Button, Row, Col, InputNumber } from "antd";
+import { Customer } from "../../../types/Customer";
+import dayjs from "dayjs";
 
 const { Option } = Select;
 
 interface AddCustomerFormProps {
-  onAddCustomer: (customer: StoreOwner) => void;
+  onAddCustomer: (customer: Customer) => void;
+  isCreating: boolean;
 }
 
 export default function AddCustomerForm({
   onAddCustomer,
+  isCreating,
 }: AddCustomerFormProps) {
   const [form] = Form.useForm();
 
   const handleSubmit = (values: any) => {
-    const newCustomer: StoreOwner = {
-      id: v4(),
+    const newCustomer: Customer = {
       ...values,
-      date_joined: values.date_joined.format("YYYY-MM-DD"),
+      date_joined: dayjs().format("YYYY-MM-DD"),
     };
     onAddCustomer(newCustomer);
     form.resetFields();
@@ -28,7 +28,6 @@ export default function AddCustomerForm({
     <Form form={form} onFinish={handleSubmit} layout="vertical">
       <Row gutter={[16, 6]}>
         <Col span={12}>
-          {" "}
           <Form.Item
             name="store_name"
             label="Store Name"
@@ -58,39 +57,41 @@ export default function AddCustomerForm({
       <Form.Item name="phone" label="Phone">
         <Input />
       </Form.Item>
-      <Form.Item
-        name="date_joined"
-        label="Date Joined"
-        rules={[{ required: true }]}
-      >
-        <DatePicker />
-      </Form.Item>
-      <Form.Item
-        name="package_type"
-        label="Package Type"
-        rules={[{ required: true }]}
-      >
-        <Select>
-          <Option value="Social">Social</Option>
-          <Option value="Maintenance">Maintenance</Option>
-          <Option value="Extended Maintenance">Extended Maintenance</Option>
-          <Option value="Accelerator - Basic">Accelerator - Basic</Option>
-          <Option value="Accelerator - Standard">Accelerator - Standard</Option>
-          <Option value="Free">Free</Option>
-        </Select>
-      </Form.Item>
-      <Form.Item
-        name="products_count"
-        label="Products Count"
-        rules={[{ type: "number" }]}
-      >
-        <Input type="number" />
-      </Form.Item>
+      <Row gutter={[16, 6]}>
+        <Col span={12}>
+          <Form.Item
+            name="package_type"
+            label="Package Type"
+            rules={[{ required: true }]}
+          >
+            <Select>
+              <Option value="Social">Social</Option>
+              <Option value="Maintenance">Maintenance</Option>
+              <Option value="Extended Maintenance">Extended Maintenance</Option>
+              <Option value="Accelerator - Basic">Accelerator - Basic</Option>
+              <Option value="Accelerator - Standard">
+                Accelerator - Standard
+              </Option>
+              <Option value="Free">Free</Option>
+            </Select>
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item
+            name="products_count"
+            label="Products Count"
+            rules={[{ type: "number" }]}
+          >
+            <InputNumber type="number" />
+          </Form.Item>
+        </Col>
+      </Row>
+
       <Form.Item name="notes" label="Notes">
         <Input.TextArea />
       </Form.Item>
       <Form.Item>
-        <Button type="primary" htmlType="submit">
+        <Button type="primary" htmlType="submit" loading={isCreating}>
           Add Customer
         </Button>
       </Form.Item>

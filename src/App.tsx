@@ -35,7 +35,7 @@ import Social from "./components/Social";
 import AdsRecommendation from "./components/AdsRecommendation";
 import CustomersDropdown from "./components/CustomersDropdown";
 import SEOListings from "./components/SEOListings"; // Add this import
-import StoreOwnerManagement from "./components/customers/StoreOwnerManagement";
+import CustomerManagement from "./components/customers/CustomerManagement";
 
 const styles = {
   app: {
@@ -277,7 +277,7 @@ function App() {
         // },
         {
           path: "/customers",
-          element: <StoreOwnerManagement />,
+          element: <CustomerManagement />,
         },
         {
           path: "/plan",

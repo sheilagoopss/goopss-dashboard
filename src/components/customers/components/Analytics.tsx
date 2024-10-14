@@ -1,15 +1,21 @@
 import React from "react";
 import { Card, Statistic, Row, Col, Button, Input } from "antd";
-import { StoreOwner } from "../types";
 import { SearchOutlined } from "@ant-design/icons";
+import { Customer } from "../../../types/Customer";
 
 interface AnalyticsProps {
-  storeOwners: StoreOwner[];
+  customers: Customer[];
+  handleSearch: (value?: string) => void;
+  handleCSVExport: () => void;
 }
 
-export default function Analytics({ storeOwners }: AnalyticsProps) {
-  const totalOwners = storeOwners.length;
-  const payingCustomers = storeOwners.filter(
+export default function Analytics({
+  customers,
+  handleSearch,
+  handleCSVExport,
+}: AnalyticsProps) {
+  const totalOwners = customers.length;
+  const payingCustomers = customers.filter(
     (owner) => owner.package_type !== "Free",
   ).length;
   const freeCustomers = totalOwners - payingCustomers;
@@ -30,12 +36,14 @@ export default function Analytics({ storeOwners }: AnalyticsProps) {
           <Button>Edit All</Button>
         </Col>
         <Col>
-          <Button>Export store owners list</Button>
+          <Button onClick={handleCSVExport}>Export store owners list</Button>
         </Col>
         <Col>
           <Input
             placeholder="Search store owners"
             prefix={<SearchOutlined className="h-5 w-5 text-gray-400" />}
+            onChange={(e) => handleSearch(e.target.value)}
+            allowClear
           />
         </Col>
       </Row>

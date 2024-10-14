@@ -24,7 +24,7 @@ interface UseCustomerUpdateReturn {
   updateCustomer: (
     customerId: string,
     customer: Partial<Customer>,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -72,7 +72,11 @@ export function useCustomerCreate(): UseCustomerCreateReturn {
       setIsLoading(true);
       try {
         const customersCollection = collection(db, "customers");
-        await setDoc(doc(customersCollection, customer.customer_id), customer);
+        const newCustomerDoc = doc(customersCollection);
+        await setDoc(newCustomerDoc, {
+          ...customer,
+          customer_id: newCustomerDoc.id,
+        });
       } catch (error) {
         console.error("Error creating customer:", error);
       } finally {
@@ -89,18 +93,28 @@ export function useCustomerUpdate(): UseCustomerUpdateReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const updateCustomer = useCallback(
-    async (customerId: string, customer: Partial<Customer>): Promise<void> => {
+    async (
+      customerId: string,
+      customer: Partial<Customer>,
+    ): Promise<boolean> => {
       setIsLoading(true);
       try {
         const customerDoc = doc(db, "customers", customerId);
+        const existingDoc = await getDoc(customerDoc);
+        if (!existingDoc.exists()) {
+          console.error("Customer not found:", customerId);
+          return false;
+        }
         await setDoc(customerDoc, customer, { merge: true });
+        return true;
       } catch (error) {
         console.error("Error updating customer:", error);
+        return false;
       } finally {
         setIsLoading(false);
       }
     },
-    [],
+    [], // dependencies
   );
 
   return { updateCustomer, isLoading };
@@ -113,6 +127,7 @@ export function useCustomerDelete(): UseCustomerDeleteReturn {
     async (customerId: string): Promise<void> => {
       setIsLoading(true);
       try {
+        console.log(customerId);
         const customerDoc = doc(db, "customers", customerId);
         await deleteDoc(customerDoc);
       } catch (error) {
