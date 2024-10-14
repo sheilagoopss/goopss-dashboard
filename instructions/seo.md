@@ -21,8 +21,9 @@ The Listing Optimizer provides a user-friendly interface for administrators to v
 
 ### 4.Listing Optimization
 - Include an "Optimize" button for each listing in the table
-- Generate an optimized title and description when the button is clicked by using OpenAI
-- Display the original and optimized versions side by side below the table
+- Generate an optimized title and description when the button is clicked by using OpenAI. The current title and description should be taken from the database.
+- Display the original and optimized versions side by side below the table.
+- The optimized title and description should have a copy button that allows the admins to copy the optimized text to the clipboard.
 
 ## Sample Code to use but ignore the UI imports for now and just use the logic
 
