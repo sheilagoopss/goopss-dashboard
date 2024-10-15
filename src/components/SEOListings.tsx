@@ -348,18 +348,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                         {listing.optimizationStatus && (
                           <div>
                             <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Optimized Listing</h4>
-                            <p>
-                              <strong>Title:</strong> {listing.optimizedTitle}
-                              <button onClick={() => copyToClipboard(listing.optimizedTitle!)} style={{ marginLeft: '8px', padding: '2px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
-                                <Copy size={14} />
-                              </button>
-                            </p>
-                            <p>
-                              <strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription!)} />
-                              <button onClick={() => copyToClipboard(listing.optimizedDescription!)} style={{ marginLeft: '8px', padding: '2px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
-                                <Copy size={14} />
-                              </button>
-                            </p>
+                            <p><strong>Title:</strong> {listing.optimizedTitle}</p>
+                            <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription!)} /></p>
                             <div style={{ marginTop: '8px' }}>
                               <strong>Tags:</strong>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
@@ -390,6 +380,147 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           Next <ChevronRight />
         </button>
       </div>
+
+      {/* Optimized Content Area */}
+      {selectedListing && optimizedContent && (
+        <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+          <h2 className="text-xl font-semibold mb-4">Listing Optimization Results</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            <div>
+              <h3 className="font-medium text-lg mb-2">Original Listing</h3>
+              <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '4px' }}>
+                <h4 className="font-medium">Title:</h4>
+                <p className="mb-2">{selectedListing.listingTitle}</p>
+                <h4 className="font-medium">Description:</h4>
+                <p dangerouslySetInnerHTML={sanitizeHtml(selectedListing.listingDescription)} />
+                <h4 className="font-medium mt-2">Tags:</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {selectedListing.listingTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '4px 8px', borderRadius: '4px', fontSize: '14px' }}>
+                      {tag.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
+              <div style={{ backgroundColor: '#f0fff4', padding: '16px', borderRadius: '4px' }}>
+                <h4 className="font-medium">Title:</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    value={optimizedContent.title}
+                    onChange={(e) => setOptimizedContent({...optimizedContent, title: e.target.value})}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <button onClick={() => copyToClipboard(optimizedContent.title)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <Copy size={16} />
+                  </button>
+                  <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <Edit size={16} />
+                  </button>
+                </div>
+                <h4 className="font-medium">Description:</h4>
+                <div style={{ display: 'flex', alignItems: 'start', gap: '8px' }}>
+                  <textarea
+                    value={optimizedContent.description}
+                    onChange={(e) => setOptimizedContent({...optimizedContent, description: e.target.value})}
+                    rows={4}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button onClick={() => copyToClipboard(optimizedContent.description)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <Copy size={16} />
+                    </button>
+                    <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <Edit size={16} />
+                    </button>
+                  </div>
+                </div>
+                <h4 className="font-medium mt-2">Tags:</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                  {editedTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ 
+                      backgroundColor: '#e2e8f0', 
+                      padding: '4px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {tag.trim()}
+                      <button 
+                        onClick={() => setEditedTags(editedTags.split(',').filter((_, i) => i !== index).join(','))}
+                        style={{ fontSize: '12px', marginLeft: '4px', cursor: 'pointer', border: 'none', background: 'none' }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    placeholder="Add new tags (comma-separated)"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const newTags = e.currentTarget.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+                        if (newTags.length > 0) {
+                          setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <button 
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Add new tags (comma-separated)"]') as HTMLInputElement;
+                      const newTags = input.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+                      if (newTags.length > 0) {
+                        setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                        input.value = '';
+                      }
+                    }}
+                    style={{ padding: '8px 16px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Add Tags
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={handleSave} 
+                disabled={isPublishing}
+                style={{ 
+                  marginTop: '16px',
+                  padding: '10px 20px', 
+                  backgroundColor: '#4CAF50', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isPublishing ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
