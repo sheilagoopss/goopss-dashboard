@@ -1,19 +1,15 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import { useAuth } from '../contexts/AuthContext';
+import React from "react";
+import { Outlet } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import { useAuth } from "../contexts/AuthContext";
 
-interface DashboardLayoutProps {
-  openLoginModal: () => void;
-}
-
-function DashboardLayout({ openLoginModal }: DashboardLayoutProps) {
+function DashboardLayout() {
   const { isAdmin } = useAuth();
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar isAdmin={isAdmin} openLoginModal={openLoginModal} />
-      <div style={{ flex: 1, padding: '20px' }}>
+    <div style={{ display: "flex" }}>
+      <Sidebar isAdmin={isAdmin} />
+      <div style={{ flex: 1, padding: "20px" }}>
         <Outlet />
       </div>
     </div>
