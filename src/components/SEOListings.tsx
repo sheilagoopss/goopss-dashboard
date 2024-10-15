@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer } from 'firebase/firestore';
+import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -23,41 +23,70 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const LISTINGS_PER_PAGE = 5;
 
   useEffect(() => {
+    console.log("SEOListings component mounted or customerId changed");
+    console.log("Current customerId:", customerId);
+    console.log("Current storeName:", storeName);
     if (customerId) {
       fetchListings();
       fetchTotalPages();
+    } else {
+      console.log("No customerId provided");
     }
   }, [customerId]);
 
   const fetchListings = async (pageNumber = 1) => {
-    try {
-      const listingsCollection = collection(db, `customers/${customerId}/listings`);
-      let q = query(listingsCollection, orderBy('listingID'), limit(LISTINGS_PER_PAGE));
+    console.log("Fetching listings for customerId:", customerId);
+    if (customerId) {
+      try {
+        const listingsCollection = collection(db, 'listings');
+        let q = query(
+          listingsCollection, 
+          where('customer_id', '==', customerId),
+          orderBy('listingID'),
+          limit(LISTINGS_PER_PAGE)
+        );
 
-      if (pageNumber > 1 && lastVisible) {
-        q = query(listingsCollection, orderBy('listingID'), startAfter(lastVisible), limit(LISTINGS_PER_PAGE));
+        if (pageNumber > 1 && lastVisible) {
+          q = query(
+            listingsCollection,
+            where('customer_id', '==', customerId),
+            orderBy('listingID'),
+            startAfter(lastVisible),
+            limit(LISTINGS_PER_PAGE)
+          );
+        }
+
+        console.log("Executing Firestore query...");
+        const listingsSnapshot = await getDocs(q);
+        console.log("Query executed. Fetched listings count:", listingsSnapshot.docs.length);
+
+        const listingsList = listingsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          console.log("Listing data:", data);
+          return {
+            id: doc.id,
+            listingID: data.listingID,
+            listingTitle: data.listingTitle,
+          };
+        });
+
+        console.log("Processed listings:", listingsList);
+        setListings(listingsList);
+        setLastVisible(listingsSnapshot.docs[listingsSnapshot.docs.length - 1]);
+        setCurrentPage(pageNumber);
+      } catch (error) {
+        console.error("Error fetching listings:", error);
       }
-
-      const listingsSnapshot = await getDocs(q);
-      const listingsList = listingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        listingID: doc.data().listingID,
-        listingTitle: doc.data().listingTitle,
-      }));
-
-      setListings(listingsList);
-      setLastVisible(listingsSnapshot.docs[listingsSnapshot.docs.length - 1]);
-      setCurrentPage(pageNumber);
-    } catch (error) {
-      console.error("Error fetching listings:", error);
     }
   };
 
   const fetchTotalPages = async () => {
     try {
-      const listingsCollection = collection(db, `customers/${customerId}/listings`);
-      const snapshot = await getCountFromServer(listingsCollection);
+      const listingsCollection = collection(db, 'listings');
+      const q = query(listingsCollection, where('customer_id', '==', customerId));
+      const snapshot = await getCountFromServer(q);
       const totalListings = snapshot.data().count;
+      console.log("Total listings count:", totalListings);
       setTotalPages(Math.ceil(totalListings / LISTINGS_PER_PAGE));
     } catch (error) {
       console.error("Error fetching total pages:", error);
@@ -80,6 +109,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     listing.listingID.toLowerCase().includes(searchQuery.toLowerCase()) ||
     listing.listingTitle.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  console.log("Filtered listings:", filteredListings);
 
   return (
     <div>
@@ -117,38 +148,42 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         </div>
       </div>
       <div style={{ backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredListings.map((listing) => (
-              <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                <td style={{ padding: '12px' }}>{listing.listingID}</td>
-                <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
-                <td style={{ padding: '12px' }}>
-                  <button 
-                    onClick={() => console.log('Optimize', listing.id)}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#007bff',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Optimize
-                  </button>
-                </td>
+        {filteredListings.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
+                <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
+                <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredListings.map((listing) => (
+                <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                  <td style={{ padding: '12px' }}>{listing.listingID}</td>
+                  <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
+                  <td style={{ padding: '12px' }}>
+                    <button 
+                      onClick={() => console.log('Optimize', listing.id)}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#007bff',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Optimize
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p style={{ padding: '20px', textAlign: 'center' }}>No listings found.</p>
+        )}
       </div>
     </div>
   );
