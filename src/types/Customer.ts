@@ -15,3 +15,8 @@ export interface Customer {
   sales_when_joined?: number;
   current_sales?: number;
 }
+
+export interface Admin {
+  email: string;
+  isAdmin: boolean;
+}

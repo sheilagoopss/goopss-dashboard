@@ -1,95 +1,95 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import React from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { Customer } from "../types/Customer";
 
 interface SidebarProps {
   isAdmin: boolean;
-  openLoginModal: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isAdmin, openLoginModal }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
 
   const adminMenuItems = [
-    { path: '/customers', label: 'Customers' },
-    { path: '/plan', label: 'Plan' },
-    { path: '/seo', label: 'SEO' },
-    { path: '/social', label: 'Social' },
-    { path: '/design-hub', label: 'Design' },
-    { path: '/ads-recommendation', label: 'Ads Recommendation' },
-    { path: '/pinterest', label: 'Pinterest' },
+    { path: "/customers", label: "Customers" },
+    { path: "/plan", label: "Plan" },
+    { path: "/seo", label: "SEO" },
+    { path: "/social", label: "Social" },
+    { path: "/design-hub", label: "Design" },
+    { path: "/ads-recommendation", label: "Ads Recommendation" },
+    { path: "/pinterest", label: "Pinterest" },
   ];
 
   const userMenuItems = [
-    { path: '/plan', label: 'Plan' },
-    { path: '/seo', label: 'SEO' },
-    { path: '/social', label: 'Social' },
-    { path: '/design-hub', label: 'Design' },
-    { path: '/ads-recommendation', label: 'Ads Recommendation' },
-    { path: '/pinterest', label: 'Pinterest' },
+    { path: "/plan", label: "Plan" },
+    { path: "/seo", label: "SEO" },
+    { path: "/social", label: "Social" },
+    { path: "/design-hub", label: "Design" },
+    { path: "/ads-recommendation", label: "Ads Recommendation" },
+    { path: "/pinterest", label: "Pinterest" },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
 
   const styles = {
     sidebar: {
-      width: '250px',
-      height: '100%',
-      backgroundColor: '#f8f9fa',
-      padding: '20px',
-      boxShadow: '2px 0 5px rgba(0,0,0,0.1)',
-      display: 'flex',
-      flexDirection: 'column' as const,
+      width: "250px",
+      height: "100%",
+      backgroundColor: "#f8f9fa",
+      padding: "20px",
+      boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
+      display: "flex",
+      flexDirection: "column" as const,
     },
     userInfo: {
-      display: 'flex',
-      alignItems: 'center',
-      marginBottom: '20px',
+      display: "flex",
+      alignItems: "center",
+      marginBottom: "20px",
     },
     avatar: {
-      width: '48px',
-      height: '48px',
-      borderRadius: '50%',
-      marginRight: '12px',
-      backgroundColor: '#007bff',
-      color: '#ffffff',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '20px',
+      width: "48px",
+      height: "48px",
+      borderRadius: "50%",
+      marginRight: "12px",
+      backgroundColor: "#007bff",
+      color: "#ffffff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "20px",
     },
     userDetails: {
-      display: 'flex',
-      flexDirection: 'column' as const,
+      display: "flex",
+      flexDirection: "column" as const,
     },
     userName: {
-      fontWeight: 'bold',
+      fontWeight: "bold",
     },
     userEmail: {
-      fontSize: '14px',
-      color: '#6c757d',
+      fontSize: "14px",
+      color: "#6c757d",
     },
     link: {
-      display: 'block',
-      padding: '10px 0',
-      color: '#000',
-      textDecoration: 'none',
-      fontSize: '18px',
+      display: "block",
+      padding: "10px 0",
+      color: "#000",
+      textDecoration: "none",
+      fontSize: "18px",
     },
     footer: {
-      marginTop: 'auto',
-      borderTop: '1px solid #e5e7eb',
-      paddingTop: '20px',
+      marginTop: "auto",
+      borderTop: "1px solid #e5e7eb",
+      paddingTop: "20px",
     },
     button: {
-      padding: '10px 20px',
-      backgroundColor: '#007bff',
-      color: '#ffffff',
-      border: 'none',
-      borderRadius: '5px',
-      cursor: 'pointer',
-      marginBottom: '10px',
-      width: '100%',
+      padding: "10px 20px",
+      backgroundColor: "#007bff",
+      color: "#ffffff",
+      border: "none",
+      borderRadius: "5px",
+      cursor: "pointer",
+      marginBottom: "10px",
+      width: "100%",
     },
   };
 
@@ -98,10 +98,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin, openLoginModal }) => {
       {user && !isAdmin && (
         <div style={styles.userInfo}>
           <div style={styles.avatar}>
-            {user.store_owner_name?.charAt(0)}
+            {(user as Customer).store_owner_name?.charAt(0)}
           </div>
           <div style={styles.userDetails}>
-            <span style={styles.userName}>{user.store_owner_name}</span>
+            <span style={styles.userName}>
+              {(user as Customer).store_owner_name}
+            </span>
             <span style={styles.userEmail}>{user.email}</span>
           </div>
         </div>
@@ -117,13 +119,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin, openLoginModal }) => {
       </ul>
       <div style={styles.footer}>
         <div>
-          {user ? (
+          {user && (
             <button style={styles.button} onClick={logout}>
               Logout
-            </button>
-          ) : (
-            <button style={styles.button} onClick={openLoginModal}>
-              Login
             </button>
           )}
         </div>

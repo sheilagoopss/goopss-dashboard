@@ -1,67 +1,71 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
-
-interface Customer {
-  id: string;
-  customer_id: string;
-  store_name: string;
-  store_owner_name: string;
-  isAdmin: boolean;
-  email: string;
-}
+import React, { createContext, useContext, useState, ReactNode } from "react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup,
+  UserCredential,
+} from "firebase/auth";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+} from "firebase/firestore";
+import { auth, db } from "../firebase/config";
+import { Admin, Customer } from "../types/Customer";
+import { message } from "antd";
 
 interface AuthContextType {
-  user: Customer | null;
+  user: Customer | Admin | null;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
+  googleLogin: () => Promise<void>;
   toggleAdminMode: () => void;
+  loggingIn: boolean;
+  googleLoggingIn: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<Customer | null>(null);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<Customer | Admin | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const auth = getAuth();
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        // User is logged in, so they are not an admin
-        setIsAdmin(false);
+  const handleLoginUser = async (user: UserCredential) => {
+    const customersCollection = collection(db, "customers");
+    const customersSnapshot = await getDocs(customersCollection);
+    const customerDoc = customersSnapshot.docs.find(
+      (doc) => doc.data().email === user.user.email,
+    );
 
-        // Find the customer document that matches the current user's email
-        const customersCollection = collection(db, 'customers');
-        const customersSnapshot = await getDocs(customersCollection);
-        const customerDoc = customersSnapshot.docs.find(doc => doc.data().email === currentUser.email);
-        
-        if (customerDoc) {
-          const userData = { id: customerDoc.id, ...customerDoc.data() } as Customer;
-          setUser(userData);
-          console.log("Selected customer:", userData);
-        } else {
-          console.error('No matching customer found for the current user');
-        }
-      } else {
-        // No user is logged in, so treat as admin
+    if (customerDoc) {
+      const userData = {
+        id: customerDoc.id,
+        ...customerDoc.data(),
+      } as Customer;
+      setUser(userData);
+      setIsAdmin(false);
+    } else {
+      const q = query(collection(db, "admin"), limit(1));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const adminDoc = querySnapshot.docs[0];
+        const userData = {
+          ...adminDoc.data(),
+          isAdmin: true,
+        } as Admin;
+        setUser(userData);
         setIsAdmin(true);
-        setUser(null);
       }
-    });
-
-    return () => unsubscribe();
-  }, [auth]);
-
-  const login = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // The user state will be updated by the onAuthStateChanged listener
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
     }
   };
 
@@ -71,8 +75,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setIsAdmin(false);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
       throw error;
+    }
+  };
+
+  const login = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
+    try {
+      setLoggingIn(true);
+      const resp = await signInWithEmailAndPassword(auth, email, password);
+      await handleLoginUser(resp);
+      setLoggingIn(false);
+    } catch (error) {
+      console.error("Error signing in: ", error);
+      setLoggingIn(false);
+      message.error({ content: "Invalid email or password" });
+    }
+  };
+
+  const googleLogin = async () => {
+    setGoogleLoggingIn(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const resp = await signInWithPopup(auth, provider);
+      message.success("Logged in with Google successfully");
+      await handleLoginUser(resp);
+    } catch (error) {
+      message.error(
+        "Failed to log in with Google: " + (error as Error).message,
+      );
+    } finally {
+      setGoogleLoggingIn(false);
     }
   };
 
@@ -81,7 +120,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, login, logout, toggleAdminMode }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        login,
+        logout,
+        googleLogin,
+        toggleAdminMode,
+        loggingIn,
+        googleLoggingIn,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -90,7 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
