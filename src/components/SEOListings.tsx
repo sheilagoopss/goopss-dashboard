@@ -41,6 +41,9 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [optimizedListings, setOptimizedListings] = useState<{[key: string]: Listing}>({});
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [optimizedContent, setOptimizedContent] = useState<{ title: string; description: string; tags: string } | null>(null);
+  const [editedTags, setEditedTags] = useState('');
   const LISTINGS_PER_PAGE = 5;
 
   useEffect(() => {
@@ -141,15 +144,9 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setIsOptimizing(true);
     try {
       const optimizedData = await optimizeListing(listing);
-      
-      const updatedListing = {
-        ...listing,
-        optimizedTitle: optimizedData.title,
-        optimizedDescription: optimizedData.description,
-        optimizedTags: optimizedData.tags,
-      };
-
-      setOptimizedListings(prev => ({...prev, [listing.id]: updatedListing}));
+      setSelectedListing(listing);
+      setOptimizedContent(optimizedData);
+      setEditedTags(optimizedData.tags);
     } catch (error) {
       console.error("Error optimizing listing:", error);
     } finally {
@@ -157,36 +154,33 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     }
   };
 
-  const handleSave = async (listingId: string) => {
-    const optimizedListing = optimizedListings[listingId];
-    if (!optimizedListing) return;
+  const handleSave = async () => {
+    if (!selectedListing || !optimizedContent) return;
 
     setIsPublishing(true);
     try {
-      const listingRef = doc(db, 'listings', listingId);
+      const listingRef = doc(db, 'listings', selectedListing.id);
       await updateDoc(listingRef, {
-        listingTitle: optimizedListing.optimizedTitle,
-        listingDescription: optimizedListing.optimizedDescription,
-        listingTags: optimizedListing.optimizedTags,
+        listingTitle: optimizedContent.title,
+        listingDescription: optimizedContent.description,
+        listingTags: editedTags,
         isOptimized: true,
       });
 
       setAllListings(prevListings =>
-        prevListings.map(l => l.id === listingId ? {
+        prevListings.map(l => l.id === selectedListing.id ? {
           ...l,
-          listingTitle: optimizedListing.optimizedTitle!,
-          listingDescription: optimizedListing.optimizedDescription!,
-          listingTags: optimizedListing.optimizedTags!,
+          listingTitle: optimizedContent.title,
+          listingDescription: optimizedContent.description,
+          listingTags: editedTags,
           isOptimized: true,
         } : l)
       );
 
-      // Remove the optimized listing from local state
-      setOptimizedListings(prev => {
-        const newState = {...prev};
-        delete newState[listingId];
-        return newState;
-      });
+      // Clear the optimized content and selected listing
+      setOptimizedContent(null);
+      setSelectedListing(null);
+      setEditedTags('');
     } catch (error) {
       console.error("Error saving optimized listing:", error);
     } finally {
@@ -295,68 +289,30 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
               </td>
             </tr>
           ) : displayedListings.map((listing) => (
-            <React.Fragment key={listing.id}>
-              <tr style={{ backgroundColor: '#f9f9f9' }}>
-                <td style={{ padding: '10px' }}>
-                  <button onClick={() => toggleRowExpansion(listing.id)}>
-                    {expandedRows.includes(listing.id) ? <ChevronUp /> : <ChevronDown />}
-                  </button>
-                </td>
-                <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.listingTitle} style={{ width: '50px', height: '50px' }} /></td>
-                <td style={{ padding: '10px' }}>{listing.listingID}</td>
-                <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.listingTitle}</td>
-                <td style={{ padding: '10px' }}>
-                  {listing.isOptimized ? 'Yes' : 'No'}
-                </td>
-                <td style={{ padding: '10px' }}>{listing.bestseller ? 'Yes' : 'No'}</td>
-                <td style={{ padding: '10px' }}>{listing.totalSales}</td>
-                <td style={{ padding: '10px' }}>{listing.dailyViews}</td>
-                <td style={{ padding: '10px' }}>
-                  <button 
-                    onClick={() => handleOptimize(listing)} 
-                    disabled={isOptimizing || listing.isOptimized}
-                  >
-                    {isOptimizing ? 'Optimizing...' : 'Optimize'}
-                  </button>
-                </td>
-              </tr>
-              {expandedRows.includes(listing.id) && (
-                <tr>
-                  <td colSpan={9}>
-                    <div style={{ padding: '20px', backgroundColor: '#f0f0f0' }}>
-                      <h4>Original Listing</h4>
-                      <p><strong>Title:</strong> {listing.listingTitle}</p>
-                      <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} /></p>
-                      <p><strong>Tags:</strong> {listing.listingTags}</p>
-                      {optimizedListings[listing.id] && (
-                        <>
-                          <h4>Optimized Listing</h4>
-                          <p>
-                            <strong>Title:</strong> {optimizedListings[listing.id].optimizedTitle}
-                            <button onClick={() => copyToClipboard(optimizedListings[listing.id].optimizedTitle!)}>
-                              <Copy />
-                            </button>
-                          </p>
-                          <p>
-                            <strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(optimizedListings[listing.id].optimizedDescription!)} />
-                            <button onClick={() => copyToClipboard(optimizedListings[listing.id].optimizedDescription!)}>
-                              <Copy />
-                            </button>
-                          </p>
-                          <p><strong>Tags:</strong> {optimizedListings[listing.id].optimizedTags}</p>
-                          <button 
-                            onClick={() => handleSave(listing.id)} 
-                            disabled={isPublishing}
-                          >
-                            {isPublishing ? 'Saving...' : 'Save Optimized Version'}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
+            <tr key={listing.id} style={{ backgroundColor: '#f9f9f9' }}>
+              <td style={{ padding: '10px' }}>
+                <button onClick={() => toggleRowExpansion(listing.id)}>
+                  {expandedRows.includes(listing.id) ? <ChevronUp /> : <ChevronDown />}
+                </button>
+              </td>
+              <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.listingTitle} style={{ width: '50px', height: '50px' }} /></td>
+              <td style={{ padding: '10px' }}>{listing.listingID}</td>
+              <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.listingTitle}</td>
+              <td style={{ padding: '10px' }}>
+                {listing.isOptimized ? 'Yes' : 'No'}
+              </td>
+              <td style={{ padding: '10px' }}>{listing.bestseller ? 'Yes' : 'No'}</td>
+              <td style={{ padding: '10px' }}>{listing.totalSales}</td>
+              <td style={{ padding: '10px' }}>{listing.dailyViews}</td>
+              <td style={{ padding: '10px' }}>
+                <button 
+                  onClick={() => handleOptimize(listing)} 
+                  disabled={isOptimizing || listing.isOptimized}
+                >
+                  {isOptimizing ? 'Optimizing...' : 'Optimize'}
+                </button>
+              </td>
+            </tr>
           ))}
         </tbody>
       </table>
@@ -369,6 +325,147 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           Next <ChevronRight />
         </button>
       </div>
+
+      {/* Optimized Content Area */}
+      {selectedListing && optimizedContent && (
+        <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+          <h2 className="text-xl font-semibold mb-4">Listing Optimization Results</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            <div>
+              <h3 className="font-medium text-lg mb-2">Original Listing</h3>
+              <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '4px' }}>
+                <h4 className="font-medium">Title:</h4>
+                <p className="mb-2">{selectedListing.listingTitle}</p>
+                <h4 className="font-medium">Description:</h4>
+                <p dangerouslySetInnerHTML={sanitizeHtml(selectedListing.listingDescription)} />
+                <h4 className="font-medium mt-2">Tags:</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {selectedListing.listingTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '4px 8px', borderRadius: '4px', fontSize: '14px' }}>
+                      {tag.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
+              <div style={{ backgroundColor: '#f0fff4', padding: '16px', borderRadius: '4px' }}>
+                <h4 className="font-medium">Title:</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    value={optimizedContent.title}
+                    onChange={(e) => setOptimizedContent({...optimizedContent, title: e.target.value})}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <button onClick={() => copyToClipboard(optimizedContent.title)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <Copy size={16} />
+                  </button>
+                  <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <Edit size={16} />
+                  </button>
+                </div>
+                <h4 className="font-medium">Description:</h4>
+                <div style={{ display: 'flex', alignItems: 'start', gap: '8px' }}>
+                  <textarea
+                    value={optimizedContent.description}
+                    onChange={(e) => setOptimizedContent({...optimizedContent, description: e.target.value})}
+                    rows={4}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button onClick={() => copyToClipboard(optimizedContent.description)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <Copy size={16} />
+                    </button>
+                    <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                      <Edit size={16} />
+                    </button>
+                  </div>
+                </div>
+                <h4 className="font-medium mt-2">Tags:</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                  {editedTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ 
+                      backgroundColor: '#e2e8f0', 
+                      padding: '4px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {tag.trim()}
+                      <button 
+                        onClick={() => setEditedTags(editedTags.split(',').filter((_, i) => i !== index).join(','))}
+                        style={{ fontSize: '12px', marginLeft: '4px', cursor: 'pointer', border: 'none', background: 'none' }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    placeholder="Add new tags (comma-separated)"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const newTags = e.currentTarget.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+                        if (newTags.length > 0) {
+                          setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                  />
+                  <button 
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Add new tags (comma-separated)"]') as HTMLInputElement;
+                      const newTags = input.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+                      if (newTags.length > 0) {
+                        setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                        input.value = '';
+                      }
+                    }}
+                    style={{ padding: '8px 16px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Add Tags
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={handleSave} 
+                disabled={isPublishing}
+                style={{ 
+                  marginTop: '16px',
+                  padding: '10px 20px', 
+                  backgroundColor: '#4CAF50', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isPublishing ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
