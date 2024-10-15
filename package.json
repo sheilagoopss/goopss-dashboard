@@ -10,6 +10,7 @@
     "eject": "react-scripts eject"
   },
   "devDependencies": {
+    "@types/antd": "^1.0.0",
     "@types/axios": "^0.14.0",
     "@types/express": "^4.17.13",
     "@types/node": "^22.5.5",
