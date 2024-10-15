@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { Layout, Row, Col, Button, Modal, message, Segmented } from "antd";
 import CustomerList from "./components/CustomerList";
-import AddCustomerForm from "./components/AddCustomerForm";
+import AddCustomer from "./components/AddCustomer";
 import Analytics from "./components/Analytics";
 import { Store } from "lucide-react";
 import {
@@ -24,7 +24,7 @@ export default function CustomerManagement() {
   const [addNewCustomerModal, setAddNewCustomerModal] = useState(false);
   const { isLoading, fetchAllCustomers } = useCustomerFetchAll();
   const { isLoading: isCreating, createCustomer } = useCustomerCreate();
-  const [segmentValue, setSegmentValue] = useState("all");
+  const [segmentValue, setSegmentValue] = useState("Paid");
 
   const refresh = async () => {
     fetchAllCustomers().then((customers) => {
@@ -32,7 +32,7 @@ export default function CustomerManagement() {
       setFilteredCustomers(
         customers.filter((customer) => customer.package_type !== "Free"),
       );
-      setSegmentValue("all");
+      setSegmentValue("Paid");
     });
   };
 
@@ -139,20 +139,20 @@ export default function CustomerManagement() {
           <Col span={24}>
             <Segmented
               options={[
-                { label: "Paying Customers", value: "all" }, //TODO: temp
+                { label: "Paying Customers", value: "Paid" }, //TODO: temp
                 { label: "Free Customers", value: "Free" },
               ]}
               onChange={(value) => {
                 if (value === "Free") {
                   setSegmentValue("Free");
                   const filteredCustomers = customers.filter(
-                    (customer) => customer.package_type === value,
+                    (customer) => customer.customer_type === value,
                   );
                   setFilteredCustomers(filteredCustomers);
                 } else {
-                  setSegmentValue("all");
+                  setSegmentValue("Paid");
                   const filteredCustomers = customers.filter(
-                    (customer) => customer.package_type !== "Free",
+                    (customer) => customer.customer_type !== "Free",
                   );
                   setFilteredCustomers(filteredCustomers);
                 }
@@ -177,7 +177,7 @@ export default function CustomerManagement() {
           onCancel={() => setAddNewCustomerModal(false)}
           footer={null}
         >
-          <AddCustomerForm
+          <AddCustomer
             onAddCustomer={handleAddCustomer}
             isCreating={isCreating}
           />

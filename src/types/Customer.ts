@@ -8,6 +8,7 @@ export interface Customer {
   phone?: string;
   date_joined?: string;
   package_type?: string;
+  customer_type?: "Free" | "Paid";
   products_count?: number;
   notes?: string;
   weeks?: number;

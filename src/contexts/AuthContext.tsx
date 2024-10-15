@@ -1,22 +1,28 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
+  onAuthStateChanged,
   UserCredential,
 } from "firebase/auth";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-} from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import { Admin, Customer } from "../types/Customer";
 import { message } from "antd";
+import {
+  clientSetCookie,
+  getClientCookie,
+  clearCookie,
+  SupportedKeys,
+} from "../utils/cookies";
 
 interface AuthContextType {
   user: Customer | Admin | null;
@@ -27,6 +33,7 @@ interface AuthContextType {
   toggleAdminMode: () => void;
   loggingIn: boolean;
   googleLoggingIn: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,8 +45,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
   const handleLoginUser = async (user: UserCredential) => {
+    const token = await user.user.getIdToken();
+    clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
+
     const customersCollection = collection(db, "customers");
     const customersSnapshot = await getDocs(customersCollection);
     const customerDoc = customersSnapshot.docs.find(
@@ -67,6 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setIsAdmin(true);
       }
     }
+    setLoading(false);
   };
 
   const logout = async () => {
@@ -74,6 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       await signOut(auth);
       setUser(null);
       setIsAdmin(false);
+      clearCookie(AUTH_COOKIE_KEY);
     } catch (error) {
       console.error("Logout error:", error);
       throw error;
@@ -115,6 +130,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const checkForTokenOnLoad = async () => {
+    setLoading(true);
+    const token = getClientCookie(AUTH_COOKIE_KEY);
+    if (token) {
+      try {
+        const userCredential = await new Promise<UserCredential>(
+          (resolve, reject) => {
+            onAuthStateChanged(auth, (user) => {
+              if (user) {
+                resolve({ user } as UserCredential); // Cast to mimic UserCredential
+              } else {
+                reject(new Error("User not found"));
+              }
+            });
+          },
+        );
+        await handleLoginUser(userCredential);
+      } catch (error) {
+        setLoading(false);
+        console.error("Failed to re-authenticate user: ", error);
+        clearCookie(AUTH_COOKIE_KEY);
+      }
+    }
+  };
+
+  useEffect(() => {
+    checkForTokenOnLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleAdminMode = () => {
     setIsAdmin(!isAdmin);
   };
@@ -130,6 +175,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         toggleAdminMode,
         loggingIn,
         googleLoggingIn,
+        loading,
       }}
     >
       {children}

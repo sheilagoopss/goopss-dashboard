@@ -1,31 +1,18 @@
-import { Form, Input, Select, Button, Row, Col, InputNumber } from "antd";
-import { Customer } from "../../../types/Customer";
-import dayjs from "dayjs";
+import { Button, Col, Form, Input, InputNumber, Row, Select } from "antd";
+
+interface CustomerFormProps {
+  isUpdate?: boolean;
+  loading: boolean;
+}
 
 const { Option } = Select;
 
-interface AddCustomerFormProps {
-  onAddCustomer: (customer: Customer) => void;
-  isCreating: boolean;
-}
-
-export default function AddCustomerForm({
-  onAddCustomer,
-  isCreating,
-}: AddCustomerFormProps) {
-  const [form] = Form.useForm();
-
-  const handleSubmit = (values: any) => {
-    const newCustomer: Customer = {
-      ...values,
-      date_joined: dayjs().format("YYYY-MM-DD"),
-    };
-    onAddCustomer(newCustomer);
-    form.resetFields();
-  };
-
+export const CustomerForm: React.FC<CustomerFormProps> = ({
+  loading,
+  isUpdate,
+}) => {
   return (
-    <Form form={form} onFinish={handleSubmit} layout="vertical">
+    <>
       <Row gutter={[16, 6]}>
         <Col span={12}>
           <Form.Item
@@ -78,23 +65,32 @@ export default function AddCustomerForm({
         </Col>
         <Col span={12}>
           <Form.Item
-            name="products_count"
-            label="Products Count"
-            rules={[{ type: "number" }]}
+            name="customer_type"
+            label="Customer Type"
+            rules={[{ required: true }]}
           >
-            <InputNumber type="number" />
+            <Select>
+              <Option value="Paid">Paid</Option>
+              <Option value="Free">Free</Option>
+            </Select>
           </Form.Item>
         </Col>
       </Row>
-
+      <Form.Item
+        name="products_count"
+        label="Products Count"
+        rules={[{ type: "number" }]}
+      >
+        <InputNumber type="number" style={{ width: "100%" }} />
+      </Form.Item>
       <Form.Item name="notes" label="Notes">
         <Input.TextArea />
       </Form.Item>
       <Form.Item>
-        <Button type="primary" htmlType="submit" loading={isCreating}>
-          Add Customer
+        <Button type="primary" htmlType="submit" loading={loading}>
+          {isUpdate ? "Update Customer" : " Add Customer"}
         </Button>
       </Form.Item>
-    </Form>
+    </>
   );
-}
+};

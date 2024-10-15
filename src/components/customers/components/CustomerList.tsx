@@ -5,7 +5,6 @@ import {
   Button,
   Modal,
   Form,
-  Input,
   Col,
   Row,
   message,
@@ -18,6 +17,7 @@ import {
   useCustomerDelete,
 } from "../../../hooks/useCustomer";
 import { useNavigate } from "react-router-dom";
+import { CustomerForm } from "../form/CustomerForm";
 
 interface CustomerListProps {
   customers: Customer[];
@@ -236,42 +236,10 @@ export default function CustomerList({
         open={!!editingKey}
         style={{ top: "3ch" }}
         onCancel={() => setEditingKey("")}
-        footer={[
-          <Button key="back" onClick={() => setEditingKey("")}>
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            onClick={handleSave}
-            loading={isUpdating}
-          >
-            Update
-          </Button>,
-        ]}
+        footer={false}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="store_name" label="Store Name">
-            <Input />
-          </Form.Item>
-          <Form.Item name="store_owner_name" label="Owner Name">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email">
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Phone">
-            <Input />
-          </Form.Item>
-          <Form.Item name="package_type" label="Package Type">
-            <Input />
-          </Form.Item>
-          <Form.Item name="products_count" label="Products Count">
-            <Input type="number" />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes">
-            <Input.TextArea />
-          </Form.Item>
+        <Form form={form} onFinish={handleSave} layout="vertical">
+          <CustomerForm isUpdate loading={isUpdating} />
         </Form>
       </Modal>
     </>

@@ -16,8 +16,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     { path: "/seo", label: "SEO" },
     { path: "/social", label: "Social" },
     { path: "/design-hub", label: "Design" },
-    { path: "/ads-recommendation", label: "Ads Recommendation" },
+    {
+      path: "/ads-recommendation",
+      label: "Ads Recommendation",
+      allow: ["Admin"],
+    },
     { path: "/pinterest", label: "Pinterest" },
+    { path: "/tagify", label: "Tagify" },
   ];
 
   const userMenuItems = [
@@ -25,8 +30,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     { path: "/seo", label: "SEO" },
     { path: "/social", label: "Social" },
     { path: "/design-hub", label: "Design" },
-    { path: "/ads-recommendation", label: "Ads Recommendation" },
-    { path: "/pinterest", label: "Pinterest" },
+    {
+      path: "/ads-recommendation",
+      label: "Ads Recommendation",
+    },
+    { path: "/tagify", label: "Tagify" },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
