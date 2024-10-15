@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2 } from 'lucide-react';
 import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
@@ -16,7 +16,8 @@ interface Listing {
   listingDescription: string;
   primaryImage: string;
   listingTags: string;
-  optimizationStatus: boolean;  // Changed to boolean
+  optimizationStatus: boolean;
+  optimizedAt?: Date;  // New field
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
@@ -175,7 +176,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         optimizedTitle: optimizedContent.title,
         optimizedDescription: newlineToBr(optimizedContent.description),
         optimizedTags: editedTags,
-        optimizationStatus: true,  // Changed to boolean true
+        optimizationStatus: true,
+        optimizedAt: serverTimestamp(),  // Add this line
       });
 
       setAllListings(prevListings =>
@@ -184,7 +186,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           optimizedTitle: optimizedContent.title,
           optimizedDescription: newlineToBr(optimizedContent.description),
           optimizedTags: editedTags,
-          optimizationStatus: true,  // Changed to boolean true
+          optimizationStatus: true,
+          optimizedAt: new Date(),  // Add this line
         } : l)
       );
 
@@ -360,6 +363,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                 ))}
                               </div>
                             </div>
+                            {listing.optimizedAt && (
+                              <p style={{ marginTop: '8px' }}>
+                                <strong>Optimized on:</strong> {listing.optimizedAt.toLocaleString()}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
