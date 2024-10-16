@@ -29,12 +29,12 @@ export default function Analytics({
         <Col span={4}>
           <Statistic title="Paying Customers" value={payingCustomers} />
         </Col>
-        <Col span={4}>
+        <Col span={6}>
           <Statistic title="Free Customers" value={freeCustomers} />
         </Col>
-        <Col>
+        {/* <Col>
           <Button>Edit All</Button>
-        </Col>
+        </Col> */}
         <Col>
           <Button onClick={handleCSVExport}>Export store owners list</Button>
         </Col>

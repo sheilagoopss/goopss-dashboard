@@ -15,6 +15,7 @@ export interface Customer {
   lists?: number;
   sales_when_joined?: number;
   current_sales?: number;
+  logo?: string;
 }
 
 export interface Admin {

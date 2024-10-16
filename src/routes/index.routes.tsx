@@ -23,6 +23,7 @@ import LoginPage from "../components/auth/login";
 import { Spin } from "antd";
 import UpgradeNotice from "../components/common/UpgradeNotice";
 import Tagify from "../components/tagify/Tagify";
+import TaskManagement from "../components/taskList/TaskManagement";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -167,6 +168,7 @@ const Routes = () => {
           { path: "/social", element: <Social /> },
           { path: "/ads-recommendation", element: <AdsRecommendation /> },
           { path: "/tagify", element: <Tagify /> },
+          { path: "/taskSummary", element: <TaskManagement /> },
         ],
       },
     ]),

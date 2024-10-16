@@ -1,14 +1,6 @@
 import { useState, useCallback } from "react";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  deleteDoc,
-} from "firebase/firestore";
-import { db } from "../firebase/config";
 import { Customer } from "../types/Customer";
+import FirebaseHelper from "../helpers/FirebaseHelper";
 
 interface UseCustomerFetchReturn {
   fetchCustomer: (customerId: string) => Promise<Customer | null>;
@@ -45,12 +37,11 @@ export function useCustomerFetch(): UseCustomerFetchReturn {
     async (customerId: string): Promise<Customer | null> => {
       setIsLoading(true);
       try {
-        const customerDoc = await getDoc(doc(db, "customers", customerId));
-        if (customerDoc.exists()) {
-          return { id: customerDoc.id, ...customerDoc.data() } as Customer;
-        } else {
-          return null;
-        }
+        const customer = await FirebaseHelper.findOne<Customer>(
+          "customers",
+          customerId,
+        );
+        return customer;
       } catch (error) {
         console.error("Error fetching customer:", error);
         return null;
@@ -71,12 +62,13 @@ export function useCustomerCreate(): UseCustomerCreateReturn {
     async (customer: Customer): Promise<void> => {
       setIsLoading(true);
       try {
-        const customersCollection = collection(db, "customers");
-        const newCustomerDoc = doc(customersCollection);
-        await setDoc(newCustomerDoc, {
-          ...customer,
-          customer_id: newCustomerDoc.id,
-        });
+        // const customersCollection = collection(db, "customers");
+        // const newCustomerDoc = doc(customersCollection);
+        // await setDoc(newCustomerDoc, {
+        //   ...customer,
+        //   customer_id: newCustomerDoc.id,
+        // });
+        await FirebaseHelper.create("customers", customer);
       } catch (error) {
         console.error("Error creating customer:", error);
       } finally {
@@ -99,14 +91,12 @@ export function useCustomerUpdate(): UseCustomerUpdateReturn {
     ): Promise<boolean> => {
       setIsLoading(true);
       try {
-        const customerDoc = doc(db, "customers", customerId);
-        const existingDoc = await getDoc(customerDoc);
-        if (!existingDoc.exists()) {
-          console.error("Customer not found:", customerId);
-          return false;
-        }
-        await setDoc(customerDoc, customer, { merge: true });
-        return true;
+        const updated = await FirebaseHelper.update(
+          "customers",
+          customerId,
+          customer,
+        );
+        return updated;
       } catch (error) {
         console.error("Error updating customer:", error);
         return false;
@@ -127,9 +117,7 @@ export function useCustomerDelete(): UseCustomerDeleteReturn {
     async (customerId: string): Promise<void> => {
       setIsLoading(true);
       try {
-        console.log(customerId);
-        const customerDoc = doc(db, "customers", customerId);
-        await deleteDoc(customerDoc);
+        await FirebaseHelper.delete("customers", customerId);
       } catch (error) {
         console.error("Error deleting customer:", error);
       } finally {
@@ -148,12 +136,7 @@ export function useCustomerFetchAll(): UseCustomerFetchAllReturn {
   const fetchAllCustomers = useCallback(async (): Promise<Customer[]> => {
     setIsLoading(true);
     try {
-      const customersCollection = collection(db, "customers");
-      const querySnapshot = await getDocs(customersCollection);
-      const customers: Customer[] = [];
-      querySnapshot.forEach((doc) => {
-        customers.push({ id: doc.id, ...doc.data() } as Customer);
-      });
+      const customers = await FirebaseHelper.find<Customer>("customers");
       return customers;
     } catch (error) {
       console.error("Error fetching customers:", error);
