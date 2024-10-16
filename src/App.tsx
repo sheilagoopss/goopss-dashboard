@@ -1,5 +1,7 @@
+import React from 'react';
 import { AuthProvider } from "./contexts/AuthContext";
 import Routes from "./routes/index.routes";
+import ErrorBoundary from './components/ErrorBoundary';
 
 const styles = {
   app: {
@@ -49,18 +51,20 @@ const styles = {
 
 function App() {
   return (
-    <AuthProvider>
-      {/* Wrap the entire app with AuthProvider */}
-      <div style={styles.app}>
-        <header style={styles.header}>
-          <div style={styles.logoContainer}>
-            <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
-          </div>
-          <h1 style={styles.title}>Goopss Dashboard</h1>
-        </header>
-        <Routes />
-      </div>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        {/* Wrap the entire app with AuthProvider */}
+        <div style={styles.app}>
+          <header style={styles.header}>
+            <div style={styles.logoContainer}>
+              <img src="/logo.png" alt="Goopss Logo" style={styles.logo} />
+            </div>
+            <h1 style={styles.title}>Goopss Dashboard</h1>
+          </header>
+          <Routes />
+        </div>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -27,28 +27,36 @@ import Tagify from "../components/tagify/Tagify";
 const FREE_ROUTES = ["/", "/tagify"];
 
 const Routes = () => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, customerData } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   );
+
   useEffect(() => {
     const fetchCustomers = async () => {
-      try {
-        const customersCollection = collection(db, "customers");
-        const customersSnapshot = await getDocs(customersCollection);
-        const customersList = customersSnapshot.docs.map(
-          (doc: DocumentData) => ({ id: doc.id, ...doc.data() } as Customer),
-        );
-        console.log("Fetched customers:", customersList);
-        setCustomers(customersList);
-      } catch (error) {
-        console.error("Error fetching customers:", error);
+      if (isAdmin) {
+        try {
+          const customersCollection = collection(db, "customers");
+          const customersSnapshot = await getDocs(customersCollection);
+          const customersList = customersSnapshot.docs.map(
+            (doc: DocumentData) => ({ id: doc.id, ...doc.data() } as Customer),
+          );
+          console.log("Fetched customers:", customersList);
+          setCustomers(customersList);
+        } catch (error) {
+          console.error("Error fetching customers:", error);
+        }
+      } else if (customerData) {
+        setCustomers([customerData]);
+        setSelectedCustomer(customerData);
       }
     };
 
     fetchCustomers();
-  }, []);
+  }, [isAdmin, customerData]);
+
+  console.log("Routes rendering. Loading:", loading, "User:", user, "IsAdmin:", isAdmin, "CustomerData:", customerData);
 
   const applyUpgradeNotice = (routes: RouteObject[]): any[] => {
     return routes.map((route) => {
@@ -163,6 +171,7 @@ const Routes = () => {
       },
     ]),
   );
+
   return loading ? (
     <Spin fullscreen size="large" />
   ) : !user ? (

@@ -13,7 +13,7 @@ import {
   onAuthStateChanged,
   UserCredential,
 } from "firebase/auth";
-import { collection, getDocs, limit, query } from "firebase/firestore";
+import { collection, getDocs, limit, query, doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import { Admin, Customer } from "../types/Customer";
 import { message } from "antd";
@@ -34,6 +34,7 @@ interface AuthContextType {
   loggingIn: boolean;
   googleLoggingIn: boolean;
   loading: boolean;
+  customerData: Customer | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,7 +46,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [customerData, setCustomerData] = useState<Customer | null>(null);
 
   const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
@@ -65,6 +67,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         ...customerDoc.data(),
       } as Customer;
       setUser(userData);
+      setCustomerData(userData);
       setIsAdmin(false);
     } else {
       const q = query(collection(db, "admin"), limit(1));
@@ -78,6 +81,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         } as Admin;
         setUser(userData);
         setIsAdmin(true);
+        setCustomerData(null);
       }
     }
     setLoading(false);
@@ -139,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           (resolve, reject) => {
             onAuthStateChanged(auth, (user) => {
               if (user) {
-                resolve({ user } as UserCredential); // Cast to mimic UserCredential
+                resolve({ user } as UserCredential);
               } else {
                 reject(new Error("User not found"));
               }
@@ -152,6 +156,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         console.error("Failed to re-authenticate user: ", error);
         clearCookie(AUTH_COOKIE_KEY);
       }
+    } else {
+      setLoading(false);
     }
   };
 
@@ -176,6 +182,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         loggingIn,
         googleLoggingIn,
         loading,
+        customerData,
       }}
     >
       {children}
