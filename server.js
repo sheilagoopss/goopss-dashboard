@@ -80,7 +80,7 @@ app.post('/api/optimize-listing', async (req, res) => {
          - Include use case or gift idea
 
       2. Description:
-         - Begin with a keyword-rich paragraph (around 300 characters)
+         - Start with a concise introduction (around 300 characters) but do not put an "Introduction" marker and just start with the actual introduction.
          - Use ALL CAPS for main section headers (e.g., MATERIALS, SIZING, PACKAGING AND SHIPPING, etc)
          - Do NOT use bullet points for section headers
          - Under each section header, use bullet points "•" for listing specific features, details, or options

@@ -46,7 +46,26 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [optimizedContent, setOptimizedContent] = useState<{ title: string; description: string; tags: string } | null>(null);
   const [editedTags, setEditedTags] = useState('');
+  const [recentlyCopied, setRecentlyCopied] = useState<string | null>(null);
   const LISTINGS_PER_PAGE = 5;
+
+  const MAX_TAGS = 13;
+
+  const handleAddTag = (newTags: string) => {
+    const currentTags = editedTags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+    const tagsToAdd = newTags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+    
+    const availableSlots = MAX_TAGS - currentTags.length;
+    const tagsToAddLimited = tagsToAdd.slice(0, availableSlots);
+
+    const updatedTags = [...new Set([...currentTags, ...tagsToAddLimited])];
+    setEditedTags(updatedTags.join(', '));
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const updatedTags = editedTags.split(',').map(tag => tag.trim()).filter(tag => tag !== tagToRemove);
+    setEditedTags(updatedTags.join(', '));
+  };
 
   useEffect(() => {
     if (customerId) {
@@ -205,9 +224,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // You might want to show a toast or some feedback here
+  const copyToClipboard = (text: string, buttonId: string) => {
+    const formattedText = text.split(',').map(tag => tag.trim()).filter(tag => tag !== '').join(', ');
+    navigator.clipboard.writeText(formattedText);
+    setRecentlyCopied(buttonId);
+    setTimeout(() => setRecentlyCopied(null), 1000); // Reset after 1 second
   };
 
   // Replace the optimizeListing function with this simplified version
@@ -424,8 +445,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                     onChange={(e) => setOptimizedContent({...optimizedContent, title: e.target.value})}
                     style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
                   />
-                  <button onClick={() => copyToClipboard(optimizedContent.title)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
-                    <Copy size={16} />
+                  <button 
+                    onClick={() => copyToClipboard(optimizedContent.title, 'title')} 
+                    style={{ 
+                      padding: '4px', 
+                      backgroundColor: recentlyCopied === 'title' ? '#4CAF50' : 'transparent', 
+                      border: 'none', 
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s ease'
+                    }}
+                  >
+                    <Copy size={16} color={recentlyCopied === 'title' ? 'white' : 'black'} />
                   </button>
                   <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
                     <Edit size={16} />
@@ -436,12 +466,28 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                   <textarea
                     value={optimizedContent.description}
                     onChange={(e) => setOptimizedContent({...optimizedContent, description: e.target.value})}
-                    rows={4}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    rows={20} // Increased from 10 to 20
+                    style={{ 
+                      width: '100%', 
+                      padding: '8px', 
+                      border: '1px solid #ccc', 
+                      borderRadius: '4px',
+                      minHeight: '400px', // Increased from 200px to 400px
+                      resize: 'vertical' // Allows vertical resizing
+                    }}
                   />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <button onClick={() => copyToClipboard(optimizedContent.description)} style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
-                      <Copy size={16} />
+                    <button 
+                      onClick={() => copyToClipboard(optimizedContent.description, 'description')} 
+                      style={{ 
+                        padding: '4px', 
+                        backgroundColor: recentlyCopied === 'description' ? '#4CAF50' : 'transparent', 
+                        border: 'none', 
+                        cursor: 'pointer',
+                        transition: 'background-color 0.3s ease'
+                      }}
+                    >
+                      <Copy size={16} color={recentlyCopied === 'description' ? 'white' : 'black'} />
                     </button>
                     <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
                       <Edit size={16} />
@@ -449,7 +495,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                   </div>
                 </div>
                 <h4 className="font-medium mt-2">Tags:</h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
                   {editedTags.split(',').map((tag, index) => (
                     <span key={index} style={{ 
                       backgroundColor: '#e2e8f0', 
@@ -462,43 +508,62 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                     }}>
                       {tag.trim()}
                       <button 
-                        onClick={() => setEditedTags(editedTags.split(',').filter((_, i) => i !== index).join(','))}
+                        onClick={() => handleRemoveTag(tag.trim())}
                         style={{ fontSize: '12px', marginLeft: '4px', cursor: 'pointer', border: 'none', background: 'none' }}
                       >
                         ×
                       </button>
                     </span>
                   ))}
+                  <button 
+                    onClick={() => copyToClipboard(editedTags, 'tags')}
+                    style={{ 
+                      padding: '4px', 
+                      backgroundColor: recentlyCopied === 'tags' ? '#4CAF50' : 'transparent', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      marginLeft: '8px',
+                      transition: 'background-color 0.3s ease'
+                    }}
+                    title="Copy all tags"
+                  >
+                    <Copy size={16} color={recentlyCopied === 'tags' ? 'white' : 'black'} />
+                  </button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
-                    placeholder="Add new tags (comma-separated)"
+                    placeholder="Add new tag(s)"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const newTags = e.currentTarget.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-                        if (newTags.length > 0) {
-                          setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                        const newTags = e.currentTarget.value.trim();
+                        if (newTags) {
+                          handleAddTag(newTags);
                           e.currentTarget.value = '';
                         }
                       }
                     }}
                     style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
                   />
                   <button 
                     onClick={() => {
-                      const input = document.querySelector('input[placeholder="Add new tags (comma-separated)"]') as HTMLInputElement;
-                      const newTags = input.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-                      if (newTags.length > 0) {
-                        setEditedTags(prevTags => [...new Set([...prevTags.split(','), ...newTags])].join(','));
+                      const input = document.querySelector('input[placeholder="Add new tag(s)"]') as HTMLInputElement;
+                      const newTags = input.value.trim();
+                      if (newTags) {
+                        handleAddTag(newTags);
                         input.value = '';
                       }
                     }}
                     style={{ padding: '8px 16px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
                   >
-                    Add Tags
+                    Add Tag(s)
                   </button>
                 </div>
+                {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
+                  <p style={{ color: 'red', marginTop: '8px' }}>Maximum number of tags (13) reached.</p>
+                )}
               </div>
               <button 
                 onClick={handleSave} 
