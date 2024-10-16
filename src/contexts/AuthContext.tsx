@@ -12,8 +12,11 @@ import {
   signInWithPopup,
   onAuthStateChanged,
   UserCredential,
+  fetchSignInMethodsForEmail,
+  linkWithCredential,
+  EmailAuthProvider,
 } from "firebase/auth";
-import { collection, getDocs, limit, query, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import { Admin, Customer } from "../types/Customer";
 import { message } from "antd";
@@ -23,6 +26,8 @@ import {
   clearCookie,
   SupportedKeys,
 } from "../utils/cookies";
+import FirebaseHelper from "../helpers/FirebaseHelper";
+import dayjs from "dayjs";
 
 interface AuthContextType {
   user: Customer | Admin | null;
@@ -55,19 +60,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const token = await user.user.getIdToken();
     clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
 
-    const customersCollection = collection(db, "customers");
-    const customersSnapshot = await getDocs(customersCollection);
-    const customerDoc = customersSnapshot.docs.find(
-      (doc) => doc.data().email === user.user.email,
-    );
+    const customers = await FirebaseHelper.find<Customer>("customers");
+    const customerDoc = customers.find((doc) => doc.email === user.user.email);
 
     if (customerDoc) {
-      const userData = {
-        id: customerDoc.id,
-        ...customerDoc.data(),
-      } as Customer;
-      setUser(userData);
-      setCustomerData(userData);
+      setUser(customerDoc);
+      setCustomerData(customerDoc);
       setIsAdmin(false);
     } else {
       const q = query(collection(db, "admin"), limit(1));
@@ -75,13 +73,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (!querySnapshot.empty) {
         const adminDoc = querySnapshot.docs[0];
-        const userData = {
-          ...adminDoc.data(),
-          isAdmin: true,
-        } as Admin;
-        setUser(userData);
-        setIsAdmin(true);
-        setCustomerData(null);
+        if (adminDoc.data().email === user.user.email) {
+          const userData = {
+            ...adminDoc.data(),
+            isAdmin: true,
+          } as Admin;
+          setUser(userData);
+          setIsAdmin(true);
+          setCustomerData(null);
+        } else {
+          const created = await FirebaseHelper.create("customers", {
+            email: user.user.email,
+            date_joined: dayjs().toISOString(),
+            customer_type: "Free",
+            store_owner_name: user.user.displayName,
+            logo: user.user.photoURL,
+          } as Customer);
+          const customer = await FirebaseHelper.findOne<Customer>(
+            "customers",
+            created,
+          );
+
+          setUser(customer);
+          setCustomerData(customer);
+          setIsAdmin(false);
+        }
       }
     }
     setLoading(false);
@@ -109,6 +125,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setLoggingIn(true);
       const resp = await signInWithEmailAndPassword(auth, email, password);
+
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      if (methods.includes("google.com")) {
+        const provider = new GoogleAuthProvider();
+        const googleResp = await signInWithPopup(auth, provider);
+        const googleCredential =
+          GoogleAuthProvider.credentialFromResult(googleResp);
+        await linkWithCredential(resp.user, googleCredential!);
+        message.success("Email/Password account linked with Google account!");
+      }
+
       await handleLoginUser(resp);
       setLoggingIn(false);
     } catch (error) {
@@ -123,7 +150,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const provider = new GoogleAuthProvider();
     try {
       const resp = await signInWithPopup(auth, provider);
-      message.success("Logged in with Google successfully");
+
+      const email = resp.user.email;
+      const methods = await fetchSignInMethodsForEmail(auth, email!);
+
+      if (methods.includes("password")) {
+        const password = prompt("Enter your password to link your accounts:");
+        if (password) {
+          const credential = EmailAuthProvider.credential(email!, password);
+          await linkWithCredential(resp.user, credential);
+          message.success(
+            "Google account linked with your Email/Password account!",
+          );
+        }
+      }
+
       await handleLoginUser(resp);
     } catch (error) {
       message.error(

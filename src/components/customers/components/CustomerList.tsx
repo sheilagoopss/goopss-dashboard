@@ -90,7 +90,7 @@ export default function CustomerList({
           </Col>
           <Col>
             <Button
-              onClick={() => handleDelete(record.customer_id)}
+              onClick={() => handleDelete(record.id)}
               icon={<DeleteOutlined />}
               danger
               loading={isDeleting}
@@ -103,7 +103,7 @@ export default function CustomerList({
 
   const handleEdit = (record: Customer) => {
     form.setFieldsValue(record);
-    setEditingKey(record.customer_id);
+    setEditingKey(record.id);
   };
 
   const handleSave = async () => {

@@ -1,5 +1,5 @@
 export function caseInsensitiveSearch(
-  str: string | number | boolean,
+  str: string | number | boolean | unknown,
   searchString = "",
 ): boolean {
   let searchValue = "";
