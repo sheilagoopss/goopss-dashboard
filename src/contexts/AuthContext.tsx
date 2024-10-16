@@ -1,68 +1,90 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
-
-interface Customer {
-  id: string;
-  customer_id: string;
-  store_name: string;
-  store_owner_name: string;
-  isAdmin: boolean;
-  email: string;
-}
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  UserCredential,
+} from "firebase/auth";
+import { collection, getDocs, limit, query, doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/config";
+import { Admin, Customer } from "../types/Customer";
+import { message } from "antd";
+import {
+  clientSetCookie,
+  getClientCookie,
+  clearCookie,
+  SupportedKeys,
+} from "../utils/cookies";
 
 interface AuthContextType {
-  user: Customer | null;
+  user: Customer | Admin | null;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
+  googleLogin: () => Promise<void>;
   toggleAdminMode: () => void;
+  loggingIn: boolean;
+  googleLoggingIn: boolean;
+  loading: boolean;
+  customerData: Customer | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<Customer | null>(null);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<Customer | Admin | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const auth = getAuth();
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [customerData, setCustomerData] = useState<Customer | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        // User is logged in, so they are not an admin
-        setIsAdmin(false);
+  const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
-        // Find the customer document that matches the current user's email
-        const customersCollection = collection(db, 'customers');
-        const customersSnapshot = await getDocs(customersCollection);
-        const customerDoc = customersSnapshot.docs.find(doc => doc.data().email === currentUser.email);
-        
-        if (customerDoc) {
-          const userData = { id: customerDoc.id, ...customerDoc.data() } as Customer;
-          setUser(userData);
-          console.log("Selected customer:", userData);
-        } else {
-          console.error('No matching customer found for the current user');
-        }
-      } else {
-        // No user is logged in, so treat as admin
+  const handleLoginUser = async (user: UserCredential) => {
+    const token = await user.user.getIdToken();
+    clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
+
+    const customersCollection = collection(db, "customers");
+    const customersSnapshot = await getDocs(customersCollection);
+    const customerDoc = customersSnapshot.docs.find(
+      (doc) => doc.data().email === user.user.email,
+    );
+
+    if (customerDoc) {
+      const userData = {
+        id: customerDoc.id,
+        ...customerDoc.data(),
+      } as Customer;
+      setUser(userData);
+      setCustomerData(userData);
+      setIsAdmin(false);
+    } else {
+      const q = query(collection(db, "admin"), limit(1));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const adminDoc = querySnapshot.docs[0];
+        const userData = {
+          ...adminDoc.data(),
+          isAdmin: true,
+        } as Admin;
+        setUser(userData);
         setIsAdmin(true);
-        setUser(null);
+        setCustomerData(null);
       }
-    });
-
-    return () => unsubscribe();
-  }, [auth]);
-
-  const login = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // The user state will be updated by the onAuthStateChanged listener
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
     }
+    setLoading(false);
   };
 
   const logout = async () => {
@@ -70,18 +92,99 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await signOut(auth);
       setUser(null);
       setIsAdmin(false);
+      clearCookie(AUTH_COOKIE_KEY);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
       throw error;
     }
   };
+
+  const login = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
+    try {
+      setLoggingIn(true);
+      const resp = await signInWithEmailAndPassword(auth, email, password);
+      await handleLoginUser(resp);
+      setLoggingIn(false);
+    } catch (error) {
+      console.error("Error signing in: ", error);
+      setLoggingIn(false);
+      message.error({ content: "Invalid email or password" });
+    }
+  };
+
+  const googleLogin = async () => {
+    setGoogleLoggingIn(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const resp = await signInWithPopup(auth, provider);
+      message.success("Logged in with Google successfully");
+      await handleLoginUser(resp);
+    } catch (error) {
+      message.error(
+        "Failed to log in with Google: " + (error as Error).message,
+      );
+    } finally {
+      setGoogleLoggingIn(false);
+    }
+  };
+
+  const checkForTokenOnLoad = async () => {
+    setLoading(true);
+    const token = getClientCookie(AUTH_COOKIE_KEY);
+    if (token) {
+      try {
+        const userCredential = await new Promise<UserCredential>(
+          (resolve, reject) => {
+            onAuthStateChanged(auth, (user) => {
+              if (user) {
+                resolve({ user } as UserCredential);
+              } else {
+                reject(new Error("User not found"));
+              }
+            });
+          },
+        );
+        await handleLoginUser(userCredential);
+      } catch (error) {
+        setLoading(false);
+        console.error("Failed to re-authenticate user: ", error);
+        clearCookie(AUTH_COOKIE_KEY);
+      }
+    } else {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkForTokenOnLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleAdminMode = () => {
     setIsAdmin(!isAdmin);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, login, logout, toggleAdminMode }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin,
+        login,
+        logout,
+        googleLogin,
+        toggleAdminMode,
+        loggingIn,
+        googleLoggingIn,
+        loading,
+        customerData,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -90,7 +193,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

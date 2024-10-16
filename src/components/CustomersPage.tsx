@@ -30,25 +30,28 @@ function CustomersPage({ customers, selectedCustomer, setSelectedCustomer, isAdm
   if (isAdmin) {
     return (
       <div>
-        <h2>Customers</h2>
-        {customers.length === 0 ? (
-          <p>No customers found. Please check your database connection.</p>
-        ) : (
-          <select 
-            value={selectedCustomer?.id || ''}
-            onChange={(e) => {
-              const customer = customers.find(c => c.id === e.target.value) || null;
-              setSelectedCustomer(customer);
-            }}
-          >
-            <option value="">Select a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.store_owner_name}
-              </option>
-            ))}
-          </select>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2>Customers</h2>
+          {customers.length === 0 ? (
+            <p>No customers found. Please check your database connection.</p>
+          ) : (
+            <select 
+              value={selectedCustomer?.id || ''}
+              onChange={(e) => {
+                const customer = customers.find(c => c.id === e.target.value) || null;
+                setSelectedCustomer(customer);
+              }}
+              style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
+            >
+              <option value="">Select a customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.store_name} - {customer.store_owner_name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         
         {selectedCustomer && (
           <div>

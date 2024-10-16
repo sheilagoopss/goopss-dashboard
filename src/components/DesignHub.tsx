@@ -79,7 +79,8 @@ interface Image {
 
 interface Customer {
   id: string;
-  store_owner_name: string; // Changed from storeName to store_owner_name
+  store_owner_name: string;
+  customer_id: string; // Add this line
 }
 
 const ImageModal = ({ isOpen, onClose, imageUrl, title }: { isOpen: boolean; onClose: () => void; imageUrl: string; title: string }) => (
@@ -281,7 +282,7 @@ const DesignCard = ({ image, onApprove, onRevise, onSelect, isSelected, showChec
 const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [images, setImages] = useState<Record<string, Image[]>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('revision');
   const [selectedDesigns, setSelectedDesigns] = useState(new Set<string>());
   const [sortOrder, setSortOrder] = useState('newest');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -303,8 +304,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           const customersList = customersSnapshot.docs.map(doc => ({
             id: doc.id,
             store_owner_name: doc.data().store_owner_name,
+            customer_id: doc.data().customer_id,
           }));
-          console.log("Fetched customers:", customersList); // Add this line
           setCustomers(customersList);
         } catch (error) {
           console.error("Error fetching customers:", error);
@@ -317,8 +318,10 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   useEffect(() => {
     const fetchImages = async () => {
-      console.log("Fetching images for customer_id:", isAdmin ? selectedCustomerId : customerId);
-      console.log("Is admin:", isAdmin);
+      const targetCustomerId = isAdmin ? selectedCustomerId : customerId;
+      if (!targetCustomerId) return;
+
+      console.log("Fetching images for customer_id:", targetCustomerId);
 
       const imagesCollection = collection(db, 'images');
       let q;
@@ -657,128 +660,135 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   return (
     <div style={styles.container}>
-      <h2>Design Hub - {isAdmin ? 'Admin View' : 'User View'}</h2>
-      {isAdmin && (
-        <div style={styles.uploadForm}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2>Design Hub - {isAdmin ? 'Admin View' : 'User View'}</h2>
+        {isAdmin && (
           <select 
-            value={selectedCustomerId} 
-            onChange={(e) => {
-              console.log("Selected customer ID:", e.target.value);
-              setSelectedCustomerId(e.target.value);
-            }}
-            style={styles.input}
+            value={selectedCustomerId}
+            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
           >
             <option value="">Select a customer</option>
             {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
+              <option key={customer.id} value={customer.customer_id}>
                 {customer.store_owner_name}
               </option>
             ))}
           </select>
-          <input 
-            type="file" 
-            onChange={handleFileChange} 
-            accept="image/*" 
-            style={styles.input}
-          />
-          <button 
-            onClick={handleUpload} 
-            style={styles.button}
-            disabled={!selectedFile || (isAdmin && !selectedCustomerId)}
-          >
-            Upload Image
-          </button>
-        </div>
-      )}
-      <div style={{ marginBottom: '20px' }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
-          <option value="all">All Images</option>
-          <option value="pending">To Approve</option>
-          <option value="revision">For Revision</option>
-          <option value="approved">Approved</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Search listings..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={styles.input}
-        />
-        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={styles.input}>
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-        </select>
-        {statusFilter === 'pending' && (
-          <button onClick={handleBatchApprove} disabled={selectedDesigns.size === 0} style={styles.button}>
-            Approve Selected ({selectedDesigns.size})
-          </button>
         )}
       </div>
-      <div style={styles.imageGrid}>
-        {filteredAndSortedImages.map((image) => (
-          <div key={image.id}>
-            <DesignCard
-              image={image}
-              onApprove={handleApprove}
-              onRevise={handleRevise}
-              onSelect={handleSelect}
-              isSelected={selectedDesigns.has(image.id)}
-              showCheckbox={statusFilter === 'pending'}
-              isAdmin={isAdmin}
-              onUploadRevision={handleUploadRevision}
-            />
-          </div>
-        ))}
-      </div>
-      <Modal
-        isOpen={isRevisionModalOpen}
-        onRequestClose={() => setIsRevisionModalOpen(false)}
-        style={{
-          content: {
-            top: '50%',
-            left: '50%',
-            right: 'auto',
-            bottom: 'auto',
-            marginRight: '-50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            maxWidth: '500px',
-            width: '90%',
-          },
-        }}
-      >
-        <h3>Upload Revision</h3>
-        {currentRevisionImage && (
-          <div>
-            <img src={currentRevisionImage.url} alt="Original" style={{ maxWidth: '100%', marginBottom: '10px' }} />
-            <div style={{ 
-              backgroundColor: '#f0f0f0', 
-              padding: '10px', 
-              borderRadius: '5px', 
-              marginBottom: '10px' 
-            }}>
-              <strong>User's revision request:</strong> 
-              <p>{currentRevisionImage.revisionNote || 'No notes provided'}</p>
+      {(isAdmin && selectedCustomerId) || (!isAdmin && customerId) ? (
+        <>
+          {isAdmin && (
+            <div style={styles.uploadForm}>
+              <input 
+                type="file" 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                style={styles.input}
+              />
+              <button 
+                onClick={handleUpload} 
+                style={styles.button}
+                disabled={!selectedFile || (isAdmin && !selectedCustomerId)}
+              >
+                Upload Image
+              </button>
             </div>
+          )}
+          <div style={{ marginBottom: '20px' }}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
+              <option value="all">All Images</option>
+              <option value="pending">To Approve</option>
+              <option value="revision">For Revision</option>
+              <option value="approved">Approved</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Search listings..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={styles.input}
+            />
+            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={styles.input}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+            {statusFilter === 'pending' && (
+              <button onClick={handleBatchApprove} disabled={selectedDesigns.size === 0} style={styles.button}>
+                Approve Selected ({selectedDesigns.size})
+              </button>
+            )}
           </div>
-        )}
-        <input 
-          type="file" 
-          onChange={handleRevisionFileChange} 
-          accept="image/*" 
-          style={{ marginBottom: '10px' }}
-        />
-        <textarea
-          value={revisionComment}
-          onChange={(e) => setRevisionComment(e.target.value)}
-          placeholder="Add a comment about this revision (optional)"
-          style={{ width: '100%', marginBottom: '10px' }}
-        />
-        <button onClick={handleRevisionUpload} disabled={!revisionFile}>Upload Revision</button>
-        <button onClick={() => setIsRevisionModalOpen(false)}>Cancel</button>
-      </Modal>
+          <div style={styles.imageGrid}>
+            {filteredAndSortedImages.map((image) => (
+              <div key={image.id}>
+                <DesignCard
+                  image={image}
+                  onApprove={handleApprove}
+                  onRevise={handleRevise}
+                  onSelect={handleSelect}
+                  isSelected={selectedDesigns.has(image.id)}
+                  showCheckbox={statusFilter === 'pending'}
+                  isAdmin={isAdmin}
+                  onUploadRevision={handleUploadRevision}
+                />
+              </div>
+            ))}
+          </div>
+          <Modal
+            isOpen={isRevisionModalOpen}
+            onRequestClose={() => setIsRevisionModalOpen(false)}
+            style={{
+              content: {
+                top: '50%',
+                left: '50%',
+                right: 'auto',
+                bottom: 'auto',
+                marginRight: '-50%',
+                transform: 'translate(-50%, -50%)',
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                maxWidth: '500px',
+                width: '90%',
+              },
+            }}
+          >
+            <h3>Upload Revision</h3>
+            {currentRevisionImage && (
+              <div>
+                <img src={currentRevisionImage.url} alt="Original" style={{ maxWidth: '100%', marginBottom: '10px' }} />
+                <div style={{ 
+                  backgroundColor: '#f0f0f0', 
+                  padding: '10px', 
+                  borderRadius: '5px', 
+                  marginBottom: '10px' 
+                }}>
+                  <strong>User's revision request:</strong> 
+                  <p>{currentRevisionImage.revisionNote || 'No notes provided'}</p>
+                </div>
+              </div>
+            )}
+            <input 
+              type="file" 
+              onChange={handleRevisionFileChange} 
+              accept="image/*" 
+              style={{ marginBottom: '10px' }}
+            />
+            <textarea
+              value={revisionComment}
+              onChange={(e) => setRevisionComment(e.target.value)}
+              placeholder="Add a comment about this revision (optional)"
+              style={{ width: '100%', marginBottom: '10px' }}
+            />
+            <button onClick={handleRevisionUpload} disabled={!revisionFile}>Upload Revision</button>
+            <button onClick={() => setIsRevisionModalOpen(false)}>Cancel</button>
+          </Modal>
+        </>
+      ) : (
+        <p>{isAdmin ? "Please select a customer to view designs." : "No customer ID provided."}</p>
+      )}
     </div>
   );
 };

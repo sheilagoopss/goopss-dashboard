@@ -77,11 +77,22 @@ export default function Social() {
   const fetchListings = async (pageNumber = 1) => {
     if (selectedCustomer) {
       try {
-        const listingsCollection = collection(db, `customers/${selectedCustomer.id}/listings`);
-        let q = query(listingsCollection, orderBy('listingID'), limit(LISTINGS_PER_PAGE));
+        const listingsCollection = collection(db, 'listings');
+        let q = query(
+          listingsCollection, 
+          where('customer_id', '==', selectedCustomer.customer_id),
+          orderBy('listingID'),
+          limit(LISTINGS_PER_PAGE)
+        );
 
         if (pageNumber > 1 && lastVisible) {
-          q = query(listingsCollection, orderBy('listingID'), startAfter(lastVisible), limit(LISTINGS_PER_PAGE));
+          q = query(
+            listingsCollection,
+            where('customer_id', '==', selectedCustomer.customer_id),
+            orderBy('listingID'),
+            startAfter(lastVisible),
+            limit(LISTINGS_PER_PAGE)
+          );
         }
 
         const listingsSnapshot = await getDocs(q);
@@ -103,7 +114,9 @@ export default function Social() {
   };
 
   useEffect(() => {
-    fetchListings();
+    if (selectedCustomer) {
+      fetchListings();
+    }
   }, [selectedCustomer]);
 
   useEffect(() => {
@@ -178,7 +191,7 @@ export default function Social() {
         }
 
         // Update the scheduled_post_date in the listing
-        const listingRef = doc(db, `customers/${selectedCustomer.id}/listings`, listing.id);
+        const listingRef = doc(db, 'listings', listing.id);
         await updateDoc(listingRef, { scheduled_post_date: date.toISOString() });
 
         // Update local state
@@ -316,18 +329,17 @@ export default function Social() {
         
         {isAdmin && (
           <select 
-            onChange={handleCustomerSelect}
-            style={{ 
-              width: '200px', 
-              padding: '8px', 
-              borderRadius: '4px', 
-              border: '1px solid #ccc' 
+            value={selectedCustomer?.id || ''}
+            onChange={(e) => {
+              const customer = customers.find(c => c.id === e.target.value) || null;
+              setSelectedCustomer(customer);
             }}
+            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
           >
             <option value="">Select a customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
-                {customer.store_owner_name}
+                {customer.store_name} - {customer.store_owner_name}
               </option>
             ))}
           </select>
