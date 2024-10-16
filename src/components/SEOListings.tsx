@@ -3,6 +3,7 @@ import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromSer
 import { db } from '../firebase/config';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2 } from 'lucide-react';
 import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
+import { optimizeText } from '../services/OptimizationService';
 
 interface SEOListingsProps {
   customerId: string;
@@ -152,13 +153,15 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const handleOptimize = async (listing: Listing) => {
     setIsOptimizing(true);
     try {
-      const optimizedData = await optimizeListing(listing);
+      const storeUrl = `https://${storeName}.etsy.com`;
+      const optimizedData = await optimizeText(listing.listingTitle, listing.listingDescription, 1, storeUrl);
       setSelectedListing(listing);
       setOptimizedContent({
-        ...optimizedData,
-        description: brToNewline(optimizedData.description)
+        title: optimizedData.title,
+        description: brToNewline(optimizedData.description),
+        tags: listing.listingTags,
       });
-      setEditedTags(optimizedData.tags);
+      setEditedTags(listing.listingTags);
     } catch (error) {
       console.error("Error optimizing listing:", error);
     } finally {
