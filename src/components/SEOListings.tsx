@@ -1,9 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2 } from 'lucide-react';
-import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
-import { optimizeText } from '../services/OptimizationService';
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  query,
+  getDocs,
+  limit,
+  startAfter,
+  orderBy,
+  getCountFromServer,
+  where,
+  updateDoc,
+  doc,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../firebase/config";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Edit,
+  Copy,
+  Check,
+  Loader2,
+} from "lucide-react";
+import DOMPurify from "dompurify"; // You'll need to install this package: npm install dompurify @types/dompurify
+import { optimizeText } from "../services/OptimizationService";
+import { useListingUpdate } from "../hooks/useListing";
 
 interface SEOListingsProps {
   customerId: string;
@@ -18,7 +43,7 @@ interface Listing {
   primaryImage: string;
   listingTags: string;
   optimizationStatus: boolean;
-  optimizedAt?: Date;  // New field
+  optimizedAt?: Date; // New field
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
@@ -31,40 +56,59 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [displayedListings, setDisplayedListings] = useState<Listing[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [sortColumn, setSortColumn] = useState<"totalSales" | "dailyViews" | null>(null);
+  const [sortColumn, setSortColumn] = useState<
+    "totalSales" | "dailyViews" | null
+  >(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [showNonBestsellers, setShowNonBestsellers] = useState(false);
   const [hideOptimized, setHideOptimized] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
-  const [optimizedListings, setOptimizedListings] = useState<{[key: string]: Listing}>({});
+  const [optimizedListings, setOptimizedListings] = useState<{
+    [key: string]: Listing;
+  }>({});
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [optimizedContent, setOptimizedContent] = useState<{ title: string; description: string; tags: string } | null>(null);
-  const [editedTags, setEditedTags] = useState('');
+  const [optimizedContent, setOptimizedContent] = useState<{
+    title: string;
+    description: string;
+    tags: string;
+  } | null>(null);
+  const [editedTags, setEditedTags] = useState("");
   const [recentlyCopied, setRecentlyCopied] = useState<string | null>(null);
+  const { isLoading: isUpdating, updateListing } = useListingUpdate();
+
   const LISTINGS_PER_PAGE = 5;
 
   const MAX_TAGS = 13;
 
   const handleAddTag = (newTags: string) => {
-    const currentTags = editedTags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-    const tagsToAdd = newTags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-    
+    const currentTags = editedTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== "");
+    const tagsToAdd = newTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== "");
+
     const availableSlots = MAX_TAGS - currentTags.length;
     const tagsToAddLimited = tagsToAdd.slice(0, availableSlots);
 
     const updatedTags = [...new Set([...currentTags, ...tagsToAddLimited])];
-    setEditedTags(updatedTags.join(', '));
+    setEditedTags(updatedTags.join(", "));
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    const updatedTags = editedTags.split(',').map(tag => tag.trim()).filter(tag => tag !== tagToRemove);
-    setEditedTags(updatedTags.join(', '));
+    const updatedTags = editedTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== tagToRemove);
+    setEditedTags(updatedTags.join(", "));
   };
 
   useEffect(() => {
@@ -76,13 +120,19 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const fetchAllListings = async () => {
     setIsLoading(true);
     try {
-      const listingsCollection = collection(db, 'listings');
-      const q = query(listingsCollection, where('customer_id', '==', customerId));
+      const listingsCollection = collection(db, "listings");
+      const q = query(
+        listingsCollection,
+        where("customer_id", "==", customerId),
+      );
       const listingsSnapshot = await getDocs(q);
-      const listingsList = listingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Listing));
+      const listingsList = listingsSnapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          } as Listing),
+      );
       setAllListings(listingsList);
       applyFiltersAndSort(listingsList);
     } catch (error) {
@@ -94,16 +144,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
   const applyFiltersAndSort = (listings: Listing[]) => {
     let filtered = [...listings];
-    
+
     if (showNonBestsellers) {
-      filtered = filtered.filter(listing => !listing.bestseller);
+      filtered = filtered.filter((listing) => !listing.bestseller);
     }
     if (hideOptimized) {
-      filtered = filtered.filter(listing => !listing.optimizationStatus);
+      filtered = filtered.filter((listing) => !listing.optimizationStatus);
     }
-    filtered = filtered.filter(listing => 
-      listing.listingID.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    filtered = filtered.filter(
+      (listing) =>
+        listing.listingID.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()),
     );
 
     if (sortColumn) {
@@ -130,7 +181,13 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
   useEffect(() => {
     applyFiltersAndSort(allListings);
-  }, [searchTerm, showNonBestsellers, hideOptimized, sortColumn, sortDirection]);
+  }, [
+    searchTerm,
+    showNonBestsellers,
+    hideOptimized,
+    sortColumn,
+    sortDirection,
+  ]);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -154,26 +211,31 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   };
 
   const toggleRowExpansion = (listingId: string) => {
-    setExpandedRows(prev =>
+    setExpandedRows((prev) =>
       prev.includes(listingId)
-        ? prev.filter(id => id !== listingId)
-        : [...prev, listingId]
+        ? prev.filter((id) => id !== listingId)
+        : [...prev, listingId],
     );
   };
 
   const brToNewline = (text: string) => {
-    return text.replace(/<br\s*\/?>/g, '\n');
+    return text.replace(/<br\s*\/?>/g, "\n");
   };
 
   const newlineToBr = (text: string) => {
-    return text.replace(/\n/g, '<br>');
+    return text.replace(/\n/g, "<br>");
   };
 
   const handleOptimize = async (listing: Listing) => {
     setIsOptimizing(true);
     try {
       const storeUrl = `https://${storeName}.etsy.com`;
-      const optimizedData = await optimizeText(listing.listingTitle, listing.listingDescription, 1, storeUrl);
+      const optimizedData = await optimizeText(
+        listing.listingTitle,
+        listing.listingDescription,
+        1,
+        storeUrl,
+      );
       setSelectedListing(listing);
       setOptimizedContent({
         title: optimizedData.title,
@@ -193,30 +255,46 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
     setIsPublishing(true);
     try {
-      const listingRef = doc(db, 'listings', selectedListing.id);
-      await updateDoc(listingRef, {
-        optimizedTitle: optimizedContent.title,
-        optimizedDescription: newlineToBr(optimizedContent.description),
-        optimizedTags: editedTags,
-        optimizationStatus: true,
-        optimizedAt: serverTimestamp(),  // Add this line
-      });
+      // const listingRef = doc(db, "listings", selectedListing.id);
+      // await updateDoc(listingRef, {
+      //   optimizedTitle: optimizedContent.title,
+      //   optimizedDescription: newlineToBr(optimizedContent.description),
+      //   optimizedTags: editedTags,
+      //   optimizationStatus: true,
+      //   optimizedAt: serverTimestamp(), // Add this line
+      // });
 
-      setAllListings(prevListings =>
-        prevListings.map(l => l.id === selectedListing.id ? {
-          ...l,
+      await updateListing(
+        selectedListing.id,
+        {
           optimizedTitle: optimizedContent.title,
           optimizedDescription: newlineToBr(optimizedContent.description),
           optimizedTags: editedTags,
           optimizationStatus: true,
-          optimizedAt: new Date(),  // Add this line
-        } : l)
+          optimizedAt: serverTimestamp() as unknown as Date, // to pass type check
+        },
+        customerId,
+      );
+
+      setAllListings((prevListings) =>
+        prevListings.map((l) =>
+          l.id === selectedListing.id
+            ? {
+                ...l,
+                optimizedTitle: optimizedContent.title,
+                optimizedDescription: newlineToBr(optimizedContent.description),
+                optimizedTags: editedTags,
+                optimizationStatus: true,
+                optimizedAt: new Date(), // Add this line
+              }
+            : l,
+        ),
       );
 
       // Clear the optimized content and selected listing
       setOptimizedContent(null);
       setSelectedListing(null);
-      setEditedTags('');
+      setEditedTags("");
     } catch (error) {
       console.error("Error saving optimized listing:", error);
     } finally {
@@ -225,7 +303,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   };
 
   const copyToClipboard = (text: string, buttonId: string) => {
-    const formattedText = text.split(',').map(tag => tag.trim()).filter(tag => tag !== '').join(', ');
+    const formattedText = text
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== "")
+      .join(", ");
     navigator.clipboard.writeText(formattedText);
     setRecentlyCopied(buttonId);
     setTimeout(() => setRecentlyCopied(null), 1000); // Reset after 1 second
@@ -245,13 +327,15 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
     // Simple function to generate mock optimized tags
     const generateOptimizedTags = (originalTags: string) => {
-      const tagArray = originalTags.split(',').map(tag => tag.trim());
-      const newTags = ['bestseller', 'top-rated', 'premium'];
-      return [...new Set([...tagArray, ...newTags])].join(', ');
+      const tagArray = originalTags.split(",").map((tag) => tag.trim());
+      const newTags = ["bestseller", "top-rated", "premium"];
+      return [...new Set([...tagArray, ...newTags])].join(", ");
     };
 
     const optimizedTitle = generateOptimizedTitle(listing.listingTitle);
-    const optimizedDescription = generateOptimizedDescription(listing.listingDescription);
+    const optimizedDescription = generateOptimizedDescription(
+      listing.listingDescription,
+    );
     const optimizedTags = generateOptimizedTags(listing.listingTags);
 
     return {
@@ -264,26 +348,40 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   // Add this helper function to sanitize HTML
   const sanitizeHtml = (html: string) => {
     return {
-      __html: DOMPurify.sanitize(html, { ALLOWED_TAGS: ['br'] })
+      __html: DOMPurify.sanitize(html, { ALLOWED_TAGS: ["br"] }),
     };
   };
 
   return (
     <div>
       <h2>Listings for {storeName}</h2>
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ position: 'relative', width: '300px' }}>
+      <div
+        style={{
+          marginBottom: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ position: "relative", width: "300px" }}>
           <input
             type="text"
             placeholder="Search listings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '10px', paddingLeft: '30px' }}
+            style={{ width: "100%", padding: "10px", paddingLeft: "30px" }}
           />
-          <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+          <Search
+            style={{
+              position: "absolute",
+              left: "10px",
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+          />
         </div>
         <div>
-          <label style={{ marginRight: '20px' }}>
+          <label style={{ marginRight: "20px" }}>
             <input
               type="checkbox"
               checked={showNonBestsellers}
@@ -301,113 +399,249 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           </label>
         </div>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "separate",
+          borderSpacing: "0 8px",
+        }}
+      >
         <thead>
           <tr>
-            <th style={{ padding: '10px', textAlign: 'left' }}></th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Image</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Listing ID</th>
-            <th style={{ padding: '10px', textAlign: 'left', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Title</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Status</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Bestseller</th>
-            <th onClick={() => handleSort("totalSales")} style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}>
-              Total Sales {sortColumn === "totalSales" && (sortDirection === "asc" ? "↑" : "↓")}
+            <th style={{ padding: "10px", textAlign: "left" }}></th>
+            <th style={{ padding: "10px", textAlign: "left" }}>Image</th>
+            <th style={{ padding: "10px", textAlign: "left" }}>Listing ID</th>
+            <th
+              style={{
+                padding: "10px",
+                textAlign: "left",
+                maxWidth: "200px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Title
             </th>
-            <th onClick={() => handleSort("dailyViews")} style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}>
-              Daily Views {sortColumn === "dailyViews" && (sortDirection === "asc" ? "↑" : "↓")}
+            <th style={{ padding: "10px", textAlign: "left" }}>Status</th>
+            <th style={{ padding: "10px", textAlign: "left" }}>Bestseller</th>
+            <th
+              onClick={() => handleSort("totalSales")}
+              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
+            >
+              Total Sales{" "}
+              {sortColumn === "totalSales" &&
+                (sortDirection === "asc" ? "↑" : "↓")}
             </th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
+            <th
+              onClick={() => handleSort("dailyViews")}
+              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
+            >
+              Daily Views{" "}
+              {sortColumn === "dailyViews" &&
+                (sortDirection === "asc" ? "↑" : "↓")}
+            </th>
+            <th style={{ padding: "10px", textAlign: "left" }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={9} style={{ textAlign: 'center', padding: '20px' }}>
-                <Loader2 style={{ animation: 'spin 1s linear infinite' }} /> Loading...
+              <td colSpan={9} style={{ textAlign: "center", padding: "20px" }}>
+                <Loader2 style={{ animation: "spin 1s linear infinite" }} />{" "}
+                Loading...
               </td>
             </tr>
-          ) : displayedListings.map((listing) => (
-            <React.Fragment key={listing.id}>
-              <tr style={{ backgroundColor: '#f9f9f9' }}>
-                <td style={{ padding: '10px' }}>
-                  <button onClick={() => toggleRowExpansion(listing.id)}>
-                    {expandedRows.includes(listing.id) ? <ChevronUp /> : <ChevronDown />}
-                  </button>
-                </td>
-                <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.listingTitle} style={{ width: '50px', height: '50px' }} /></td>
-                <td style={{ padding: '10px' }}>{listing.listingID}</td>
-                <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.listingTitle}</td>
-                <td style={{ padding: '10px' }}>
-                  {listing.optimizationStatus ? 'Optimized' : 'Pending'}
-                </td>
-                <td style={{ padding: '10px' }}>{listing.bestseller ? 'Yes' : 'No'}</td>
-                <td style={{ padding: '10px' }}>{listing.totalSales}</td>
-                <td style={{ padding: '10px' }}>{listing.dailyViews}</td>
-                <td style={{ padding: '10px' }}>
-                  <button 
-                    onClick={() => handleOptimize(listing)} 
-                    disabled={isOptimizing || listing.optimizationStatus}
+          ) : (
+            displayedListings.map((listing) => (
+              <React.Fragment key={listing.id}>
+                <tr style={{ backgroundColor: "#f9f9f9" }}>
+                  <td style={{ padding: "10px" }}>
+                    <button onClick={() => toggleRowExpansion(listing.id)}>
+                      {expandedRows.includes(listing.id) ? (
+                        <ChevronUp />
+                      ) : (
+                        <ChevronDown />
+                      )}
+                    </button>
+                  </td>
+                  <td style={{ padding: "10px" }}>
+                    <img
+                      src={listing.primaryImage}
+                      alt={listing.listingTitle}
+                      style={{ width: "50px", height: "50px" }}
+                    />
+                  </td>
+                  <td style={{ padding: "10px" }}>{listing.listingID}</td>
+                  <td
+                    style={{
+                      padding: "10px",
+                      maxWidth: "200px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
                   >
-                    {isOptimizing ? 'Optimizing...' : 'Optimize'}
-                  </button>
-                </td>
-              </tr>
-              {expandedRows.includes(listing.id) && (
-                <tr>
-                  <td colSpan={9}>
-                    <div style={{ padding: '20px', backgroundColor: '#f0f0f0' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                        <div>
-                          <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Original Listing</h4>
-                          <p><strong>Title:</strong> {listing.listingTitle}</p>
-                          <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} /></p>
-                          <div style={{ marginTop: '8px' }}>
-                            <strong>Tags:</strong>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                              {listing.listingTags.split(',').map((tag, index) => (
-                                <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
-                                  {tag.trim()}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        {listing.optimizationStatus && (
-                          <div>
-                            <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Optimized Listing</h4>
-                            <p><strong>Title:</strong> {listing.optimizedTitle}</p>
-                            <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription!)} /></p>
-                            <div style={{ marginTop: '8px' }}>
-                              <strong>Tags:</strong>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                                {listing.optimizedTags?.split(',').map((tag, index) => (
-                                  <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
-                                    {tag.trim()}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            {listing.optimizedAt && (
-                              <p style={{ marginTop: '8px' }}>
-                                <strong>Optimized on:</strong> {listing.optimizedAt.toLocaleString()}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    {listing.listingTitle}
+                  </td>
+                  <td style={{ padding: "10px" }}>
+                    {listing.optimizationStatus ? "Optimized" : "Pending"}
+                  </td>
+                  <td style={{ padding: "10px" }}>
+                    {listing.bestseller ? "Yes" : "No"}
+                  </td>
+                  <td style={{ padding: "10px" }}>{listing.totalSales}</td>
+                  <td style={{ padding: "10px" }}>{listing.dailyViews}</td>
+                  <td style={{ padding: "10px" }}>
+                    <button
+                      onClick={() => handleOptimize(listing)}
+                      // disabled={isOptimizing || listing.optimizationStatus}
+                    >
+                      {isOptimizing ? "Optimizing..." : "Optimize"}
+                    </button>
                   </td>
                 </tr>
-              )}
-            </React.Fragment>
-          ))}
+                {expandedRows.includes(listing.id) && (
+                  <tr>
+                    <td colSpan={9}>
+                      <div
+                        style={{ padding: "20px", backgroundColor: "#f0f0f0" }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "24px",
+                          }}
+                        >
+                          <div>
+                            <h4
+                              style={{
+                                fontWeight: "bold",
+                                marginBottom: "8px",
+                              }}
+                            >
+                              Original Listing
+                            </h4>
+                            <p>
+                              <strong>Title:</strong> {listing.listingTitle}
+                            </p>
+                            <p>
+                              <strong>Description:</strong>{" "}
+                              <span
+                                dangerouslySetInnerHTML={sanitizeHtml(
+                                  listing.listingDescription,
+                                )}
+                              />
+                            </p>
+                            <div style={{ marginTop: "8px" }}>
+                              <strong>Tags:</strong>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: "4px",
+                                  marginTop: "4px",
+                                }}
+                              >
+                                {listing.listingTags
+                                  .split(",")
+                                  .map((tag, index) => (
+                                    <span
+                                      key={index}
+                                      style={{
+                                        backgroundColor: "#e2e8f0",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontSize: "12px",
+                                      }}
+                                    >
+                                      {tag.trim()}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          </div>
+                          {listing.optimizationStatus && (
+                            <div>
+                              <h4
+                                style={{
+                                  fontWeight: "bold",
+                                  marginBottom: "8px",
+                                }}
+                              >
+                                Optimized Listing
+                              </h4>
+                              <p>
+                                <strong>Title:</strong> {listing.optimizedTitle}
+                              </p>
+                              <p>
+                                <strong>Description:</strong>{" "}
+                                <span
+                                  dangerouslySetInnerHTML={sanitizeHtml(
+                                    listing.optimizedDescription!,
+                                  )}
+                                />
+                              </p>
+                              <div style={{ marginTop: "8px" }}>
+                                <strong>Tags:</strong>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "4px",
+                                    marginTop: "4px",
+                                  }}
+                                >
+                                  {listing.optimizedTags
+                                    ?.split(",")
+                                    .map((tag, index) => (
+                                      <span
+                                        key={index}
+                                        style={{
+                                          backgroundColor: "#e2e8f0",
+                                          padding: "2px 6px",
+                                          borderRadius: "4px",
+                                          fontSize: "12px",
+                                        }}
+                                      >
+                                        {tag.trim()}
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
+                              {listing.optimizedAt && (
+                                <p style={{ marginTop: "8px" }}>
+                                  <strong>Optimized on:</strong>{" "}
+                                  {listing.optimizedAt.toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))
+          )}
         </tbody>
       </table>
-      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        style={{
+          marginTop: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <button onClick={handlePreviousPage} disabled={currentPage === 1}>
           <ChevronLeft /> Previous
         </button>
-        <span>Page {currentPage} of {totalPages}</span>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
         <button onClick={handleNextPage} disabled={currentPage === totalPages}>
           Next <ChevronRight />
         </button>
@@ -415,20 +649,53 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
       {/* Optimized Content Area */}
       {selectedListing && optimizedContent && (
-        <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
-          <h2 className="text-xl font-semibold mb-4">Listing Optimization Results</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div
+          style={{
+            marginTop: "40px",
+            padding: "20px",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "8px",
+          }}
+        >
+          <h2 className="text-xl font-semibold mb-4">
+            Listing Optimization Results
+          </h2>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "24px",
+            }}
+          >
             <div>
               <h3 className="font-medium text-lg mb-2">Original Listing</h3>
-              <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '4px' }}>
+              <div
+                style={{
+                  backgroundColor: "#ffffff",
+                  padding: "16px",
+                  borderRadius: "4px",
+                }}
+              >
                 <h4 className="font-medium">Title:</h4>
                 <p className="mb-2">{selectedListing.listingTitle}</p>
                 <h4 className="font-medium">Description:</h4>
-                <p dangerouslySetInnerHTML={sanitizeHtml(selectedListing.listingDescription)} />
+                <p
+                  dangerouslySetInnerHTML={sanitizeHtml(
+                    selectedListing.listingDescription,
+                  )}
+                />
                 <h4 className="font-medium mt-2">Tags:</h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {selectedListing.listingTags.split(',').map((tag, index) => (
-                    <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '4px 8px', borderRadius: '4px', fontSize: '14px' }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {selectedListing.listingTags.split(",").map((tag, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        backgroundColor: "#e2e8f0",
+                        padding: "4px 8px",
+                        borderRadius: "4px",
+                        fontSize: "14px",
+                      }}
+                    >
                       {tag.trim()}
                     </span>
                   ))}
@@ -437,153 +704,270 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
             </div>
             <div>
               <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
-              <div style={{ backgroundColor: '#f0fff4', padding: '16px', borderRadius: '4px' }}>
+              <div
+                style={{
+                  backgroundColor: "#f0fff4",
+                  padding: "16px",
+                  borderRadius: "4px",
+                }}
+              >
                 <h4 className="font-medium">Title:</h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "8px",
+                  }}
+                >
                   <input
                     value={optimizedContent.title}
-                    onChange={(e) => setOptimizedContent({...optimizedContent, title: e.target.value})}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                    onChange={(e) =>
+                      setOptimizedContent({
+                        ...optimizedContent,
+                        title: e.target.value,
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                    }}
                   />
-                  <button 
-                    onClick={() => copyToClipboard(optimizedContent.title, 'title')} 
-                    style={{ 
-                      padding: '4px', 
-                      backgroundColor: recentlyCopied === 'title' ? '#4CAF50' : 'transparent', 
-                      border: 'none', 
-                      cursor: 'pointer',
-                      transition: 'background-color 0.3s ease'
+                  <button
+                    onClick={() =>
+                      copyToClipboard(optimizedContent.title, "title")
+                    }
+                    style={{
+                      padding: "4px",
+                      backgroundColor:
+                        recentlyCopied === "title" ? "#4CAF50" : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "background-color 0.3s ease",
                     }}
                   >
-                    <Copy size={16} color={recentlyCopied === 'title' ? 'white' : 'black'} />
+                    <Copy
+                      size={16}
+                      color={recentlyCopied === "title" ? "white" : "black"}
+                    />
                   </button>
-                  <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  <button
+                    style={{
+                      padding: "4px",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
                     <Edit size={16} />
                   </button>
                 </div>
                 <h4 className="font-medium">Description:</h4>
-                <div style={{ display: 'flex', alignItems: 'start', gap: '8px' }}>
+                <div
+                  style={{ display: "flex", alignItems: "start", gap: "8px" }}
+                >
                   <textarea
                     value={optimizedContent.description}
-                    onChange={(e) => setOptimizedContent({...optimizedContent, description: e.target.value})}
+                    onChange={(e) =>
+                      setOptimizedContent({
+                        ...optimizedContent,
+                        description: e.target.value,
+                      })
+                    }
                     rows={20} // Increased from 10 to 20
-                    style={{ 
-                      width: '100%', 
-                      padding: '8px', 
-                      border: '1px solid #ccc', 
-                      borderRadius: '4px',
-                      minHeight: '400px', // Increased from 200px to 400px
-                      resize: 'vertical' // Allows vertical resizing
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      minHeight: "400px", // Increased from 200px to 400px
+                      resize: "vertical", // Allows vertical resizing
                     }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <button 
-                      onClick={() => copyToClipboard(optimizedContent.description, 'description')} 
-                      style={{ 
-                        padding: '4px', 
-                        backgroundColor: recentlyCopied === 'description' ? '#4CAF50' : 'transparent', 
-                        border: 'none', 
-                        cursor: 'pointer',
-                        transition: 'background-color 0.3s ease'
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        copyToClipboard(
+                          optimizedContent.description,
+                          "description",
+                        )
+                      }
+                      style={{
+                        padding: "4px",
+                        backgroundColor:
+                          recentlyCopied === "description"
+                            ? "#4CAF50"
+                            : "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "background-color 0.3s ease",
                       }}
                     >
-                      <Copy size={16} color={recentlyCopied === 'description' ? 'white' : 'black'} />
+                      <Copy
+                        size={16}
+                        color={
+                          recentlyCopied === "description" ? "white" : "black"
+                        }
+                      />
                     </button>
-                    <button style={{ padding: '4px', backgroundColor: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <button
+                      style={{
+                        padding: "4px",
+                        backgroundColor: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
                       <Edit size={16} />
                     </button>
                   </div>
                 </div>
                 <h4 className="font-medium mt-2">Tags:</h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                  {editedTags.split(',').map((tag, index) => (
-                    <span key={index} style={{ 
-                      backgroundColor: '#e2e8f0', 
-                      padding: '4px 8px', 
-                      borderRadius: '4px', 
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                    marginBottom: "8px",
+                    alignItems: "center",
+                  }}
+                >
+                  {editedTags.split(",").map((tag, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        backgroundColor: "#e2e8f0",
+                        padding: "4px 8px",
+                        borderRadius: "4px",
+                        fontSize: "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
                       {tag.trim()}
-                      <button 
+                      <button
                         onClick={() => handleRemoveTag(tag.trim())}
-                        style={{ fontSize: '12px', marginLeft: '4px', cursor: 'pointer', border: 'none', background: 'none' }}
+                        style={{
+                          fontSize: "12px",
+                          marginLeft: "4px",
+                          cursor: "pointer",
+                          border: "none",
+                          background: "none",
+                        }}
                       >
                         ×
                       </button>
                     </span>
                   ))}
-                  <button 
-                    onClick={() => copyToClipboard(editedTags, 'tags')}
-                    style={{ 
-                      padding: '4px', 
-                      backgroundColor: recentlyCopied === 'tags' ? '#4CAF50' : 'transparent', 
-                      border: 'none', 
-                      cursor: 'pointer', 
-                      marginLeft: '8px',
-                      transition: 'background-color 0.3s ease'
+                  <button
+                    onClick={() => copyToClipboard(editedTags, "tags")}
+                    style={{
+                      padding: "4px",
+                      backgroundColor:
+                        recentlyCopied === "tags" ? "#4CAF50" : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      marginLeft: "8px",
+                      transition: "background-color 0.3s ease",
                     }}
                     title="Copy all tags"
                   >
-                    <Copy size={16} color={recentlyCopied === 'tags' ? 'white' : 'black'} />
+                    <Copy
+                      size={16}
+                      color={recentlyCopied === "tags" ? "white" : "black"}
+                    />
                   </button>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
                   <input
                     placeholder="Add new tag(s)"
                     onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === "Enter") {
                         e.preventDefault();
                         const newTags = e.currentTarget.value.trim();
                         if (newTags) {
                           handleAddTag(newTags);
-                          e.currentTarget.value = '';
+                          e.currentTarget.value = "";
                         }
                       }
                     }}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                    }}
+                    disabled={
+                      editedTags.split(",").filter((tag) => tag.trim() !== "")
+                        .length >= MAX_TAGS
+                    }
                   />
-                  <button 
+                  <button
                     onClick={() => {
-                      const input = document.querySelector('input[placeholder="Add new tag(s)"]') as HTMLInputElement;
+                      const input = document.querySelector(
+                        'input[placeholder="Add new tag(s)"]',
+                      ) as HTMLInputElement;
                       const newTags = input.value.trim();
                       if (newTags) {
                         handleAddTag(newTags);
-                        input.value = '';
+                        input.value = "";
                       }
                     }}
-                    style={{ padding: '8px 16px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor: "#e2e8f0",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                    disabled={
+                      editedTags.split(",").filter((tag) => tag.trim() !== "")
+                        .length >= MAX_TAGS
+                    }
                   >
                     Add Tag(s)
                   </button>
                 </div>
-                {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
-                  <p style={{ color: 'red', marginTop: '8px' }}>Maximum number of tags (13) reached.</p>
+                {editedTags.split(",").filter((tag) => tag.trim() !== "")
+                  .length >= MAX_TAGS && (
+                  <p style={{ color: "red", marginTop: "8px" }}>
+                    Maximum number of tags (13) reached.
+                  </p>
                 )}
               </div>
-              <button 
-                onClick={handleSave} 
+              <button
+                onClick={handleSave}
                 disabled={isPublishing}
-                style={{ 
-                  marginTop: '16px',
-                  padding: '10px 20px', 
-                  backgroundColor: '#4CAF50', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+                style={{
+                  marginTop: "16px",
+                  padding: "10px 20px",
+                  backgroundColor: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
               >
                 {isPublishing ? (
                   <>
-                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    <Loader2
+                      size={16}
+                      style={{ animation: "spin 1s linear infinite" }}
+                    />
                     Saving...
                   </>
                 ) : (

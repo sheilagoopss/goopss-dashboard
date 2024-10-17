@@ -19,6 +19,7 @@ export interface Customer {
 }
 
 export interface Admin {
+  name?: string;
   email: string;
   isAdmin: boolean;
 }

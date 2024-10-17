@@ -68,7 +68,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setIsAdmin(false);
     } else {
       const admins = await FirebaseHelper.find<Admin>("admin");
-      const admin = admins.find((admin) => admin.email === user.user.email);
+      const admin = admins.find(
+        (admin) =>
+          admin.email?.toLowerCase() === user.user.email?.toLowerCase(),
+      );
 
       if (admin) {
         const userData = {
