@@ -58,6 +58,8 @@ app.post('/api/generate-content', async (req, res) => {
 
 // New endpoint for optimizing listings
 app.post('/api/optimize-listing', async (req, res) => {
+  console.log('Received optimize-listing request');
+  console.log('Request body:', req.body);
   try {
     const { title, description, storeUrl, version } = req.body;
     console.log('Received optimization request:', { title, description, storeUrl, version });
@@ -173,4 +175,9 @@ server.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit('connection', ws, request);
   });
+});
+
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
 });
