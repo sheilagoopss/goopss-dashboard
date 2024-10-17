@@ -4,6 +4,7 @@ import { db } from '../firebase/config';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2, ExternalLink } from 'lucide-react';
 import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
 import { optimizeText } from '../services/OptimizationService';
+import { useListingUpdate } from '../hooks/useListing';
 
 interface SEOListingsProps {
   customerId: string;
@@ -58,7 +59,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   } | null>(null);
   const [editedTags, setEditedTags] = useState("");
   const [recentlyCopied, setRecentlyCopied] = useState<string | null>(null);
-  const { isLoading: isUpdating, updateListing } = useListingUpdate();
+  const { updateListing } = useListingUpdate();
 
   const LISTINGS_PER_PAGE = 5;
 
