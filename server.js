@@ -58,7 +58,8 @@ app.post('/api/generate-content', async (req, res) => {
 
 // New endpoint for optimizing listings
 app.post('/api/optimize-listing', async (req, res) => {
-  console.log('Received optimize-listing request');
+  console.log('Received request to /api/optimize-listing');
+  console.log('Request headers:', req.headers);
   console.log('Request body:', req.body);
   try {
     const { title, description, storeUrl, version } = req.body;
@@ -178,6 +179,6 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`Unhandled request: ${req.method} ${req.url}`);
   next();
 });
