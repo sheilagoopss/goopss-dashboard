@@ -57,7 +57,16 @@ const Routes = () => {
     fetchCustomers();
   }, [isAdmin, customerData]);
 
-  console.log("Routes rendering. Loading:", loading, "User:", user, "IsAdmin:", isAdmin, "CustomerData:", customerData);
+  console.log(
+    "Routes rendering. Loading:",
+    loading,
+    "User:",
+    user,
+    "IsAdmin:",
+    isAdmin,
+    "CustomerData:",
+    customerData,
+  );
 
   const applyUpgradeNotice = (routes: RouteObject[]): any[] => {
     return routes.map((route) => {
@@ -88,7 +97,7 @@ const Routes = () => {
         children: [
           {
             path: "/customers",
-            element: <CustomerManagement />,
+            element: isAdmin && <CustomerManagement />,
           },
           {
             path: "/plan",
@@ -167,8 +176,8 @@ const Routes = () => {
           },
           { path: "/social", element: <Social /> },
           { path: "/ads-recommendation", element: <AdsRecommendation /> },
-          { path: "/tagify", element: <Tagify /> },
-          { path: "/taskSummary", element: <TaskManagement /> },
+          { path: "/tagify", element: !isAdmin && <Tagify /> },
+          { path: "/taskSummary", element: isAdmin && <TaskManagement /> },
         ],
       },
     ]),

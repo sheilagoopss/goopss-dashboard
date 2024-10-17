@@ -62,12 +62,6 @@ export function useCustomerCreate(): UseCustomerCreateReturn {
     async (customer: Customer): Promise<void> => {
       setIsLoading(true);
       try {
-        // const customersCollection = collection(db, "customers");
-        // const newCustomerDoc = doc(customersCollection);
-        // await setDoc(newCustomerDoc, {
-        //   ...customer,
-        //   customer_id: newCustomerDoc.id,
-        // });
         await FirebaseHelper.create("customers", customer);
       } catch (error) {
         console.error("Error creating customer:", error);
@@ -104,7 +98,7 @@ export function useCustomerUpdate(): UseCustomerUpdateReturn {
         setIsLoading(false);
       }
     },
-    [], // dependencies
+    [],
   );
 
   return { updateCustomer, isLoading };
