@@ -24,6 +24,7 @@ import { Spin } from "antd";
 import UpgradeNotice from "../components/common/UpgradeNotice";
 import Tagify from "../components/tagify/Tagify";
 import TaskManagement from "../components/taskList/TaskManagement";
+import UserListingOptimization from "../components/UserListingOptimization";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -117,7 +118,7 @@ const Routes = () => {
                     marginBottom: "20px",
                   }}
                 >
-                  <h1>SEO Optimizer</h1>
+                  <h1>SEO</h1>
                   {isAdmin && (
                     <CustomersDropdown
                       customers={customers}
@@ -137,10 +138,7 @@ const Routes = () => {
                     )}
                   </>
                 ) : (
-                  <SEOListings
-                    customerId={selectedCustomer?.customer_id || ""}
-                    storeName={selectedCustomer?.store_name || ""}
-                  />
+                  <UserListingOptimization />
                 )}
               </div>
             ),

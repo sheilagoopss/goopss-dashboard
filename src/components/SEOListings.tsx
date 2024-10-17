@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2 } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2, ExternalLink } from 'lucide-react';
 import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
 import { optimizeText } from '../services/OptimizationService';
 
@@ -268,6 +268,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     };
   };
 
+  // Add this function to generate the Etsy URL
+  const getEtsyUrl = (listingID: string) => {
+    return `https://www.etsy.com/listing/${listingID}`;
+  };
+
   return (
     <div>
       <h2>Listings for {storeName}</h2>
@@ -336,7 +341,18 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                 </td>
                 <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.listingTitle} style={{ width: '50px', height: '50px' }} /></td>
                 <td style={{ padding: '10px' }}>{listing.listingID}</td>
-                <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.listingTitle}</td>
+                <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <a 
+                    href={getEtsyUrl(listing.listingID)} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: '#0066c0', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                    onClick={(e) => e.stopPropagation()} // Prevent row expansion when clicking the link
+                  >
+                    {listing.listingTitle}
+                    <ExternalLink size={14} style={{ marginLeft: '5px' }} />
+                  </a>
+                </td>
                 <td style={{ padding: '10px' }}>
                   {listing.optimizationStatus ? 'Optimized' : 'Pending'}
                 </td>
