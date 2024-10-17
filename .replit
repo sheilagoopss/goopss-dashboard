@@ -1,4 +1,4 @@
-run = "npm start"
+run = "node server.js"
 build = "npm run build"
 modules = ["nodejs-20", "web", "nix"]
 
