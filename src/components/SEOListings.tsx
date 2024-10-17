@@ -18,7 +18,7 @@ interface Listing {
   primaryImage: string;
   listingTags: string;
   optimizationStatus: boolean;
-  optimizedAt?: Date;  // New field
+  optimizedAt: Date | null;  // New field
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
@@ -26,6 +26,11 @@ interface Listing {
   optimizedDescription?: string;
   optimizedTags?: string;
 }
+
+const formatDate = (date: Date | null): string => {
+  if (!date) return '-';
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [allListings, setAllListings] = useState<Listing[]>([]);
@@ -35,7 +40,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [sortColumn, setSortColumn] = useState<"totalSales" | "dailyViews" | null>(null);
+  const [sortColumn, setSortColumn] = useState<"totalSales" | "dailyViews" | "optimizedAt" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [showNonBestsellers, setShowNonBestsellers] = useState(false);
   const [hideOptimized, setHideOptimized] = useState(false);
@@ -50,6 +55,20 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const LISTINGS_PER_PAGE = 5;
 
   const MAX_TAGS = 13;
+
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    let formattedText = text;
+    if (field.includes('description')) {
+      // Replace <br> tags with newline characters
+      formattedText = text.replace(/<br\s*\/?>/g, '\n');
+    }
+    navigator.clipboard.writeText(formattedText).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000); // Reset after 2 seconds
+    });
+  };
 
   const handleAddTag = (newTags: string) => {
     const currentTags = editedTags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
@@ -79,10 +98,14 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       const listingsCollection = collection(db, 'listings');
       const q = query(listingsCollection, where('customer_id', '==', customerId));
       const listingsSnapshot = await getDocs(q);
-      const listingsList = listingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Listing));
+      const listingsList = listingsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          optimizedAt: data.optimizedAt ? new Date(data.optimizedAt.seconds * 1000) : null
+        } as Listing;
+      });
       setAllListings(listingsList);
       applyFiltersAndSort(listingsList);
     } catch (error) {
@@ -108,10 +131,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
     if (sortColumn) {
       filtered.sort((a, b) => {
-        if (sortDirection === "asc") {
-          return a[sortColumn] - b[sortColumn];
+        if (sortColumn === "optimizedAt") {
+          const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
+          const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
+          return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
         } else {
-          return b[sortColumn] - a[sortColumn];
+          const valueA = a[sortColumn] as number;
+          const valueB = b[sortColumn] as number;
+          if (typeof valueA === 'number' && typeof valueB === 'number') {
+            return sortDirection === "asc" ? valueA - valueB : valueB - valueA;
+          }
+          return 0;
         }
       });
     }
@@ -144,7 +174,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     }
   };
 
-  const handleSort = (column: "totalSales" | "dailyViews") => {
+  const handleSort = (column: "totalSales" | "dailyViews" | "optimizedAt") => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -224,11 +254,10 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     }
   };
 
-  const copyToClipboard = (text: string, buttonId: string) => {
-    const formattedText = text.split(',').map(tag => tag.trim()).filter(tag => tag !== '').join(', ');
-    navigator.clipboard.writeText(formattedText);
-    setRecentlyCopied(buttonId);
-    setTimeout(() => setRecentlyCopied(null), 1000); // Reset after 1 second
+  const handleCancel = () => {
+    setOptimizedContent(null);
+    setSelectedListing(null);
+    setEditedTags('');
   };
 
   // Replace the optimizeListing function with this simplified version
@@ -272,6 +301,24 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const getEtsyUrl = (listingID: string) => {
     return `https://www.etsy.com/listing/${listingID}`;
   };
+
+  useEffect(() => {
+    let sorted = [...filteredListings];
+    if (sortColumn) {
+      sorted.sort((a, b) => {
+        if (sortColumn === "optimizedAt") {
+          const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
+          const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
+          return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+        } else {
+          return sortDirection === "asc" 
+            ? a[sortColumn] - b[sortColumn] 
+            : b[sortColumn] - a[sortColumn];
+        }
+      });
+    }
+    setDisplayedListings(sorted.slice(0, LISTINGS_PER_PAGE));
+  }, [filteredListings, sortColumn, sortDirection]);
 
   return (
     <div>
@@ -321,13 +368,16 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
             <th onClick={() => handleSort("dailyViews")} style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}>
               Daily Views {sortColumn === "dailyViews" && (sortDirection === "asc" ? "↑" : "↓")}
             </th>
+            <th onClick={() => handleSort("optimizedAt")} style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}>
+              Optimized Date {sortColumn === "optimizedAt" && (sortDirection === "asc" ? "↑" : "↓")}
+            </th>
             <th style={{ padding: '10px', textAlign: 'left' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={9} style={{ textAlign: 'center', padding: '20px' }}>
+              <td colSpan={10} style={{ textAlign: 'center', padding: '20px' }}>
                 <Loader2 style={{ animation: 'spin 1s linear infinite' }} /> Loading...
               </td>
             </tr>
@@ -360,6 +410,9 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                 <td style={{ padding: '10px' }}>{listing.totalSales}</td>
                 <td style={{ padding: '10px' }}>{listing.dailyViews}</td>
                 <td style={{ padding: '10px' }}>
+                  {formatDate(listing.optimizedAt)}
+                </td>
+                <td style={{ padding: '10px' }}>
                   <button 
                     onClick={() => handleOptimize(listing)} 
                     disabled={isOptimizing || listing.optimizationStatus}
@@ -370,13 +423,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
               </tr>
               {expandedRows.includes(listing.id) && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <div style={{ padding: '20px', backgroundColor: '#f0f0f0' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                         <div>
                           <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Original Listing</h4>
-                          <p><strong>Title:</strong> {listing.listingTitle}</p>
-                          <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} /></p>
+                          <p><strong>Title:</strong></p>
+                          <p style={{ marginLeft: '8px', marginBottom: '8px' }}>{listing.listingTitle}</p>
+                          <p><strong>Description:</strong></p>
+                          <div style={{ marginLeft: '8px' }}>
+                            <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} />
+                          </div>
                           <div style={{ marginTop: '8px' }}>
                             <strong>Tags:</strong>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
@@ -391,10 +448,36 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                         {listing.optimizationStatus && (
                           <div>
                             <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Optimized Listing</h4>
-                            <p><strong>Title:</strong> {listing.optimizedTitle}</p>
-                            <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription!)} /></p>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Title:</strong>
+                              <button
+                                onClick={() => copyToClipboard(listing.optimizedTitle || '', `title-${listing.id}`)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', float: 'right' }}
+                              >
+                                {copiedField === `title-${listing.id}` ? <Check size={16} color="green" /> : <Copy size={16} />}
+                              </button>
+                              <p style={{ marginLeft: '8px', marginTop: '4px' }}>{listing.optimizedTitle}</p>
+                            </div>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Description:</strong>
+                              <button
+                                onClick={() => copyToClipboard(listing.optimizedDescription || '', `description-${listing.id}`)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', float: 'right' }}
+                              >
+                                {copiedField === `description-${listing.id}` ? <Check size={16} color="green" /> : <Copy size={16} />}
+                              </button>
+                              <div style={{ marginLeft: '8px', marginTop: '4px' }}>
+                                <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription || '')} />
+                              </div>
+                            </div>
                             <div style={{ marginTop: '8px' }}>
                               <strong>Tags:</strong>
+                              <button
+                                onClick={() => copyToClipboard(listing.optimizedTags || '', `tags-${listing.id}`)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', float: 'right' }}
+                              >
+                                {copiedField === `tags-${listing.id}` ? <Check size={16} color="green" /> : <Copy size={16} />}
+                              </button>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
                                 {listing.optimizedTags?.split(',').map((tag, index) => (
                                   <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
@@ -403,11 +486,6 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                 ))}
                               </div>
                             </div>
-                            {listing.optimizedAt && (
-                              <p style={{ marginTop: '8px' }}>
-                                <strong>Optimized on:</strong> {listing.optimizedAt.toLocaleString()}
-                              </p>
-                            )}
                           </div>
                         )}
                       </div>
@@ -581,34 +659,48 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                   <p style={{ color: 'red', marginTop: '8px' }}>Maximum number of tags (13) reached.</p>
                 )}
               </div>
-              <button 
-                onClick={handleSave} 
-                disabled={isPublishing}
-                style={{ 
-                  marginTop: '16px',
-                  padding: '10px 20px', 
-                  backgroundColor: '#4CAF50', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-              >
-                {isPublishing ? (
-                  <>
-                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check size={16} />
-                    Save
-                  </>
-                )}
-              </button>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button 
+                  onClick={handleCancel}
+                  style={{ 
+                    padding: '10px 20px', 
+                    backgroundColor: '#f44336', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSave} 
+                  disabled={isPublishing}
+                  style={{ 
+                    padding: '10px 20px', 
+                    backgroundColor: '#4CAF50', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {isPublishing ? (
+                    <>
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      Save
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

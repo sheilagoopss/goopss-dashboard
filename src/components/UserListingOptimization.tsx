@@ -3,7 +3,6 @@ import { Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import { Customer } from '../types/Customer';
 import DOMPurify from 'dompurify';
 
 interface Listing {
@@ -18,14 +17,17 @@ interface Listing {
   optimizedTags: string;
   optimizedAt: Date;
   optimizationStatus: boolean;
-  etsyUrl: string; // Add this new field
 }
 
-const LISTINGS_PER_PAGE = 5; // Changed to 5 to match SEOListings
+const LISTINGS_PER_PAGE = 10; // Changed from 5 to 10
+
+const formatDate = (date: Date): string => {
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 export default function UserListingOptimization() {
   const { customerData } = useAuth();
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,7 +59,7 @@ export default function UserListingOptimization() {
           .filter(listing => 
             listing.optimizedTitle || listing.optimizedDescription || listing.optimizedTags
           );
-        setListings(fetchedListings);
+        setAllListings(fetchedListings);
         setFilteredListings(fetchedListings);
       } catch (error) {
         console.error("Error fetching listings:", error);
@@ -70,13 +72,13 @@ export default function UserListingOptimization() {
   }, [customerData]);
 
   useEffect(() => {
-    const filtered = listings.filter(listing => 
+    const filtered = allListings.filter(listing => 
       listing.listingID.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase())
+      listing.optimizedTitle.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredListings(filtered);
     setCurrentPage(1);
-  }, [searchTerm, listings]);
+  }, [searchTerm, allListings]);
 
   const pageCount = Math.ceil(filteredListings.length / LISTINGS_PER_PAGE);
   const currentListings = filteredListings.slice(
@@ -90,19 +92,12 @@ export default function UserListingOptimization() {
     );
   };
 
-  // Add this helper function to sanitize and render HTML content
   const sanitizeHtml = (html: string) => {
     return {
       __html: DOMPurify.sanitize(html, { ALLOWED_TAGS: ['br'] })
     };
   };
 
-  // Add this helper function to convert <br> tags to newlines for plain text display
-  const convertBrToNewline = (text: string) => {
-    return text.replace(/<br\s*\/?>/g, '\n');
-  };
-
-  // Add this function to generate the Etsy URL
   const getEtsyUrl = (listingID: string) => {
     return `https://www.etsy.com/listing/${listingID}`;
   };
@@ -161,7 +156,7 @@ export default function UserListingOptimization() {
                     <ExternalLink size={14} style={{ marginLeft: '5px' }} />
                   </a>
                 </td>
-                <td style={{ padding: '10px' }}>{listing.optimizedAt.toLocaleDateString()}</td>
+                <td style={{ padding: '10px' }}>{formatDate(listing.optimizedAt)}</td>
               </tr>
               {expandedRows.includes(listing.id) && (
                 <tr>
