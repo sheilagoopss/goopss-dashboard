@@ -26,7 +26,8 @@ export async function optimizeText(
   storeUrl?: string
 ): Promise<{ title: string; description: string }> {
   try {
-    console.log('Sending optimization request:', { title, description, storeUrl, version });
+    console.log('Sending optimization request:', { title, description: description.substring(0, 100) + '...', storeUrl, version });
+    console.log('API URL:', `${API_URL}/api/optimize-listing`);
     const response = await axios.post(`${API_URL}/api/optimize-listing`, {
       title,
       description,
@@ -44,6 +45,7 @@ export async function optimizeText(
     if (axios.isAxiosError(error)) {
       console.error('Response data:', error.response?.data);
       console.error('Response status:', error.response?.status);
+      console.error('Request URL:', error.config?.url);
     }
     throw new Error('Failed to optimize text: ' + (error instanceof Error ? error.message : String(error)));
   }
