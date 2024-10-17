@@ -166,7 +166,7 @@ wss.on('connection', (ws) => {
 });
 
 const server = app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+  console.log(`Server is running on ${process.env.REACT_APP_API_URL || `http://localhost:${port}`}`);
 });
 
 server.on('upgrade', (request, socket, head) => {
