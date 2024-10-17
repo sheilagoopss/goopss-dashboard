@@ -182,3 +182,8 @@ app.use((req, res, next) => {
   console.log(`Unhandled request: ${req.method} ${req.url}`);
   next();
 });
+
+app.get('/api/test', (req, res) => {
+  console.log('Test endpoint hit');
+  res.json({ message: 'Server is running' });
+});
