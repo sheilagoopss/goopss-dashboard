@@ -67,6 +67,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Package, Search, Loader2, Edit, Check, Copy, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react"
 import Image from "next/image"
+import { optimizeText } from '../services/OptimizationService';
 
 // Mock API functions (replace with actual API calls in production)
 const fetchStores = async () => [

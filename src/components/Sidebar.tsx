@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       allow: ["Admin"],
     },
     { path: "/pinterest", label: "Pinterest" },
-    { path: "/tagify", label: "Tagify" },
+    { path: "/taskSummary", label: "Task Summary" },
   ];
 
   const userMenuItems = [

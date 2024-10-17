@@ -17,6 +17,8 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_DESCRIPTION_LENGTH = 5000; // Increased from 1000
 const MAX_CHUNK_SIZE = 4000; // This might not be necessary now
 
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 export async function optimizeText(
   title: string,
   description: string,
@@ -25,7 +27,7 @@ export async function optimizeText(
 ): Promise<{ title: string; description: string }> {
   try {
     console.log('Sending optimization request:', { title, description, storeUrl, version });
-    const response = await axios.post('/api/optimize-listing', {
+    const response = await axios.post(`${API_URL}/api/optimize-listing`, {
       title,
       description,
       storeUrl,
