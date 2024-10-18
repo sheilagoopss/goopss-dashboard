@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
+import React, { useState, useEffect, useRef, useCallback, useMemo, CSSProperties, DragEvent } from 'react';
+import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import Modal from 'react-modal';
+import { Listing } from '../types/Listing'; // Import the Listing type
+import { FirebaseError } from 'firebase/app';
+
+// Remove these imports
+// import { Card, CardContent, CardFooter } from "@/components/ui/card";
+// import { Button } from "@/components/ui/button";
 
 // Add this near the top of your component, after the imports
 console.log("Storage object:", storage);
 
 const ITEMS_PER_LOAD = 4;
 
-const styles = {
+const styles: { [key: string]: CSSProperties } = {
   container: {
     padding: '20px',
   },
@@ -58,6 +64,154 @@ const styles = {
     fontSize: '12px',
     fontWeight: 'bold',
   },
+  listingSelector: {
+    marginBottom: '20px',
+  },
+  listingsTable: {
+    marginBottom: '20px',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+  },
+  cardGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+    gap: '1rem',
+  },
+  card: {
+    border: '1px solid #ddd',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  cardImage: {
+    width: '100%',
+    height: '200px', // Adjust this value as needed
+    overflow: 'hidden',
+  },
+  primaryImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  cardContent: {
+    padding: '16px',
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    marginBottom: '8px',
+  },
+  cardId: {
+    fontSize: '14px',
+    color: '#666',
+    marginBottom: '8px',
+  },
+  cardBestseller: {
+    fontSize: '14px',
+    color: '#28a745',
+    fontWeight: 'bold',
+    marginBottom: '8px',
+  },
+  uploadedImagesPreview: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '5px',
+    marginTop: '10px',
+    marginBottom: '10px',
+  },
+  uploadedImageThumbnail: {
+    width: '50px',
+    height: '50px',
+    objectFit: 'cover',
+    cursor: 'pointer',
+  },
+  previewModal: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  previewImage: {
+    maxWidth: '90%',
+    maxHeight: '90%',
+    objectFit: 'contain',
+  },
+  cardDragging: {
+    border: '2px dashed #007bff',
+    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+  },
+  dropZone: {
+    backgroundColor: '#f0f0f0',
+    border: '2px dashed #ccc',
+    borderRadius: '4px',
+    padding: '20px',
+    textAlign: 'center',
+    color: '#666',
+    cursor: 'pointer',
+    minHeight: '100px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: '10px',
+    transition: 'background-color 0.3s ease',
+  },
+  cardFooter: {
+    padding: '16px',
+    borderTop: '1px solid #ddd',
+    display: 'flex',
+    justifyContent: 'space-between',
+  },
+  pagination: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: '20px',
+  },
+  paginationButton: {
+    padding: '5px 10px',
+    margin: '0 5px',
+    backgroundColor: '#007bff',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+  },
+  pageInfo: {
+    margin: '0 10px',
+  },
+  thumbnailContainer: {
+    position: 'relative',
+    display: 'inline-block',
+    marginRight: '5px',
+    marginBottom: '5px',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: '-8px',
+    right: '-8px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: 'red',
+    color: 'white',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontSize: '12px',
+    fontWeight: 'bold',
+  },
 };
 
 interface DesignHubProps {
@@ -75,12 +229,17 @@ interface Image {
   customer_id: string;
   originalImageId?: string;
   currentRevisionId?: string;
+  listing_id?: string; // Add this line to include the listing_id
 }
 
 interface Customer {
   id: string;
   store_owner_name: string;
   customer_id: string; // Add this line
+}
+
+interface ListingWithImages extends Listing {
+  uploadedImages: string[];
 }
 
 const ImageModal = ({ isOpen, onClose, imageUrl, title }: { isOpen: boolean; onClose: () => void; imageUrl: string; title: string }) => (
@@ -292,6 +451,16 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [currentRevisionImage, setCurrentRevisionImage] = useState<Image | null>(null);
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [revisionComment, setRevisionComment] = useState('');
+  const [customerListings, setCustomerListings] = useState<Listing[]>([]);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isIndexBuilding, setIsIndexBuilding] = useState(false);
+  const ITEMS_PER_PAGE = 10;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customerListingsWithImages, setCustomerListingsWithImages] = useState<ListingWithImages[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [localImages, setLocalImages] = useState<Record<string, File[]>>({});
+  const [isDragging, setIsDragging] = useState(false);
 
   console.log('DesignHub props:', { customerId, isAdmin });
 
@@ -315,6 +484,12 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       fetchCustomers();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin && selectedCustomerId) {
+      fetchCustomerListings(selectedCustomerId);
+    }
+  }, [isAdmin, selectedCustomerId]);
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -363,6 +538,49 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     fetchImages();
   }, [customerId, isAdmin, selectedCustomerId]);
 
+  useEffect(() => {
+    if (customerListings.length > 0) {
+      const listingsWithImages = customerListings.map(listing => ({
+        ...listing,
+        uploadedImages: []
+      }));
+      setCustomerListingsWithImages(listingsWithImages);
+    }
+  }, [customerListings]);
+
+  const fetchCustomerListings = async (customerId: string) => {
+    try {
+      console.log("Fetching listings for customer:", customerId);
+      const listingsCollection = collection(db, 'listings');
+      const q = query(
+        listingsCollection,
+        where("customer_id", "==", customerId),
+        orderBy("listingTitle")
+      );
+      const listingsSnapshot = await getDocs(q);
+      const listingsData = listingsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Listing));
+      console.log("Fetched listings:", listingsData);
+      setCustomerListings(listingsData);
+      setIsIndexBuilding(false);
+    } catch (error) {
+      console.error("Error fetching customer listings:", error);
+      if (error instanceof FirebaseError && error.code === 'failed-precondition') {
+        console.log("Index is building. Please wait.");
+        setIsIndexBuilding(true);
+      } else {
+        // Handle other errors
+        setIsIndexBuilding(false);
+      }
+    }
+  };
+
+  const handleListingSelect = (listing: Listing) => {
+    setSelectedListing(listing);
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
@@ -370,6 +588,11 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   const handleUpload = async () => {
+    if (!selectedFile || !selectedListing) {
+      alert("Please select a file and a listing before uploading.");
+      return;
+    }
+
     console.log("Upload started");
     console.log("Is admin:", isAdmin);
     console.log("Selected customer ID:", selectedCustomerId);
@@ -405,6 +628,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         title: selectedFile.name,
         date: new Date().toISOString(),
         customer_id: isAdmin ? selectedCustomerId : customerId,
+        listing_id: selectedListing.id, // This line is now valid
       };
 
       console.log("New image object:", newImage);
@@ -428,6 +652,14 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         }
         return prevImages; // If the image already exists, don't update the state
       });
+
+      setCustomerListingsWithImages(prevListings => 
+        prevListings.map(listing => 
+          listing.id === selectedListing.id 
+            ? { ...listing, uploadedImages: [...listing.uploadedImages, downloadURL] }
+            : listing
+        )
+      );
 
       setSelectedFile(null);
       alert("Image uploaded successfully!");
@@ -658,6 +890,156 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     }
   }, [customerId, isAdmin]);
 
+  const handleUploadForListing = (listing: Listing) => {
+    setSelectedListing(listing);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+      handleUpload();
+    }
+  };
+
+  const paginatedListings = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return customerListingsWithImages.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [customerListingsWithImages, currentPage]);
+
+  const totalPages = Math.ceil(customerListingsWithImages.length / ITEMS_PER_PAGE);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleImagePreview = (imageUrl: string) => {
+    setPreviewImage(imageUrl);
+  };
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+  };
+
+  const handleLocalUpload = (listing: Listing, event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      const newFiles = Array.from(event.target.files);
+      setLocalImages(prev => ({
+        ...prev,
+        [listing.id]: [...(prev[listing.id] || []), ...newFiles]
+      }));
+    }
+  };
+
+  const handleSave = async (listing: Listing) => {
+    const files = localImages[listing.id];
+    if (!files || files.length === 0) {
+      alert("No images to upload.");
+      return;
+    }
+
+    for (const file of files) {
+      const fileExtension = file.name.split('.').pop();
+      const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+      const storageRef = ref(storage, `designs/${uniqueFileName}`);
+      
+      try {
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+
+        const newImage: Omit<Image, 'id'> = {
+          url: downloadURL,
+          status: 'pending',
+          title: file.name,
+          date: new Date().toISOString(),
+          customer_id: isAdmin ? selectedCustomerId : customerId,
+          listing_id: listing.id,
+        };
+
+        const docRef = await addDoc(collection(db, 'images'), newImage);
+
+        setCustomerListingsWithImages(prevListings => 
+          prevListings.map(l => 
+            l.id === listing.id 
+              ? { ...l, uploadedImages: [...l.uploadedImages, downloadURL] }
+              : l
+          )
+        );
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    // Clear local images for this listing after successful upload
+    setLocalImages(prev => {
+      const newLocalImages = { ...prev };
+      delete newLocalImages[listing.id];
+      return newLocalImages;
+    });
+
+    alert("Images uploaded successfully!");
+  };
+
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>, listing: Listing) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>, listing: Listing) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setLocalImages(prev => ({
+        ...prev,
+        [listing.id]: [...(prev[listing.id] || []), ...newFiles]
+      }));
+    }
+  };
+
+  const handleRemoveLocalImage = (listingId: string, index: number) => {
+    setLocalImages(prev => {
+      const newImages = [...(prev[listingId] || [])];
+      newImages.splice(index, 1);
+      return {
+        ...prev,
+        [listingId]: newImages
+      };
+    });
+  };
+
+  const handleDropZoneClick = (listingId: string) => {
+    const fileInput = document.getElementById(`file-input-${listingId}`) as HTMLInputElement;
+    if (fileInput) {
+      fileInput.click();
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -679,6 +1061,27 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       </div>
       {(isAdmin && selectedCustomerId) || (!isAdmin && customerId) ? (
         <>
+          {isAdmin && selectedCustomerId && (
+            <div style={styles.listingSelector}>
+              <h3>Select a Listing</h3>
+              <select 
+                value={selectedListing?.id || ''}
+                onChange={(e) => {
+                  const listing = customerListings.find(l => l.id === e.target.value);
+                  if (listing) handleListingSelect(listing);
+                }}
+                style={styles.input}
+              >
+                <option value="">Select a listing</option>
+                {customerListings.map((listing) => (
+                  <option key={listing.id} value={listing.id}>
+                    {listing.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {isAdmin && (
             <div style={styles.uploadForm}>
               <input 
@@ -690,9 +1093,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
               <button 
                 onClick={handleUpload} 
                 style={styles.button}
-                disabled={!selectedFile || (isAdmin && !selectedCustomerId)}
+                disabled={!selectedFile || !selectedListing || (isAdmin && !selectedCustomerId)}
               >
-                Upload Image
+                Upload Image for {selectedListing?.title || 'selected listing'}
               </button>
             </div>
           )}
@@ -785,9 +1188,128 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
             <button onClick={handleRevisionUpload} disabled={!revisionFile}>Upload Revision</button>
             <button onClick={() => setIsRevisionModalOpen(false)}>Cancel</button>
           </Modal>
+          {isAdmin && selectedCustomerId && (
+            <div>
+              <h3>Customer Listings</h3>
+              {isIndexBuilding ? (
+                <p>The database index is currently being built. This process usually takes a few minutes. Please wait...</p>
+              ) : customerListingsWithImages.length === 0 ? (
+                <p>No listings found for this customer.</p>
+              ) : (
+                <>
+                  <div style={styles.cardGrid}>
+                    {paginatedListings.map((listing) => (
+                      <div 
+                        key={listing.id} 
+                        style={{
+                          ...styles.card,
+                          ...(isDragging ? styles.cardDragging : {})
+                        }}
+                        onDragEnter={(e) => handleDragEnter(e, listing)}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, listing)}
+                      >
+                        <div style={styles.cardContent}>
+                          <h4 style={styles.cardTitle}>{listing.listingTitle}</h4>
+                          <p style={styles.cardId}>ID: {listing.listingID}</p>
+                          <p style={styles.cardBestseller}>
+                            {listing.bestseller ? 'Bestseller' : ''}
+                          </p>
+                          <div style={styles.uploadedImagesPreview}>
+                            {listing.uploadedImages.map((imageUrl: string, index: number) => (
+                              <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Uploaded ${index + 1}`}
+                                  style={styles.uploadedImageThumbnail}
+                                  onClick={() => handleImagePreview(imageUrl)}
+                                />
+                              </div>
+                            ))}
+                            {localImages[listing.id]?.map((file, index) => (
+                              <div key={`local-${index}`} style={styles.thumbnailContainer}>
+                                <img 
+                                  src={URL.createObjectURL(file)} 
+                                  alt={`Local ${index + 1}`}
+                                  style={styles.uploadedImageThumbnail}
+                                  onClick={() => handleImagePreview(URL.createObjectURL(file))}
+                                />
+                                <button 
+                                  onClick={() => handleRemoveLocalImage(listing.id, index)}
+                                  style={styles.removeButton}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div 
+                            style={styles.dropZone}
+                            onClick={() => handleDropZoneClick(listing.id)}
+                          >
+                            Drag and drop images here or click to upload
+                          </div>
+                        </div>
+                        <div style={styles.cardFooter}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => handleLocalUpload(listing, e)}
+                            style={{ display: 'none' }}
+                            id={`file-input-${listing.id}`}
+                          />
+                          <button 
+                            onClick={() => handleSave(listing)}
+                            style={styles.button}
+                            disabled={!localImages[listing.id] || localImages[listing.id].length === 0}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={styles.pagination}>
+                    <button 
+                      onClick={handlePreviousPage} 
+                      disabled={currentPage === 1}
+                      style={styles.paginationButton}
+                    >
+                      Previous
+                    </button>
+                    <span style={styles.pageInfo}>
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button 
+                      onClick={handleNextPage} 
+                      disabled={currentPage === totalPages}
+                      style={styles.paginationButton}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </>
       ) : (
         <p>{isAdmin ? "Please select a customer to view designs." : "No customer ID provided."}</p>
+      )}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+        accept="image/*"
+      />
+      {/* Image preview modal */}
+      {previewImage && (
+        <div style={styles.previewModal} onClick={closeImagePreview}>
+          <img src={previewImage} alt="Preview" style={styles.previewImage} />
+        </div>
       )}
     </div>
   );
