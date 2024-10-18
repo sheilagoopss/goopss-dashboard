@@ -17,7 +17,8 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_DESCRIPTION_LENGTH = 5000; // Increased from 1000
 const MAX_CHUNK_SIZE = 4000; // This might not be necessary now
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = 'https://goopss-dashboard-backend.onrender.com';
 
 export async function optimizeText(
   title: string,
