@@ -24,6 +24,7 @@ import { Spin } from "antd";
 import UpgradeNotice from "../components/common/UpgradeNotice";
 import Tagify from "../components/tagify/Tagify";
 import TaskManagement from "../components/taskList/TaskManagement";
+import UserListingOptimization from "../components/UserListingOptimization";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -57,7 +58,16 @@ const Routes = () => {
     fetchCustomers();
   }, [isAdmin, customerData]);
 
-  console.log("Routes rendering. Loading:", loading, "User:", user, "IsAdmin:", isAdmin, "CustomerData:", customerData);
+  console.log(
+    "Routes rendering. Loading:",
+    loading,
+    "User:",
+    user,
+    "IsAdmin:",
+    isAdmin,
+    "CustomerData:",
+    customerData,
+  );
 
   const applyUpgradeNotice = (routes: RouteObject[]): any[] => {
     return routes.map((route) => {
@@ -88,7 +98,7 @@ const Routes = () => {
         children: [
           {
             path: "/customers",
-            element: <CustomerManagement />,
+            element: isAdmin && <CustomerManagement />,
           },
           {
             path: "/plan",
@@ -117,7 +127,7 @@ const Routes = () => {
                     marginBottom: "20px",
                   }}
                 >
-                  <h1>SEO Optimizer</h1>
+                  <h1>SEO</h1>
                   {isAdmin && (
                     <CustomersDropdown
                       customers={customers}
@@ -137,10 +147,7 @@ const Routes = () => {
                     )}
                   </>
                 ) : (
-                  <SEOListings
-                    customerId={selectedCustomer?.customer_id || ""}
-                    storeName={selectedCustomer?.store_name || ""}
-                  />
+                  <UserListingOptimization />
                 )}
               </div>
             ),
@@ -167,8 +174,8 @@ const Routes = () => {
           },
           { path: "/social", element: <Social /> },
           { path: "/ads-recommendation", element: <AdsRecommendation /> },
-          { path: "/tagify", element: <Tagify /> },
-          { path: "/taskSummary", element: <TaskManagement /> },
+          { path: "/tagify", element: !isAdmin && <Tagify /> },
+          { path: "/taskSummary", element: isAdmin && <TaskManagement /> },
         ],
       },
     ]),

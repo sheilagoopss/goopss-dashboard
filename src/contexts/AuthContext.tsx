@@ -16,8 +16,7 @@ import {
   linkWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
-import { collection, getDocs, limit, query } from "firebase/firestore";
-import { auth, db } from "../firebase/config";
+import { auth } from "../firebase/config";
 import { Admin, Customer } from "../types/Customer";
 import { message } from "antd";
 import {
@@ -68,36 +67,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setCustomerData(customerDoc);
       setIsAdmin(false);
     } else {
-      const q = query(collection(db, "admin"), limit(1));
-      const querySnapshot = await getDocs(q);
+      const admins = await FirebaseHelper.find<Admin>("admin");
+      const admin = admins.find(
+        (admin) =>
+          admin.email?.toLowerCase() === user.user.email?.toLowerCase(),
+      );
 
-      if (!querySnapshot.empty) {
-        const adminDoc = querySnapshot.docs[0];
-        if (adminDoc.data().email === user.user.email) {
-          const userData = {
-            ...adminDoc.data(),
-            isAdmin: true,
-          } as Admin;
-          setUser(userData);
-          setIsAdmin(true);
-          setCustomerData(null);
-        } else {
-          const created = await FirebaseHelper.create("customers", {
-            email: user.user.email,
-            date_joined: dayjs().toISOString(),
-            customer_type: "Free",
-            store_owner_name: user.user.displayName,
-            logo: user.user.photoURL,
-          } as Customer);
-          const customer = await FirebaseHelper.findOne<Customer>(
-            "customers",
-            created,
-          );
+      if (admin) {
+        const userData = {
+          ...admin,
+          isAdmin: true,
+        } as Admin;
+        setUser(userData);
+        setIsAdmin(true);
+        setCustomerData(null);
+      } else {
+        const created = await FirebaseHelper.create("customers", {
+          email: user.user.email,
+          date_joined: dayjs().toISOString(),
+          customer_type: "Free",
+          store_owner_name: user.user.displayName,
+          logo: user.user.photoURL,
+        } as Customer);
+        const customer = await FirebaseHelper.findOne<Customer>(
+          "customers",
+          created,
+        );
 
-          setUser(customer);
-          setCustomerData(customer);
-          setIsAdmin(false);
-        }
+        setUser(customer);
+        setCustomerData(customer);
+        setIsAdmin(false);
       }
     }
     setLoading(false);

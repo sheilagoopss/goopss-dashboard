@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { ITasklist, Task } from "../types/Task";
 import { Customer } from "../types/Customer";
+import dayjs from "dayjs";
+import { Timestamp } from "firebase/firestore";
 
 interface UseTaskFetchReturn {
   fetchTask: (taskId: string) => Promise<Task | null>;
@@ -125,6 +127,14 @@ export function useTaskFetchAll(): UseTaskFetchAllReturn {
         customerName:
           customers.find((customer) => customer.id === task.customerId)
             ?.store_owner_name || "",
+        dateCompleted: (task.dateCompleted as Timestamp)?.seconds
+          ? dayjs(
+              new Date(
+                (task.dateCompleted as Timestamp)?.seconds * 1000 +
+                  (task.dateCompleted as Timestamp)?.nanoseconds / 1000000,
+              ),
+            ).toISOString()
+          : (task.dateCompleted as string),
       }));
       return populatedTasks;
     } catch (error) {
