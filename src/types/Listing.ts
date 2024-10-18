@@ -6,7 +6,7 @@ export interface Listing {
   primaryImage: string;
   listingTags: string;
   optimizationStatus: boolean;
-  optimizedAt?: Date; 
+  optimizedAt: Date | null;
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
