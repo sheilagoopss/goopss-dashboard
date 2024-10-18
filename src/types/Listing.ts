@@ -1,5 +1,6 @@
 export interface Listing {
   id: string;
+  title: string;
   listingID: string;
   listingTitle: string;
   listingDescription: string;
