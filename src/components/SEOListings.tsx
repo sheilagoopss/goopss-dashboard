@@ -5,31 +5,15 @@ import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp,
 import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
 import { optimizeText } from '../services/OptimizationService';
 import { useListingUpdate } from '../hooks/useListing';
+import { Listing } from '../types/Listing';
 
 interface SEOListingsProps {
   customerId: string;
   storeName: string;
 }
 
-interface Listing {
-  id: string;
-  listingID: string;
-  listingTitle: string;
-  listingDescription: string;
-  primaryImage: string;
-  listingTags: string;
-  optimizationStatus: boolean;
-  optimizedAt: Date | null;  // New field
-  bestseller: boolean;
-  totalSales: number;
-  dailyViews: number;
-  optimizedTitle?: string;
-  optimizedDescription?: string;
-  optimizedTags?: string;
-}
-
 const formatDate = (date: Date | null): string => {
-  if (!date) return '-';
+  if (!date) return '';
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
@@ -121,10 +105,26 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       const listingsSnapshot = await getDocs(q);
       const listingsList = listingsSnapshot.docs.map(doc => {
         const data = doc.data();
+        let optimizedAt: Date | null = null;
+        
+        if (data.optimizedAt) {
+          if (data.optimizedAt.toDate && typeof data.optimizedAt.toDate === 'function') {
+            optimizedAt = data.optimizedAt.toDate();
+          } else if (data.optimizedAt instanceof Date) {
+            optimizedAt = data.optimizedAt;
+          } else if (typeof data.optimizedAt === 'string') {
+            optimizedAt = new Date(data.optimizedAt);
+          } else if (typeof data.optimizedAt.seconds === 'number') {
+            optimizedAt = new Date(data.optimizedAt.seconds * 1000);
+          } else if (data.optimizedAt._methodName === 'serverTimestamp') {
+            optimizedAt = new Date();
+          }
+        }
+
         return {
           id: doc.id,
           ...data,
-          optimizedAt: data.optimizedAt ? new Date(data.optimizedAt.seconds * 1000) : null
+          optimizedAt: optimizedAt
         } as Listing;
       });
       setAllListings(listingsList);

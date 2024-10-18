@@ -15,13 +15,14 @@ interface Listing {
   optimizedTitle: string;
   optimizedDescription: string;
   optimizedTags: string;
-  optimizedAt: Date;
+  optimizedAt: Date | null;
   optimizationStatus: boolean;
 }
 
 const LISTINGS_PER_PAGE = 10; // Changed from 5 to 10
 
-const formatDate = (date: Date): string => {
+const formatDate = (date: Date | null): string => {
+  if (!date) return '';
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
@@ -50,15 +51,36 @@ export default function UserListingOptimization() {
         const fetchedListings = querySnapshot.docs
           .map(doc => {
             const data = doc.data();
+            console.log('Raw optimizedAt:', data.optimizedAt);
+            let optimizedAt: Date | null = null;
+            
+            if (data.optimizedAt) {
+              if (data.optimizedAt.toDate && typeof data.optimizedAt.toDate === 'function') {
+                optimizedAt = data.optimizedAt.toDate();
+              } else if (data.optimizedAt instanceof Date) {
+                optimizedAt = data.optimizedAt;
+              } else if (typeof data.optimizedAt === 'string') {
+                optimizedAt = new Date(data.optimizedAt);
+              } else if (typeof data.optimizedAt.seconds === 'number') {
+                optimizedAt = new Date(data.optimizedAt.seconds * 1000);
+              } else if (data.optimizedAt._methodName === 'serverTimestamp') {
+                // Handle server timestamp
+                optimizedAt = new Date();
+              }
+            }
+            
+            console.log('Processed optimizedAt:', optimizedAt);
+
             return {
               id: doc.id,
               ...data,
-              optimizedAt: data.optimizedAt?.toDate()
+              optimizedAt: optimizedAt
             } as Listing;
           })
           .filter(listing => 
             listing.optimizedTitle || listing.optimizedDescription || listing.optimizedTags
           );
+        console.log('Fetched listings:', fetchedListings);
         setAllListings(fetchedListings);
         setFilteredListings(fetchedListings);
       } catch (error) {
@@ -106,9 +128,16 @@ export default function UserListingOptimization() {
     return <div>Loading...</div>;
   }
 
+  // Add this right before the return statement in the component
+  if (filteredListings.length === 0) {
+    return <div>No optimized listings found.</div>;
+  }
+
+  // Then in the return statement, add this before the table
   return (
     <div>
       <h2>Optimized Listings for {customerData?.store_name}</h2>
+      <p>Total optimized listings: {filteredListings.length}</p>
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ position: 'relative', width: '300px' }}>
           <input
