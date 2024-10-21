@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, limit, startAfter, orderBy, getCountFromServer, where, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Edit, Copy, Check, Loader2, ExternalLink } from 'lucide-react';
-import DOMPurify from 'dompurify'; // You'll need to install this package: npm install dompurify @types/dompurify
+import DOMPurify from 'dompurify';
 import { optimizeText } from '../services/OptimizationService';
 import { useListingUpdate } from '../hooks/useListing';
 import { Listing } from '../types/Listing';
@@ -50,7 +50,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [recentlyCopied, setRecentlyCopied] = useState<string | null>(null);
   const { updateListing } = useListingUpdate();
 
-  const LISTINGS_PER_PAGE = 5;
+  const LISTINGS_PER_PAGE = 10; // Changed from 5 to 10
 
   const MAX_TAGS = 13;
 
@@ -105,7 +105,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       const listingsCollection = collection(db, "listings");
       const q = query(
         listingsCollection,
-        where("customer_id", "==", customerId),
+        where("customer_id", "==", customerId)
+        // Removed the where clause for optimizationStatus
       );
       const listingsSnapshot = await getDocs(q);
       const listingsList = listingsSnapshot.docs.map(doc => {
@@ -142,40 +143,45 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   };
 
   const applyFiltersAndSort = (listings: Listing[]) => {
-    let filtered = [...listings];
+    let filtered = listings;
 
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (listing) =>
+          listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          listing.listingID.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply non-bestsellers filter
     if (showNonBestsellers) {
       filtered = filtered.filter((listing) => !listing.bestseller);
     }
+
+    // Apply hide optimized filter
     if (hideOptimized) {
       filtered = filtered.filter((listing) => !listing.optimizationStatus);
     }
-    filtered = filtered.filter(
-      (listing) =>
-        listing.listingID.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
 
+    // Apply sorting
     if (sortColumn) {
       filtered.sort((a, b) => {
-        if (sortColumn === "optimizedAt") {
+        if (sortColumn === 'optimizedAt') {
           const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
           const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
-          return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+          return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
         } else {
-          const valueA = a[sortColumn] as number;
-          const valueB = b[sortColumn] as number;
-          if (typeof valueA === 'number' && typeof valueB === 'number') {
-            return sortDirection === "asc" ? valueA - valueB : valueB - valueA;
-          }
-          return 0;
+          const valueA = a[sortColumn] || 0;
+          const valueB = b[sortColumn] || 0;
+          return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
         }
       });
     }
 
     setFilteredListings(filtered);
     setTotalPages(Math.ceil(filtered.length / LISTINGS_PER_PAGE));
-    updateDisplayedListings(filtered, 1);
+    setCurrentPage(1);
   };
 
   const updateDisplayedListings = (listings: Listing[], page: number) => {
@@ -370,34 +376,20 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
   return (
     <div>
-      <h2>Listings for {storeName}</h2>
-      <div
-        style={{
-          marginBottom: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", width: "300px" }}>
+      <h2>SEO Listings for {storeName}</h2>
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ position: 'relative', width: '300px' }}>
           <input
             type="text"
             placeholder="Search listings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: "100%", padding: "10px", paddingLeft: "30px" }}
+            style={{ width: '100%', padding: '10px', paddingLeft: '30px' }}
           />
-          <Search
-            style={{
-              position: "absolute",
-              left: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-            }}
-          />
+          <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
         </div>
         <div>
-          <label style={{ marginRight: "20px" }}>
+          <label style={{ marginRight: '20px' }}>
             <input
               type="checkbox"
               checked={showNonBestsellers}
