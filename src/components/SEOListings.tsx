@@ -14,7 +14,12 @@ interface SEOListingsProps {
 
 const formatDate = (date: Date | null): string => {
   if (!date) return '';
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return date.toLocaleDateString('en-GB', { 
+    day: '2-digit', 
+    month: 'short', 
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
 };
 
 const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
@@ -256,40 +261,32 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
     setIsPublishing(true);
     try {
-      // const listingRef = doc(db, "listings", selectedListing.id);
-      // await updateDoc(listingRef, {
-      //   optimizedTitle: optimizedContent.title,
-      //   optimizedDescription: newlineToBr(optimizedContent.description),
-      //   optimizedTags: editedTags,
-      //   optimizationStatus: true,
-      //   optimizedAt: serverTimestamp(), // Add this line
-      // });
-
-      await updateListing(
-        selectedListing.id,
-        {
-          optimizedTitle: optimizedContent.title,
-          optimizedDescription: newlineToBr(optimizedContent.description),
-          optimizedTags: editedTags,
-          optimizationStatus: true,
-          optimizedAt: serverTimestamp() as unknown as Date, // to pass type check
-        },
-        customerId,
-      );
+      const currentDate = new Date();
+      const updateData = {
+        optimizedTitle: optimizedContent.title,
+        optimizedDescription: newlineToBr(optimizedContent.description),
+        optimizedTags: editedTags,
+        optimizationStatus: true,
+        optimizedAt: currentDate, // Use a JavaScript Date object
+      };
+      
+      console.log("Data being sent to updateListing:", updateData);
+      console.log("Selected listing ID:", selectedListing.id);
+      console.log("Customer ID:", customerId);
+      
+      const listingRef = doc(db, 'listings', selectedListing.id);
+      await updateDoc(listingRef, updateData);
 
       setAllListings((prevListings) =>
         prevListings.map((l) =>
           l.id === selectedListing.id
             ? {
                 ...l,
-                optimizedTitle: optimizedContent.title,
-                optimizedDescription: newlineToBr(optimizedContent.description),
-                optimizedTags: editedTags,
-                optimizationStatus: true,
-                optimizedAt: new Date(), // Add this line
+                ...updateData,
+                optimizedAt: currentDate, // Ensure it's updated in local state as well
               }
-            : l,
-        ),
+            : l
+        )
       );
 
       // Clear the optimized content and selected listing

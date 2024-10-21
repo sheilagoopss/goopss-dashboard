@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, ArrowUpDown } from 'lucide-react';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import DOMPurify from 'dompurify';
@@ -34,6 +34,8 @@ export default function UserListingOptimization() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [sortColumn, setSortColumn] = useState<"optimizedAt" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -51,30 +53,10 @@ export default function UserListingOptimization() {
         const fetchedListings = querySnapshot.docs
           .map(doc => {
             const data = doc.data();
-            console.log('Raw optimizedAt:', data.optimizedAt);
-            let optimizedAt: Date | null = null;
-            
-            if (data.optimizedAt) {
-              if (data.optimizedAt.toDate && typeof data.optimizedAt.toDate === 'function') {
-                optimizedAt = data.optimizedAt.toDate();
-              } else if (data.optimizedAt instanceof Date) {
-                optimizedAt = data.optimizedAt;
-              } else if (typeof data.optimizedAt === 'string') {
-                optimizedAt = new Date(data.optimizedAt);
-              } else if (typeof data.optimizedAt.seconds === 'number') {
-                optimizedAt = new Date(data.optimizedAt.seconds * 1000);
-              } else if (data.optimizedAt._methodName === 'serverTimestamp') {
-                // Handle server timestamp
-                optimizedAt = new Date();
-              }
-            }
-            
-            console.log('Processed optimizedAt:', optimizedAt);
-
             return {
               id: doc.id,
               ...data,
-              optimizedAt: optimizedAt
+              optimizedAt: data.optimizedAt ? data.optimizedAt.toDate() : null
             } as Listing;
           })
           .filter(listing => 
@@ -83,9 +65,9 @@ export default function UserListingOptimization() {
         console.log('Fetched listings:', fetchedListings);
         setAllListings(fetchedListings);
         setFilteredListings(fetchedListings);
+        setIsLoading(false);
       } catch (error) {
-        console.error("Error fetching listings:", error);
-      } finally {
+        console.error('Error fetching listings:', error);
         setIsLoading(false);
       }
     };
@@ -124,6 +106,27 @@ export default function UserListingOptimization() {
     return `https://www.etsy.com/listing/${listingID}`;
   };
 
+  const handleSort = () => {
+    if (sortColumn === "optimizedAt") {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn("optimizedAt");
+      setSortDirection("desc");
+    }
+  };
+
+  useEffect(() => {
+    let sorted = [...filteredListings];
+    if (sortColumn === "optimizedAt") {
+      sorted.sort((a, b) => {
+        const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
+        const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+      });
+    }
+    setFilteredListings(sorted);
+  }, [sortColumn, sortDirection]);
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -157,7 +160,14 @@ export default function UserListingOptimization() {
             <th style={{ padding: '10px', textAlign: 'left' }}>Image</th>
             <th style={{ padding: '10px', textAlign: 'left' }}>Listing ID</th>
             <th style={{ padding: '10px', textAlign: 'left', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Optimized Title</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Optimized On</th>
+            <th 
+              style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}
+              onClick={handleSort}
+            >
+              Optimized On{' '}
+              <ArrowUpDown size={14} style={{ verticalAlign: 'middle', marginLeft: '5px' }} />
+              {sortColumn === "optimizedAt" && (sortDirection === "asc" ? " ↑" : " ↓")}
+            </th>
           </tr>
         </thead>
         <tbody>
