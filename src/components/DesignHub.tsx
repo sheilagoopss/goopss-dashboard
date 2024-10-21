@@ -5,6 +5,7 @@ import { db, storage } from '../firebase/config';
 import Modal from 'react-modal';
 import { Listing } from '../types/Listing'; // Import the Listing type
 import { FirebaseError } from 'firebase/app';
+import { useDesignHubCreate } from '../hooks/useDesignHub';
 
 // Remove these imports
 // import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -461,6 +462,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [localImages, setLocalImages] = useState<Record<string, File[]>>({});
   const [isDragging, setIsDragging] = useState(false);
+  const { createDesignHub } = useDesignHubCreate()
 
   console.log('DesignHub props:', { customerId, isAdmin });
 
@@ -633,36 +635,48 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
       console.log("New image object:", newImage);
 
-      const docRef = await addDoc(collection(db, 'images'), newImage);
+      // const docRef = await addDoc(collection(db, 'images'), newImage);
+      const docRef = await createDesignHub(
+        newImage,
+        isAdmin ? selectedCustomerId : customerId,
+      );
       console.log("Document added to Firestore", docRef);
 
-      const imageWithId: Image = { id: docRef.id, ...newImage };
-      console.log("Image with ID:", imageWithId);
+      if (docRef) {
+        const imageWithId: Image = { id: docRef.id, ...newImage };
+        console.log("Image with ID:", imageWithId);
 
-      // Update the local state
-      setImages(prevImages => {
-        const key = isAdmin ? (selectedCustomerId || 'admin') : customerId;
-        // Check if the image already exists in the array
-        const imageExists = prevImages[key]?.some(img => img.id === imageWithId.id);
-        if (!imageExists) {
-          return {
-            ...prevImages,
-            [key]: [...(prevImages[key] || []), imageWithId]
-          };
-        }
-        return prevImages; // If the image already exists, don't update the state
-      });
+        // Update the local state
+        setImages((prevImages) => {
+          const key = isAdmin ? selectedCustomerId || "admin" : customerId;
+          // Check if the image already exists in the array
+          const imageExists = prevImages[key]?.some(
+            (img) => img.id === imageWithId.id,
+          );
+          if (!imageExists) {
+            return {
+              ...prevImages,
+              [key]: [...(prevImages[key] || []), imageWithId],
+            };
+          }
+          return prevImages; // If the image already exists, don't update the state
+        });
 
-      setCustomerListingsWithImages(prevListings => 
-        prevListings.map(listing => 
-          listing.id === selectedListing.id 
-            ? { ...listing, uploadedImages: [...listing.uploadedImages, downloadURL] }
-            : listing
-        )
-      );
+        setCustomerListingsWithImages((prevListings) =>
+          prevListings.map((listing) =>
+            listing.id === selectedListing.id
+              ? {
+                  ...listing,
+                  uploadedImages: [...listing.uploadedImages, downloadURL],
+                }
+              : listing,
+          ),
+        );
 
-      setSelectedFile(null);
-      alert("Image uploaded successfully!");
+        setSelectedFile(null);
+        alert("Image uploaded successfully!");
+      }
+      
     } catch (error) {
       console.error("Error uploading image:", error);
       alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);

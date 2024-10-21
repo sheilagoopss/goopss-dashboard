@@ -13,7 +13,10 @@ interface UseDesignHubFetchReturn {
 }
 
 interface UseDesignHubCreateReturn {
-  createDesignHub: (image: Image, customerId: string) => Promise<Image | null>;
+  createDesignHub: (
+    image: Omit<Image, "id">,
+    customerId: string,
+  ) => Promise<Image | null>;
   isLoading: boolean;
 }
 
@@ -59,7 +62,10 @@ export function useDesignHubCreate(): UseDesignHubCreateReturn {
   const { user } = useAuth();
 
   const createDesignHub = useCallback(
-    async (image: Image, customerId: string): Promise<Image | null> => {
+    async (
+      image: Omit<Image, "id">,
+      customerId: string,
+    ): Promise<Image | null> => {
       setIsLoading(true);
       try {
         const filteredData = filterUndefined(
