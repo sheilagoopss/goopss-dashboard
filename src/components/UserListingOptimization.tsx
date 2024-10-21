@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import DOMPurify from 'dompurify';
@@ -51,30 +51,10 @@ export default function UserListingOptimization() {
         const fetchedListings = querySnapshot.docs
           .map(doc => {
             const data = doc.data();
-            console.log('Raw optimizedAt:', data.optimizedAt);
-            let optimizedAt: Date | null = null;
-            
-            if (data.optimizedAt) {
-              if (data.optimizedAt.toDate && typeof data.optimizedAt.toDate === 'function') {
-                optimizedAt = data.optimizedAt.toDate();
-              } else if (data.optimizedAt instanceof Date) {
-                optimizedAt = data.optimizedAt;
-              } else if (typeof data.optimizedAt === 'string') {
-                optimizedAt = new Date(data.optimizedAt);
-              } else if (typeof data.optimizedAt.seconds === 'number') {
-                optimizedAt = new Date(data.optimizedAt.seconds * 1000);
-              } else if (data.optimizedAt._methodName === 'serverTimestamp') {
-                // Handle server timestamp
-                optimizedAt = new Date();
-              }
-            }
-            
-            console.log('Processed optimizedAt:', optimizedAt);
-
             return {
               id: doc.id,
               ...data,
-              optimizedAt: optimizedAt
+              optimizedAt: data.optimizedAt ? data.optimizedAt.toDate() : null
             } as Listing;
           })
           .filter(listing => 
@@ -83,9 +63,9 @@ export default function UserListingOptimization() {
         console.log('Fetched listings:', fetchedListings);
         setAllListings(fetchedListings);
         setFilteredListings(fetchedListings);
+        setIsLoading(false);
       } catch (error) {
-        console.error("Error fetching listings:", error);
-      } finally {
+        console.error('Error fetching listings:', error);
         setIsLoading(false);
       }
     };
