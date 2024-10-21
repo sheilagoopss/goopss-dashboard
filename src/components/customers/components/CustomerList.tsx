@@ -18,6 +18,9 @@ import {
 } from "../../../hooks/useCustomer";
 import { useNavigate } from "react-router-dom";
 import { CustomerForm } from "../form/CustomerForm";
+import { collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { db } from '../../../firebase/config';
+import { useListingDeleteAll } from "../../../hooks/useListing";
 
 interface CustomerListProps {
   customers: Customer[];
@@ -35,6 +38,10 @@ export default function CustomerList({
   const { isLoading: isUpdating, updateCustomer } = useCustomerUpdate();
   const { isLoading: isDeleting, deleteCustomer } = useCustomerDelete();
   const navigate = useNavigate();
+  const [isDeletingAllListings, setIsDeletingAllListings] = useState(false);
+  const [customerIdForListingDeletion, setCustomerIdForListingDeletion] = useState<string | null>(null);
+
+  const { deleteAllListings, isLoading: isDeletingAllListingsHook } = useListingDeleteAll();
 
   const columns = [
     {
@@ -96,6 +103,15 @@ export default function CustomerList({
               loading={isDeleting}
             />
           </Col>
+          <Col>
+            <Button
+              onClick={() => handleDeleteAllListings(record.id)}
+              danger
+              loading={isDeletingAllListings && customerIdForListingDeletion === record.id}
+            >
+              Delete All Listings
+            </Button>
+          </Col>
         </Row>
       ),
     },
@@ -132,6 +148,30 @@ export default function CustomerList({
       message.error({ content: `Error deleting customer: ${error}` });
       console.error("Error deleting customer:", error);
     }
+  };
+
+  const handleDeleteAllListings = async (customerId: string) => {
+    setCustomerIdForListingDeletion(customerId);
+    Modal.confirm({
+      title: 'Are you sure you want to delete all listings for this customer?',
+      content: 'This action cannot be undone.',
+      onOk: async () => {
+        try {
+          const success = await deleteAllListings(customerId);
+          if (success) {
+            message.success('All listings deleted successfully');
+            refresh();
+          } else {
+            message.error('Failed to delete all listings');
+          }
+        } catch (error) {
+          console.error("Error deleting listings:", error);
+          message.error('Failed to delete all listings');
+        } finally {
+          setCustomerIdForListingDeletion(null);
+        }
+      },
+    });
   };
 
   const expandedRowRender = (record: Customer) => (
