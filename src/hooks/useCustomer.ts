@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Customer } from "../types/Customer";
 import FirebaseHelper from "../helpers/FirebaseHelper";
+import { filterUndefined } from "../utils/filterUndefined";
 
 interface UseCustomerFetchReturn {
   fetchCustomer: (customerId: string) => Promise<Customer | null>;
@@ -8,7 +9,7 @@ interface UseCustomerFetchReturn {
 }
 
 interface UseCustomerCreateReturn {
-  createCustomer: (customer: Customer) => Promise<void>;
+  createCustomer: (customer: Customer) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -59,14 +60,19 @@ export function useCustomerCreate(): UseCustomerCreateReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const createCustomer = useCallback(
-    async (customer: Customer): Promise<void> => {
+    async (customer: Customer): Promise<boolean> => {
       setIsLoading(true);
       try {
-        await FirebaseHelper.create("customers", customer);
+        const filteredData = filterUndefined(
+          customer as unknown as Record<string, string>,
+        );
+        await FirebaseHelper.create("customers", filteredData);
       } catch (error) {
         console.error("Error creating customer:", error);
+        return false;
       } finally {
         setIsLoading(false);
+        return true;
       }
     },
     [],

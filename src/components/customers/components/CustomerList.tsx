@@ -1,14 +1,5 @@
 import React, { useState } from "react";
-import {
-  Table,
-  Tag,
-  Button,
-  Modal,
-  Form,
-  Col,
-  Row,
-  message,
-} from "antd";
+import { Table, Tag, Button, Modal, Form, Col, Row, message } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { ChartColumn, Paintbrush, Search, Share2 } from "lucide-react";
 import { Customer } from "../../../types/Customer";
@@ -18,8 +9,6 @@ import {
 } from "../../../hooks/useCustomer";
 import { useNavigate } from "react-router-dom";
 import { CustomerForm } from "../form/CustomerForm";
-import { collection, query, where, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../../../firebase/config';
 import { useListingDeleteAll } from "../../../hooks/useListing";
 
 interface CustomerListProps {
@@ -38,10 +27,11 @@ export default function CustomerList({
   const { isLoading: isUpdating, updateCustomer } = useCustomerUpdate();
   const { isLoading: isDeleting, deleteCustomer } = useCustomerDelete();
   const navigate = useNavigate();
-  const [isDeletingAllListings, setIsDeletingAllListings] = useState(false);
-  const [customerIdForListingDeletion, setCustomerIdForListingDeletion] = useState<string | null>(null);
+  const [customerIdForListingDeletion, setCustomerIdForListingDeletion] =
+    useState<string | null>(null);
 
-  const { deleteAllListings, isLoading: isDeletingAllListingsHook } = useListingDeleteAll();
+  const { deleteAllListings, isLoading: isDeletingAllListings } =
+    useListingDeleteAll();
 
   const columns = [
     {
@@ -107,7 +97,10 @@ export default function CustomerList({
             <Button
               onClick={() => handleDeleteAllListings(record.id)}
               danger
-              loading={isDeletingAllListings && customerIdForListingDeletion === record.id}
+              loading={
+                isDeletingAllListings &&
+                customerIdForListingDeletion === record.id
+              }
             >
               Delete All Listings
             </Button>
@@ -153,20 +146,20 @@ export default function CustomerList({
   const handleDeleteAllListings = async (customerId: string) => {
     setCustomerIdForListingDeletion(customerId);
     Modal.confirm({
-      title: 'Are you sure you want to delete all listings for this customer?',
-      content: 'This action cannot be undone.',
+      title: "Are you sure you want to delete all listings for this customer?",
+      content: "This action cannot be undone.",
       onOk: async () => {
         try {
           const success = await deleteAllListings(customerId);
           if (success) {
-            message.success('All listings deleted successfully');
+            message.success("All listings deleted successfully");
             refresh();
           } else {
-            message.error('Failed to delete all listings');
+            message.error("Failed to delete all listings");
           }
         } catch (error) {
           console.error("Error deleting listings:", error);
-          message.error('Failed to delete all listings');
+          message.error("Failed to delete all listings");
         } finally {
           setCustomerIdForListingDeletion(null);
         }
