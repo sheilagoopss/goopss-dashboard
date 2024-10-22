@@ -86,6 +86,8 @@ const styles: { [key: string]: CSSProperties } = {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+    height: 'auto', // Change from fixed height to auto
+    minHeight: '400px', // Set a minimum height
   },
   cardImage: {
     width: '100%',
@@ -100,16 +102,22 @@ const styles: { [key: string]: CSSProperties } = {
   cardContent: {
     padding: '16px',
     flex: 1,
-  },
-  cardTitle: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginBottom: '8px',
+    display: 'flex',
+    flexDirection: 'column',
   },
   cardId: {
-    fontSize: '14px',
-    color: '#666',
+    fontSize: '16px',
+    fontWeight: 'bold',
     marginBottom: '8px',
+    color: '#333',
+  },
+  cardTitle: {
+    fontSize: '14px',
+    marginBottom: '8px',
+    lineHeight: '1.2em',
+    minHeight: '2.4em', // Ensure space for at least 2 lines
+    overflow: 'hidden',
+    color: '#666',
   },
   cardBestseller: {
     fontSize: '14px',
@@ -123,6 +131,8 @@ const styles: { [key: string]: CSSProperties } = {
     gap: '5px',
     marginTop: '10px',
     marginBottom: '10px',
+    maxHeight: '150px', // Limit the height of the image preview area
+    overflowY: 'auto', // Add scroll if there are many images
   },
   uploadedImageThumbnail: {
     width: '50px',
@@ -159,11 +169,11 @@ const styles: { [key: string]: CSSProperties } = {
     textAlign: 'center',
     color: '#666',
     cursor: 'pointer',
-    minHeight: '100px',
+    minHeight: '80px', // Reduced height
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: '10px',
+    marginBottom: '10px', // Added margin at the bottom
     transition: 'background-color 0.3s ease',
   },
   cardFooter: {
@@ -236,7 +246,8 @@ interface Image {
 interface Customer {
   id: string;
   store_owner_name: string;
-  customer_id: string; // Add this line
+  customer_id: string;
+  store_name: string; // Add this line
 }
 
 interface ListingWithImages extends Listing {
@@ -464,6 +475,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [isDragging, setIsDragging] = useState(false);
   const { createDesignHub } = useDesignHubCreate()
 
+  // Add this new state variable
+  const [listingImages, setListingImages] = useState<Record<string, string[]>>({});
+
   console.log('DesignHub props:', { customerId, isAdmin });
 
   useEffect(() => {
@@ -476,6 +490,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
             id: doc.id,
             store_owner_name: doc.data().store_owner_name,
             customer_id: doc.data().customer_id,
+            store_name: doc.data().store_name, // Add this line
           }));
           setCustomers(customersList);
         } catch (error) {
@@ -560,11 +575,18 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         orderBy("listingTitle")
       );
       const listingsSnapshot = await getDocs(q);
-      const listingsData = listingsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Listing));
-      console.log("Fetched listings:", listingsData);
+      const listingsData = await Promise.all(listingsSnapshot.docs.map(async (doc) => {
+        const listingData = doc.data() as Listing;
+        const imagesQuery = query(collection(db, 'images'), where('listing_id', '==', doc.id));
+        const imagesSnapshot = await getDocs(imagesQuery);
+        const uploadedImages = imagesSnapshot.docs.map(imgDoc => imgDoc.data().url);
+        return {
+          ...listingData,
+          id: doc.id, // This will overwrite the id from listingData if it exists
+          uploadedImages,
+        };
+      }));
+      console.log("Fetched listings with images:", listingsData);
       setCustomerListings(listingsData);
       setIsIndexBuilding(false);
     } catch (error) {
@@ -578,6 +600,15 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       }
     }
   };
+
+  // Update this useEffect
+  useEffect(() => {
+    const newListingImages: Record<string, string[]> = {};
+    customerListings.forEach(listing => {
+      newListingImages[listing.id] = listing.uploadedImages || [];
+    });
+    setListingImages(newListingImages);
+  }, [customerListings]);
 
   const handleListingSelect = (listing: Listing) => {
     setSelectedListing(listing);
@@ -956,53 +987,52 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   const handleSave = async (listing: Listing) => {
-    const files = localImages[listing.id];
-    if (!files || files.length === 0) {
-      alert("No images to upload.");
-      return;
-    }
+    if (!localImages[listing.id] || localImages[listing.id].length === 0) return;
 
-    for (const file of files) {
-      const fileExtension = file.name.split('.').pop();
-      const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
-      const storageRef = ref(storage, `designs/${uniqueFileName}`);
-      
-      try {
-        const snapshot = await uploadBytes(storageRef, file);
+    try {
+      const batch = writeBatch(db);
+      const newImages: string[] = [];
+
+      for (const file of localImages[listing.id]) {
+        const fileExtension = file.name.split('.').pop();
+        const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+        const storageRef = ref(storage, `designs/${uniqueFileName}`);
+        
+        await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(storageRef);
+        newImages.push(downloadURL);
 
-        const newImage: Omit<Image, 'id'> = {
+        const newImageDoc = {
           url: downloadURL,
           status: 'pending',
           title: file.name,
           date: new Date().toISOString(),
-          customer_id: isAdmin ? selectedCustomerId : customerId,
+          customer_id: selectedCustomerId,
           listing_id: listing.id,
         };
 
-        const docRef = await addDoc(collection(db, 'images'), newImage);
-
-        setCustomerListingsWithImages(prevListings => 
-          prevListings.map(l => 
-            l.id === listing.id 
-              ? { ...l, uploadedImages: [...l.uploadedImages, downloadURL] }
-              : l
-          )
-        );
-      } catch (error) {
-        console.error("Error uploading image:", error);
-        alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const newImageRef = doc(collection(db, 'images'));
+        batch.set(newImageRef, newImageDoc);
       }
+
+      await batch.commit();
+
+      // Update local state
+      setListingImages(prev => ({
+        ...prev,
+        [listing.id]: [...(prev[listing.id] || []), ...newImages],
+      }));
+
+      setLocalImages(prev => ({
+        ...prev,
+        [listing.id]: [],
+      }));
+
+      alert('Images uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert('Failed to upload images. Please try again.');
     }
-
-    // Clear local images for this listing after successful upload
-    setLocalImages(prev => {
-      const newLocalImages = { ...prev };
-      delete newLocalImages[listing.id];
-      return newLocalImages;
-    });
-
-    alert("Images uploaded successfully!");
   };
 
   const handleDragEnter = (e: DragEvent<HTMLDivElement>, listing: Listing) => {
@@ -1067,7 +1097,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
             <option value="">Select a customer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.customer_id}>
-                {customer.store_owner_name}
+                {customer.store_name} - {customer.store_owner_name}
               </option>
             ))}
           </select>
@@ -1225,13 +1255,21 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                         onDrop={(e) => handleDrop(e, listing)}
                       >
                         <div style={styles.cardContent}>
-                          <h4 style={styles.cardTitle}>{listing.listingTitle}</h4>
+                          <div 
+                            style={styles.dropZone}
+                            onClick={() => handleDropZoneClick(listing.id)}
+                          >
+                            Drag and drop images here or click to upload
+                          </div>
                           <p style={styles.cardId}>ID: {listing.listingID}</p>
+                          <h4 style={styles.cardTitle} title={listing.listingTitle}>
+                            {listing.listingTitle}
+                          </h4>
                           <p style={styles.cardBestseller}>
                             {listing.bestseller ? 'Bestseller' : ''}
                           </p>
                           <div style={styles.uploadedImagesPreview}>
-                            {listing.uploadedImages.map((imageUrl: string, index: number) => (
+                            {listingImages[listing.id]?.map((imageUrl, index) => (
                               <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
                                 <img 
                                   src={imageUrl} 
@@ -1257,12 +1295,6 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                                 </button>
                               </div>
                             ))}
-                          </div>
-                          <div 
-                            style={styles.dropZone}
-                            onClick={() => handleDropZoneClick(listing.id)}
-                          >
-                            Drag and drop images here or click to upload
                           </div>
                         </div>
                         <div style={styles.cardFooter}>

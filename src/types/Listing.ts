@@ -14,4 +14,5 @@ export interface Listing {
   optimizedTitle?: string;
   optimizedDescription?: string;
   optimizedTags?: string;
+  uploadedImages?: string[]; // Add this line
 }
