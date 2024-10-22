@@ -15,6 +15,8 @@ import {
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { useTaskCreate } from "../hooks/useTask";
 import dayjs from "dayjs";
+import { Button, Input } from "antd";
+import { EditOutlined } from "@ant-design/icons";
 
 interface PlanPageProps {
   customers: Customer[];
@@ -35,8 +37,11 @@ function Plan({
 }: PlanPageProps) {
   const { isAdmin, user } = useAuth();
   const [planTasks, setPlanTasks] = useState<PlanTask[]>([]);
+  const [editing, setEditing] = useState<string | undefined>(undefined);
+  const [editValue, setEditValue] = useState<string>("");
   const [newTask, setNewTask] = useState("");
   const { createTask } = useTaskCreate();
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const fetchPlanTasks = async () => {
@@ -94,6 +99,31 @@ function Plan({
       );
     } catch (error) {
       console.error("Error updating task status: ", error);
+    }
+  };
+  const handleUpdate = async () => {
+    if (!editing) {
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const taskRef = doc(db, "monthlyPlan", editing);
+      await updateDoc(taskRef, {
+        task: editValue,
+      });
+
+      // Update local state
+      setPlanTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === editing ? { ...task, task: editValue } : task,
+        ),
+      );
+      setEditing(undefined);
+      setEditValue("");
+      setIsUpdating(false);
+    } catch (error) {
+      setIsUpdating(false);
+      console.error("Error updating task: ", error);
     }
   };
 
@@ -199,11 +229,51 @@ function Plan({
                         style={{ marginRight: "10px" }}
                       />
                     )}
-                    {task.task}
+                    {editing && editing === task.id ? (
+                      <Input
+                        value={editValue}
+                        onChange={(e) => {
+                          setEditValue(e.target.value);
+                        }}
+                      />
+                    ) : (
+                      task.task
+                    )}
                   </div>
-                  <span style={statusStyle(task.is_done)}>
-                    {task.is_done ? "Done" : "To do"}
-                  </span>
+                  <div style={{ display: "flex", gap: "2ch" }}>
+                    {editing && editing === task.id ? (
+                      <>
+                        <Button
+                          type="primary"
+                          onClick={handleUpdate}
+                          loading={isUpdating}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setEditing(undefined);
+                            setEditValue("");
+                          }}
+                          disabled={isUpdating}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        onClick={() => {
+                          setEditValue(task.task);
+                          setEditing(task.id);
+                        }}
+                        icon={<EditOutlined />}
+                      />
+                    )}
+
+                    <span style={statusStyle(task.is_done)}>
+                      {task.is_done ? "Done" : "To do"}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
