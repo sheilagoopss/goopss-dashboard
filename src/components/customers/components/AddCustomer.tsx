@@ -17,7 +17,7 @@ export default function AddCustomer({
   const handleSubmit = async (values: any) => {
     const newCustomer: Customer = {
       ...values,
-      date_joined: values.date_joined || dayjs().format("YYYY-MM-DD"),
+      date_joined: values.date_joined ? dayjs(values.date_joined).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
     };
     const created = await onAddCustomer(newCustomer);
     if (created) {

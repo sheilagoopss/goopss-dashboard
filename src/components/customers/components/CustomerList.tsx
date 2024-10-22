@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { CustomerForm } from "../form/CustomerForm";
 import { useListingDeleteAll } from "../../../hooks/useListing";
+import dayjs from "dayjs";
 
 interface CustomerListProps {
   customers: Customer[];
@@ -111,14 +112,21 @@ export default function CustomerList({
   ];
 
   const handleEdit = (record: Customer) => {
-    form.setFieldsValue(record);
+    form.setFieldsValue({
+      ...record,
+      date_joined: record.date_joined ? dayjs(record.date_joined) : undefined,
+    });
     setEditingKey(record.id);
   };
 
   const handleSave = async () => {
     try {
       const row = await form.validateFields();
-      const update = await updateCustomer(editingKey, row);
+      const updatedCustomer = {
+        ...row,
+        date_joined: row.date_joined ? dayjs(row.date_joined).format("YYYY-MM-DD") : undefined,
+      };
+      const update = await updateCustomer(editingKey, updatedCustomer);
       if (update) {
         message.success({ content: "Customer Updated!" });
         refresh();
