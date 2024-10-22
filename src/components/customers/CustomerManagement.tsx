@@ -57,12 +57,17 @@ export default function CustomerManagement() {
     setFilteredCustomers(filtered);
   };
 
-  const handleAddCustomer = async (newCustomer: Customer) => {
-    createCustomer(newCustomer).then((value) => {
+  const handleAddCustomer = async (newCustomer: Customer): Promise<boolean> => {
+    const response = await createCustomer(newCustomer);
+    if (response) {
       message.success({ content: "Customer Created" });
       setCustomers([...customers, newCustomer]);
       setFilteredCustomers([...filteredCustomers, newCustomer]);
-    });
+      return true;
+    } else {
+      message.error({ content: "Customer not created" });
+      return false;
+    }
   };
 
   const handleCSVExport = () => {

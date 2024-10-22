@@ -5,7 +5,8 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import { Task } from "../types/Task";
 import { useAuth } from "../contexts/AuthContext";
 import { Admin } from "../types/Customer";
-import { serverTimestamp } from "firebase/firestore";
+import { serverTimestamp, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
+import { db } from "../firebase/config";
 
 interface UseListingFetchReturn {
   fetchListing: (listingId: string) => Promise<Listing | null>;
@@ -33,6 +34,11 @@ interface UseListingDeleteReturn {
 
 interface UseListingFetchAllReturn {
   fetchAllListings: () => Promise<Listing[]>;
+  isLoading: boolean;
+}
+
+interface UseListingDeleteAllReturn {
+  deleteAllListings: (customerId: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -155,4 +161,33 @@ export function useListingFetchAll(): UseListingFetchAllReturn {
   }, []);
 
   return { fetchAllListings, isLoading };
+}
+
+export function useListingDeleteAll(): UseListingDeleteAllReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const deleteAllListings = useCallback(async (customerId: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const listingsRef = collection(db, 'listings');
+      const q = query(listingsRef, where("customer_id", "==", customerId));
+      const querySnapshot = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      console.log(`Successfully deleted all listings for customer ${customerId}`);
+      return true;
+    } catch (error) {
+      console.error("Error deleting listings:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return { deleteAllListings, isLoading };
 }

@@ -44,9 +44,9 @@ class FirebaseHandler {
   async create(
     collectionName: keyof typeof COLLECTIONS,
     data: any,
-  ): Promise<string> {
+  ): Promise<any> {
     const docRef = await addDoc(collection(this.db, collectionName), data);
-    return docRef.id;
+    return docRef;
   }
 
   async update(

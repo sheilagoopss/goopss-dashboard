@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import { CustomerForm } from "../form/CustomerForm";
 
 interface AddCustomerProps {
-  onAddCustomer: (customer: Customer) => void;
+  onAddCustomer: (customer: Customer) => Promise<boolean>;
   isCreating: boolean;
 }
 
@@ -14,13 +14,15 @@ export default function AddCustomer({
 }: AddCustomerProps) {
   const [form] = Form.useForm();
 
-  const handleSubmit = (values: any) => {
+  const handleSubmit = async (values: any) => {
     const newCustomer: Customer = {
       ...values,
-      date_joined: dayjs().format("YYYY-MM-DD"),
+      date_joined: values.date_joined ? dayjs(values.date_joined).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
     };
-    onAddCustomer(newCustomer);
-    form.resetFields();
+    const created = await onAddCustomer(newCustomer);
+    if (created) {
+      form.resetFields();
+    }
   };
 
   return (

@@ -1,14 +1,5 @@
 import React, { useState } from "react";
-import {
-  Table,
-  Tag,
-  Button,
-  Modal,
-  Form,
-  Col,
-  Row,
-  message,
-} from "antd";
+import { Table, Tag, Button, Modal, Form, Col, Row, message } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { ChartColumn, Paintbrush, Search, Share2 } from "lucide-react";
 import { Customer } from "../../../types/Customer";
@@ -18,6 +9,8 @@ import {
 } from "../../../hooks/useCustomer";
 import { useNavigate } from "react-router-dom";
 import { CustomerForm } from "../form/CustomerForm";
+import { useListingDeleteAll } from "../../../hooks/useListing";
+import dayjs from "dayjs";
 
 interface CustomerListProps {
   customers: Customer[];
@@ -35,6 +28,11 @@ export default function CustomerList({
   const { isLoading: isUpdating, updateCustomer } = useCustomerUpdate();
   const { isLoading: isDeleting, deleteCustomer } = useCustomerDelete();
   const navigate = useNavigate();
+  const [customerIdForListingDeletion, setCustomerIdForListingDeletion] =
+    useState<string | null>(null);
+
+  const { deleteAllListings, isLoading: isDeletingAllListings } =
+    useListingDeleteAll();
 
   const columns = [
     {
@@ -96,20 +94,39 @@ export default function CustomerList({
               loading={isDeleting}
             />
           </Col>
+          <Col>
+            <Button
+              onClick={() => handleDeleteAllListings(record.id)}
+              danger
+              loading={
+                isDeletingAllListings &&
+                customerIdForListingDeletion === record.id
+              }
+            >
+              Delete All Listings
+            </Button>
+          </Col>
         </Row>
       ),
     },
   ];
 
   const handleEdit = (record: Customer) => {
-    form.setFieldsValue(record);
+    form.setFieldsValue({
+      ...record,
+      date_joined: record.date_joined ? dayjs(record.date_joined) : undefined,
+    });
     setEditingKey(record.id);
   };
 
   const handleSave = async () => {
     try {
       const row = await form.validateFields();
-      const update = await updateCustomer(editingKey, row);
+      const updatedCustomer = {
+        ...row,
+        date_joined: row.date_joined ? dayjs(row.date_joined).format("YYYY-MM-DD") : undefined,
+      };
+      const update = await updateCustomer(editingKey, updatedCustomer);
       if (update) {
         message.success({ content: "Customer Updated!" });
         refresh();
@@ -132,6 +149,30 @@ export default function CustomerList({
       message.error({ content: `Error deleting customer: ${error}` });
       console.error("Error deleting customer:", error);
     }
+  };
+
+  const handleDeleteAllListings = async (customerId: string) => {
+    setCustomerIdForListingDeletion(customerId);
+    Modal.confirm({
+      title: "Are you sure you want to delete all listings for this customer?",
+      content: "This action cannot be undone.",
+      onOk: async () => {
+        try {
+          const success = await deleteAllListings(customerId);
+          if (success) {
+            message.success("All listings deleted successfully");
+            refresh();
+          } else {
+            message.error("Failed to delete all listings");
+          }
+        } catch (error) {
+          console.error("Error deleting listings:", error);
+          message.error("Failed to delete all listings");
+        } finally {
+          setCustomerIdForListingDeletion(null);
+        }
+      },
+    });
   };
 
   const expandedRowRender = (record: Customer) => (

@@ -1,4 +1,14 @@
-import { Button, Col, Form, Input, InputNumber, Row, Select } from "antd";
+import {
+  Button,
+  Col,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+} from "antd";
+import dayjs from "dayjs";
 
 interface CustomerFormProps {
   isUpdate?: boolean;
@@ -73,6 +83,31 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
               <Option value="Paid">Paid</Option>
               <Option value="Free">Free</Option>
             </Select>
+          </Form.Item>
+        </Col>
+      </Row>
+      <Row gutter={[16, 6]}>
+        <Col span={8}>
+          <Form.Item
+            name="date_joined"
+            label="Date Joined"
+            rules={[{ required: true }]}
+          >
+            <DatePicker allowClear defaultValue={dayjs()} />
+          </Form.Item>
+        </Col>
+        <Col span={8}>
+          <Form.Item name="lists" label="Listings" rules={[{ type: "number" }]}>
+            <InputNumber type="number" style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+        <Col span={8}>
+          <Form.Item
+            name="sales_when_joined"
+            label="Sales When Joined"
+            rules={[{ type: "number" }]}
+          >
+            <InputNumber type="number" style={{ width: "100%" }} />
           </Form.Item>
         </Col>
       </Row>
