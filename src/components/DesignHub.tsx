@@ -3,7 +3,7 @@ import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import Modal from 'react-modal';
-import { Listing } from '../types/Listing'; // Import the Listing type
+import { Listing, ListingImage } from '../types/Listing'; // Import the Listing type
 import { FirebaseError } from 'firebase/app';
 import { useDesignHubCreate } from '../hooks/useDesignHub';
 
@@ -251,7 +251,8 @@ interface Customer {
 }
 
 interface ListingWithImages extends Listing {
-  uploadedImages: string[];
+  uploadedImages: ListingImage[];
+  createdAt: string;
 }
 
 const ImageModal = ({ isOpen, onClose, imageUrl, title }: { isOpen: boolean; onClose: () => void; imageUrl: string; title: string }) => (
@@ -458,17 +459,14 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [sortOrder, setSortOrder] = useState('newest');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [currentRevisionImage, setCurrentRevisionImage] = useState<Image | null>(null);
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [revisionComment, setRevisionComment] = useState('');
   const [customerListings, setCustomerListings] = useState<Listing[]>([]);
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isIndexBuilding, setIsIndexBuilding] = useState(false);
   const ITEMS_PER_PAGE = 10;
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [customerListingsWithImages, setCustomerListingsWithImages] = useState<ListingWithImages[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [localImages, setLocalImages] = useState<Record<string, File[]>>({});
@@ -476,7 +474,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const { createDesignHub } = useDesignHubCreate()
 
   // Add this new state variable
-  const [listingImages, setListingImages] = useState<Record<string, string[]>>({});
+  const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({});
 
   console.log('DesignHub props:', { customerId, isAdmin });
 
@@ -559,7 +557,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     if (customerListings.length > 0) {
       const listingsWithImages = customerListings.map(listing => ({
         ...listing,
-        uploadedImages: []
+        uploadedImages: listing.uploadedImages || [],
+        createdAt: listing.createdAt || new Date().toISOString()
       }));
       setCustomerListingsWithImages(listingsWithImages);
     }
@@ -579,15 +578,20 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         const listingData = doc.data() as Listing;
         const imagesQuery = query(collection(db, 'images'), where('listing_id', '==', doc.id));
         const imagesSnapshot = await getDocs(imagesQuery);
-        const uploadedImages = imagesSnapshot.docs.map(imgDoc => imgDoc.data().url);
+        const uploadedImages = imagesSnapshot.docs.map(imgDoc => ({
+          id: imgDoc.id,
+          url: imgDoc.data().url,
+          status: imgDoc.data().status as 'pending' | 'approved' | 'revision'
+        }));
         return {
           ...listingData,
-          id: doc.id, // This will overwrite the id from listingData if it exists
+          id: doc.id,
           uploadedImages,
+          createdAt: listingData.createdAt || new Date().toISOString(),
         };
       }));
       console.log("Fetched listings with images:", listingsData);
-      setCustomerListings(listingsData);
+      setCustomerListings(listingsData as Listing[]);
       setIsIndexBuilding(false);
     } catch (error) {
       console.error("Error fetching customer listings:", error);
@@ -603,116 +607,12 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   // Update this useEffect
   useEffect(() => {
-    const newListingImages: Record<string, string[]> = {};
+    const newListingImages: Record<string, ListingImage[]> = {};
     customerListings.forEach(listing => {
       newListingImages[listing.id] = listing.uploadedImages || [];
     });
     setListingImages(newListingImages);
   }, [customerListings]);
-
-  const handleListingSelect = (listing: Listing) => {
-    setSelectedListing(listing);
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile || !selectedListing) {
-      alert("Please select a file and a listing before uploading.");
-      return;
-    }
-
-    console.log("Upload started");
-    console.log("Is admin:", isAdmin);
-    console.log("Selected customer ID:", selectedCustomerId);
-    console.log("Customer ID:", customerId);
-
-    if (!selectedFile) {
-      console.log("No file selected");
-      alert("Please select a file first.");
-      return;
-    }
-
-    if (!selectedCustomerId && isAdmin) {
-      console.log("No customer selected for admin");
-      alert("Please select a customer before uploading an image.");
-      return;
-    }
-
-    const fileExtension = selectedFile.name.split('.').pop();
-    const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
-    const storageRef = ref(storage, `designs/${uniqueFileName}`);
-    
-    try {
-      console.log("Uploading to Firebase Storage", storageRef.fullPath);
-      const snapshot = await uploadBytes(storageRef, selectedFile);
-      console.log("File uploaded to Storage", snapshot);
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      console.log("Download URL obtained:", downloadURL);
-
-      const newImage: Omit<Image, 'id'> = {
-        url: downloadURL,
-        status: 'pending',
-        title: selectedFile.name,
-        date: new Date().toISOString(),
-        customer_id: isAdmin ? selectedCustomerId : customerId,
-        listing_id: selectedListing.id, // This line is now valid
-      };
-
-      console.log("New image object:", newImage);
-
-      // const docRef = await addDoc(collection(db, 'images'), newImage);
-      const docRef = await createDesignHub(
-        newImage,
-        isAdmin ? selectedCustomerId : customerId,
-      );
-      console.log("Document added to Firestore", docRef);
-
-      if (docRef) {
-        const imageWithId: Image = { id: docRef.id, ...newImage };
-        console.log("Image with ID:", imageWithId);
-
-        // Update the local state
-        setImages((prevImages) => {
-          const key = isAdmin ? selectedCustomerId || "admin" : customerId;
-          // Check if the image already exists in the array
-          const imageExists = prevImages[key]?.some(
-            (img) => img.id === imageWithId.id,
-          );
-          if (!imageExists) {
-            return {
-              ...prevImages,
-              [key]: [...(prevImages[key] || []), imageWithId],
-            };
-          }
-          return prevImages; // If the image already exists, don't update the state
-        });
-
-        setCustomerListingsWithImages((prevListings) =>
-          prevListings.map((listing) =>
-            listing.id === selectedListing.id
-              ? {
-                  ...listing,
-                  uploadedImages: [...listing.uploadedImages, downloadURL],
-                }
-              : listing,
-          ),
-        );
-
-        setSelectedFile(null);
-        alert("Image uploaded successfully!");
-      }
-      
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
   const handleApprove = async (id: string) => {
     try {
@@ -891,70 +791,33 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     }
   };
 
-  const filteredAndSortedImages = useMemo(() => {
-    let imageArray: Image[] = [];
-    if (isAdmin) {
-      if (selectedCustomerId) {
-        imageArray = images[selectedCustomerId] || [];
-      } else {
-        // When no customer is selected, use the 'all' key
-        imageArray = images['all'] || [];
-      }
-    } else {
-      imageArray = customerId ? (images[customerId] || []) : [];
-    }
-
-    if (!Array.isArray(imageArray)) {
-      console.error('imageArray is not an array:', imageArray);
-      return [];
-    }
-    return imageArray
-      .filter(image => {
-        const matchesSearch = (image.title || '').toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || image.status === statusFilter;
+  const filteredAndSortedListings = useMemo(() => {
+    return customerListingsWithImages
+      .filter(listing => {
+        const matchesSearch = listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
+        const listingImagesArray = listingImages[listing.id] || [];
+        const matchesStatus = statusFilter === 'all' || 
+                              (statusFilter === 'pending' && listingImagesArray.some(img => img.status === 'pending')) ||
+                              (statusFilter === 'revision' && listingImagesArray.some(img => img.status === 'revision')) ||
+                              (statusFilter === 'approved' && listingImagesArray.some(img => img.status === 'approved'));
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
         if (sortOrder === 'newest') {
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         } else {
-          return new Date(a.date).getTime() - new Date(b.date).getTime();
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         }
       });
-  }, [images, isAdmin, customerId, selectedCustomerId, searchTerm, statusFilter, sortOrder]);
-
-  useEffect(() => {
-    if (!storage) {
-      console.error("Firebase Storage is not initialized");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!customerId && !isAdmin) {
-      console.error("No customerId provided for non-admin user");
-    }
-  }, [customerId, isAdmin]);
-
-  const handleUploadForListing = (listing: Listing) => {
-    setSelectedListing(listing);
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-      handleUpload();
-    }
-  };
+  }, [customerListingsWithImages, searchTerm, statusFilter, sortOrder, listingImages]);
 
   const paginatedListings = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return customerListingsWithImages.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [customerListingsWithImages, currentPage]);
+    return filteredAndSortedListings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredAndSortedListings, currentPage]);
 
-  const totalPages = Math.ceil(customerListingsWithImages.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredAndSortedListings.length / ITEMS_PER_PAGE);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -991,7 +854,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
     try {
       const batch = writeBatch(db);
-      const newImages: string[] = [];
+      const newImages: ListingImage[] = [];
 
       for (const file of localImages[listing.id]) {
         const fileExtension = file.name.split('.').pop();
@@ -1000,19 +863,24 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         
         await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(storageRef);
-        newImages.push(downloadURL);
 
-        const newImageDoc = {
+        const newImageDoc: ListingImage = {
+          id: doc(collection(db, 'images')).id, // Generate a new ID
           url: downloadURL,
           status: 'pending',
+        };
+
+        newImages.push(newImageDoc);
+
+        const fullImageDoc = {
+          ...newImageDoc,
           title: file.name,
           date: new Date().toISOString(),
           customer_id: selectedCustomerId,
           listing_id: listing.id,
         };
 
-        const newImageRef = doc(collection(db, 'images'));
-        batch.set(newImageRef, newImageDoc);
+        batch.set(doc(db, 'images', newImageDoc.id), fullImageDoc);
       }
 
       await batch.commit();
@@ -1105,44 +973,6 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       </div>
       {(isAdmin && selectedCustomerId) || (!isAdmin && customerId) ? (
         <>
-          {isAdmin && selectedCustomerId && (
-            <div style={styles.listingSelector}>
-              <h3>Select a Listing</h3>
-              <select 
-                value={selectedListing?.id || ''}
-                onChange={(e) => {
-                  const listing = customerListings.find(l => l.id === e.target.value);
-                  if (listing) handleListingSelect(listing);
-                }}
-                style={styles.input}
-              >
-                <option value="">Select a listing</option>
-                {customerListings.map((listing) => (
-                  <option key={listing.id} value={listing.id}>
-                    {listing.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {isAdmin && (
-            <div style={styles.uploadForm}>
-              <input 
-                type="file" 
-                onChange={handleFileChange} 
-                accept="image/*" 
-                style={styles.input}
-              />
-              <button 
-                onClick={handleUpload} 
-                style={styles.button}
-                disabled={!selectedFile || !selectedListing || (isAdmin && !selectedCustomerId)}
-              >
-                Upload Image for {selectedListing?.title || 'selected listing'}
-              </button>
-            </div>
-          )}
           <div style={{ marginBottom: '20px' }}>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
               <option value="all">All Images</option>
@@ -1161,83 +991,13 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
             </select>
-            {statusFilter === 'pending' && (
-              <button onClick={handleBatchApprove} disabled={selectedDesigns.size === 0} style={styles.button}>
-                Approve Selected ({selectedDesigns.size})
-              </button>
-            )}
           </div>
-          <div style={styles.imageGrid}>
-            {filteredAndSortedImages.map((image) => (
-              <div key={image.id}>
-                <DesignCard
-                  image={image}
-                  onApprove={handleApprove}
-                  onRevise={handleRevise}
-                  onSelect={handleSelect}
-                  isSelected={selectedDesigns.has(image.id)}
-                  showCheckbox={statusFilter === 'pending'}
-                  isAdmin={isAdmin}
-                  onUploadRevision={handleUploadRevision}
-                />
-              </div>
-            ))}
-          </div>
-          <Modal
-            isOpen={isRevisionModalOpen}
-            onRequestClose={() => setIsRevisionModalOpen(false)}
-            style={{
-              content: {
-                top: '50%',
-                left: '50%',
-                right: 'auto',
-                bottom: 'auto',
-                marginRight: '-50%',
-                transform: 'translate(-50%, -50%)',
-                backgroundColor: 'white',
-                padding: '20px',
-                borderRadius: '8px',
-                maxWidth: '500px',
-                width: '90%',
-              },
-            }}
-          >
-            <h3>Upload Revision</h3>
-            {currentRevisionImage && (
-              <div>
-                <img src={currentRevisionImage.url} alt="Original" style={{ maxWidth: '100%', marginBottom: '10px' }} />
-                <div style={{ 
-                  backgroundColor: '#f0f0f0', 
-                  padding: '10px', 
-                  borderRadius: '5px', 
-                  marginBottom: '10px' 
-                }}>
-                  <strong>User's revision request:</strong> 
-                  <p>{currentRevisionImage.revisionNote || 'No notes provided'}</p>
-                </div>
-              </div>
-            )}
-            <input 
-              type="file" 
-              onChange={handleRevisionFileChange} 
-              accept="image/*" 
-              style={{ marginBottom: '10px' }}
-            />
-            <textarea
-              value={revisionComment}
-              onChange={(e) => setRevisionComment(e.target.value)}
-              placeholder="Add a comment about this revision (optional)"
-              style={{ width: '100%', marginBottom: '10px' }}
-            />
-            <button onClick={handleRevisionUpload} disabled={!revisionFile}>Upload Revision</button>
-            <button onClick={() => setIsRevisionModalOpen(false)}>Cancel</button>
-          </Modal>
           {isAdmin && selectedCustomerId && (
             <div>
               <h3>Customer Listings</h3>
               {isIndexBuilding ? (
                 <p>The database index is currently being built. This process usually takes a few minutes. Please wait...</p>
-              ) : customerListingsWithImages.length === 0 ? (
+              ) : paginatedListings.length === 0 ? (
                 <p>No listings found for this customer.</p>
               ) : (
                 <>
@@ -1269,14 +1029,28 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                             {listing.bestseller ? 'Bestseller' : ''}
                           </p>
                           <div style={styles.uploadedImagesPreview}>
-                            {listingImages[listing.id]?.map((imageUrl, index) => (
+                            {listingImages[listing.id]?.filter(image => 
+                              statusFilter === 'all' || image.status === statusFilter
+                            ).map((image, index) => (
                               <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
                                 <img 
-                                  src={imageUrl} 
+                                  src={image.url} 
                                   alt={`Uploaded ${index + 1}`}
                                   style={styles.uploadedImageThumbnail}
-                                  onClick={() => handleImagePreview(imageUrl)}
+                                  onClick={() => handleImagePreview(image.url)}
                                 />
+                                <span style={{
+                                  position: 'absolute',
+                                  bottom: '0',
+                                  right: '0',
+                                  background: image.status === 'approved' ? 'green' : image.status === 'revision' ? 'orange' : 'blue',
+                                  color: 'white',
+                                  padding: '2px 5px',
+                                  fontSize: '10px',
+                                  borderRadius: '3px'
+                                }}>
+                                  {image.status}
+                                </span>
                               </div>
                             ))}
                             {localImages[listing.id]?.map((file, index) => (
@@ -1344,13 +1118,6 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       ) : (
         <p>{isAdmin ? "Please select a customer to view designs." : "No customer ID provided."}</p>
       )}
-      <input
-        type="file"
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        onChange={handleFileSelect}
-        accept="image/*"
-      />
       {/* Image preview modal */}
       {previewImage && (
         <div style={styles.previewModal} onClick={closeImagePreview}>
