@@ -47,6 +47,13 @@ export default function TaskList({ tasklists, loading }: TaskListProps) {
             a.taskName.localeCompare(b.taskName),
         },
         {
+          title: "Listing",
+          dataIndex: "listingId",
+          key: "listingId",
+          sorter: (a: ITasklist, b: ITasklist) =>
+            (a.listingId || "").localeCompare(b.taskName),
+        },
+        {
           title: "Team Member",
           dataIndex: "teamMemberName",
           key: "teamMemberName",

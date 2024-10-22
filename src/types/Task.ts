@@ -7,6 +7,7 @@ export interface Task {
   customerId: string;
   teamMemberName: string;
   dateCompleted?: string | FieldValue;
+  listingId?: string;
   isDone?: boolean;
 }
 

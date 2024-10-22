@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, CSSProperties, DragEvent } from 'react';
-import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, writeBatch, orderBy, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase/config';
 import Modal from 'react-modal';
 import { Listing, ListingImage } from '../types/Listing'; // Import the Listing type
 import { FirebaseError } from 'firebase/app';
 import { useDesignHubCreate } from '../hooks/useDesignHub';
+import { useTaskCreate } from '../hooks/useTask';
+import { Admin } from '../types/Customer';
+import { useAuth } from '../contexts/AuthContext';
 
 // Remove these imports
 // import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -471,7 +474,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [localImages, setLocalImages] = useState<Record<string, File[]>>({});
   const [isDragging, setIsDragging] = useState(false);
-  const { createDesignHub } = useDesignHubCreate()
+  const { createTask } = useTaskCreate()
+  const { user } = useAuth();
 
   // Add this new state variable
   const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({});
@@ -850,24 +854,27 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   const handleSave = async (listing: Listing) => {
-    if (!localImages[listing.id] || localImages[listing.id].length === 0) return;
+    if (!localImages[listing.id] || localImages[listing.id].length === 0)
+      return;
 
     try {
       const batch = writeBatch(db);
       const newImages: ListingImage[] = [];
 
       for (const file of localImages[listing.id]) {
-        const fileExtension = file.name.split('.').pop();
-        const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+        const fileExtension = file.name.split(".").pop();
+        const uniqueFileName = `${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}.${fileExtension}`;
         const storageRef = ref(storage, `designs/${uniqueFileName}`);
-        
+
         await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(storageRef);
 
         const newImageDoc: ListingImage = {
-          id: doc(collection(db, 'images')).id, // Generate a new ID
+          id: doc(collection(db, "images")).id, // Generate a new ID
           url: downloadURL,
-          status: 'pending',
+          status: "pending",
         };
 
         newImages.push(newImageDoc);
@@ -880,26 +887,35 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           listing_id: listing.id,
         };
 
-        batch.set(doc(db, 'images', newImageDoc.id), fullImageDoc);
+        batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
       }
-
+      await createTask({
+        customerId: selectedCustomerId,
+        taskName: `${(user as Admin)?.name} added ${
+          localImages[listing.id].length
+        } images`,
+        teamMemberName: (user as Admin)?.name || user?.email || "",
+        dateCompleted: serverTimestamp(),
+        listingId: listing.id,
+        isDone: true,
+      });
       await batch.commit();
 
       // Update local state
-      setListingImages(prev => ({
+      setListingImages((prev) => ({
         ...prev,
         [listing.id]: [...(prev[listing.id] || []), ...newImages],
       }));
 
-      setLocalImages(prev => ({
+      setLocalImages((prev) => ({
         ...prev,
         [listing.id]: [],
       }));
 
-      alert('Images uploaded successfully!');
+      alert("Images uploaded successfully!");
     } catch (error) {
-      console.error('Error uploading images:', error);
-      alert('Failed to upload images. Please try again.');
+      console.error("Error uploading images:", error);
+      alert("Failed to upload images. Please try again.");
     }
   };
 
