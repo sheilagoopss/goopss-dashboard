@@ -1,14 +1,51 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, CSSProperties, DragEvent } from 'react';
-import { collection, getDocs, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, writeBatch, orderBy, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase/config';
-import Modal from 'react-modal';
-import { Listing, ListingImage } from '../types/Listing'; // Import the Listing type
-import { FirebaseError } from 'firebase/app';
-import { useDesignHubCreate } from '../hooks/useDesignHub';
-import { useTaskCreate } from '../hooks/useTask';
-import { Admin } from '../types/Customer';
-import { useAuth } from '../contexts/AuthContext';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  CSSProperties,
+  DragEvent,
+} from "react";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  onSnapshot,
+  query,
+  where,
+  updateDoc,
+  doc,
+  getDoc,
+  writeBatch,
+  orderBy,
+  serverTimestamp,
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/config";
+// import Modal from "react-modal";
+import { Listing, ListingImage } from "../types/Listing"; // Import the Listing type
+import { FirebaseError } from "firebase/app";
+import { useDesignHubCreate } from "../hooks/useDesignHub";
+import { useTaskCreate } from "../hooks/useTask";
+import { Admin } from "../types/Customer";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  Button,
+  Card,
+  Col,
+  Divider,
+  Image,
+  message,
+  Modal,
+  Popconfirm,
+  Popover,
+  Row,
+  Tag,
+} from "antd";
+import TextArea from "antd/es/input/TextArea";
+import FirebaseHelper from "../helpers/FirebaseHelper";
+import DragDropUpload from "./common/DragDropUpload";
 
 // Remove these imports
 // import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -21,210 +58,210 @@ const ITEMS_PER_LOAD = 4;
 
 const styles: { [key: string]: CSSProperties } = {
   container: {
-    padding: '20px',
+    padding: "20px",
   },
   uploadForm: {
-    marginBottom: '20px',
+    marginBottom: "20px",
   },
   input: {
-    marginRight: '10px',
+    marginRight: "10px",
   },
   button: {
-    padding: '5px 10px',
-    backgroundColor: '#007bff',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
+    padding: "5px 10px",
+    backgroundColor: "#007bff",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
   },
   imageGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-    gap: '20px',
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: "20px",
   },
   imageContainer: {
-    position: 'relative' as const,
+    position: "relative" as const,
   },
   image: {
-    width: '100%',
-    height: 'auto',
-    borderRadius: '5px',
+    width: "100%",
+    height: "auto",
+    borderRadius: "5px",
   },
   actionButton: {
-    padding: '5px 10px',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    backgroundColor: '#007bff',
-    color: 'white',
+    padding: "5px 10px",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "12px",
+    backgroundColor: "#007bff",
+    color: "white",
   },
   statusLabel: {
-    position: 'absolute' as const,
-    top: '5px',
-    left: '5px',
-    padding: '2px 5px',
-    borderRadius: '3px',
-    fontSize: '12px',
-    fontWeight: 'bold',
+    position: "absolute" as const,
+    top: "5px",
+    left: "5px",
+    padding: "2px 5px",
+    borderRadius: "3px",
+    fontSize: "12px",
+    fontWeight: "bold",
   },
   listingSelector: {
-    marginBottom: '20px',
+    marginBottom: "20px",
   },
   listingsTable: {
-    marginBottom: '20px',
+    marginBottom: "20px",
   },
   table: {
-    width: '100%',
-    borderCollapse: 'collapse' as const,
+    width: "100%",
+    borderCollapse: "collapse" as const,
   },
   cardGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-    gap: '1rem',
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+    gap: "1rem",
   },
   card: {
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    height: 'auto', // Change from fixed height to auto
-    minHeight: '400px', // Set a minimum height
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: "auto", // Change from fixed height to auto
+    minHeight: "400px", // Set a minimum height
   },
   cardImage: {
-    width: '100%',
-    height: '200px', // Adjust this value as needed
-    overflow: 'hidden',
+    width: "100%",
+    height: "200px", // Adjust this value as needed
+    overflow: "hidden",
   },
   primaryImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
   },
   cardContent: {
-    padding: '16px',
+    padding: "16px",
     flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
+    display: "flex",
+    flexDirection: "column",
   },
   cardId: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '8px',
-    color: '#333',
+    fontSize: "16px",
+    fontWeight: "bold",
+    marginBottom: "8px",
+    color: "#333",
   },
   cardTitle: {
-    fontSize: '14px',
-    marginBottom: '8px',
-    lineHeight: '1.2em',
-    minHeight: '2.4em', // Ensure space for at least 2 lines
-    overflow: 'hidden',
-    color: '#666',
+    fontSize: "14px",
+    marginBottom: "8px",
+    lineHeight: "1.2em",
+    minHeight: "2.4em", // Ensure space for at least 2 lines
+    overflow: "hidden",
+    color: "#666",
   },
   cardBestseller: {
-    fontSize: '14px',
-    color: '#28a745',
-    fontWeight: 'bold',
-    marginBottom: '8px',
+    fontSize: "14px",
+    color: "#28a745",
+    fontWeight: "bold",
+    marginBottom: "8px",
   },
   uploadedImagesPreview: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '5px',
-    marginTop: '10px',
-    marginBottom: '10px',
-    maxHeight: '150px', // Limit the height of the image preview area
-    overflowY: 'auto', // Add scroll if there are many images
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "5px",
+    marginTop: "10px",
+    marginBottom: "10px",
+    maxHeight: "150px", // Limit the height of the image preview area
+    overflowY: "auto", // Add scroll if there are many images
   },
   uploadedImageThumbnail: {
-    width: '50px',
-    height: '50px',
-    objectFit: 'cover',
-    cursor: 'pointer',
+    width: "50px",
+    height: "50px",
+    objectFit: "cover",
+    cursor: "pointer",
   },
   previewModal: {
-    position: 'fixed',
+    position: "fixed",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 1000,
   },
   previewImage: {
-    maxWidth: '90%',
-    maxHeight: '90%',
-    objectFit: 'contain',
+    maxWidth: "90%",
+    maxHeight: "90%",
+    objectFit: "contain",
   },
   cardDragging: {
-    border: '2px dashed #007bff',
-    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+    border: "2px dashed #007bff",
+    backgroundColor: "rgba(0, 123, 255, 0.1)",
   },
   dropZone: {
-    backgroundColor: '#f0f0f0',
-    border: '2px dashed #ccc',
-    borderRadius: '4px',
-    padding: '20px',
-    textAlign: 'center',
-    color: '#666',
-    cursor: 'pointer',
-    minHeight: '80px', // Reduced height
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: '10px', // Added margin at the bottom
-    transition: 'background-color 0.3s ease',
+    backgroundColor: "#f0f0f0",
+    border: "2px dashed #ccc",
+    borderRadius: "4px",
+    padding: "20px",
+    textAlign: "center",
+    color: "#666",
+    cursor: "pointer",
+    minHeight: "80px", // Reduced height
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: "10px", // Added margin at the bottom
+    transition: "background-color 0.3s ease",
   },
   cardFooter: {
-    padding: '16px',
-    borderTop: '1px solid #ddd',
-    display: 'flex',
-    justifyContent: 'space-between',
+    padding: "16px",
+    borderTop: "1px solid #ddd",
+    display: "flex",
+    justifyContent: "space-between",
   },
   pagination: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: '20px',
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: "20px",
   },
   paginationButton: {
-    padding: '5px 10px',
-    margin: '0 5px',
-    backgroundColor: '#007bff',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
+    padding: "5px 10px",
+    margin: "0 5px",
+    backgroundColor: "#007bff",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
   },
   pageInfo: {
-    margin: '0 10px',
+    margin: "0 10px",
   },
   thumbnailContainer: {
-    position: 'relative',
-    display: 'inline-block',
-    marginRight: '5px',
-    marginBottom: '5px',
+    position: "relative",
+    display: "inline-block",
+    marginRight: "5px",
+    marginBottom: "5px",
   },
   removeButton: {
-    position: 'absolute',
-    top: '-8px',
-    right: '-8px',
-    width: '20px',
-    height: '20px',
-    borderRadius: '50%',
-    backgroundColor: 'red',
-    color: 'white',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    fontSize: '12px',
-    fontWeight: 'bold',
+    position: "absolute",
+    top: "-8px",
+    right: "-8px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    backgroundColor: "red",
+    color: "white",
+    border: "none",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontSize: "12px",
+    fontWeight: "bold",
   },
 };
 
@@ -236,7 +273,7 @@ interface DesignHubProps {
 interface Image {
   id: string;
   url: string;
-  status: 'pending' | 'approved' | 'revision' | 'superseded';
+  status: "pending" | "approved" | "revision" | "superseded";
   title: string;
   date: string;
   revisionNote?: string;
@@ -258,237 +295,319 @@ interface ListingWithImages extends Listing {
   createdAt: string;
 }
 
-const ImageModal = ({ isOpen, onClose, imageUrl, title }: { isOpen: boolean; onClose: () => void; imageUrl: string; title: string }) => (
-  <div style={{ 
-    display: isOpen ? 'flex' : 'none',
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000
-  }}>
-    <div style={{
-      backgroundColor: 'white',
-      padding: '20px',
-      borderRadius: '8px',
-      maxWidth: '90%',
-      maxHeight: '90%',
-      overflow: 'auto'
-    }}>
-      <h2 style={{ marginBottom: '10px' }}>{title}</h2>
-      <img src={imageUrl} alt={title} style={{ maxWidth: '100%', maxHeight: '80vh' }} />
-      <button onClick={onClose} style={{ marginTop: '10px', padding: '5px 10px' }}>Close</button>
+const ImageModal = ({
+  isOpen,
+  onClose,
+  imageUrl,
+  title,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  imageUrl: string;
+  title: string;
+}) => (
+  <div
+    style={{
+      display: isOpen ? "flex" : "none",
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: "white",
+        padding: "20px",
+        borderRadius: "8px",
+        maxWidth: "90%",
+        maxHeight: "90%",
+        overflow: "auto",
+      }}
+    >
+      <h2 style={{ marginBottom: "10px" }}>{title}</h2>
+      <img
+        src={imageUrl}
+        alt={title}
+        style={{ maxWidth: "100%", maxHeight: "80vh" }}
+      />
+      <button
+        onClick={onClose}
+        style={{ marginTop: "10px", padding: "5px 10px" }}
+      >
+        Close
+      </button>
     </div>
   </div>
 );
 
-const DesignCard = ({ image, onApprove, onRevise, onSelect, isSelected, showCheckbox, isAdmin, onUploadRevision }: { 
-  image: Image; 
-  onApprove: (id: string) => void; 
-  onRevise: (id: string, note: string) => void; 
-  onSelect: (id: string, checked: boolean) => void; 
-  isSelected: boolean; 
-  showCheckbox: boolean;
-  isAdmin: boolean;
-  onUploadRevision: (id: string) => void;
-}) => {
-  const [isRevising, setIsRevising] = useState(false);
-  const [revisionNote, setRevisionNote] = useState('');
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [isRevisionNoteModalOpen, setIsRevisionNoteModalOpen] = useState(false);
+// const DesignCard = ({
+//   image,
+//   onApprove,
+//   onRevise,
+//   onSelect,
+//   isSelected,
+//   showCheckbox,
+//   isAdmin,
+//   onUploadRevision,
+// }: {
+//   image: Image;
+//   onApprove: (id: string) => void;
+//   onRevise: (id: string, note: string) => void;
+//   onSelect: (id: string, checked: boolean) => void;
+//   isSelected: boolean;
+//   showCheckbox: boolean;
+//   isAdmin: boolean;
+//   onUploadRevision: (id: string) => void;
+// }) => {
+//   const [isRevising, setIsRevising] = useState(false);
+//   const [revisionNote, setRevisionNote] = useState("");
+//   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+//   const [isRevisionNoteModalOpen, setIsRevisionNoteModalOpen] = useState(false);
 
-  const handleImageClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsImageModalOpen(true);
-  };
+//   const handleImageClick = (e: React.MouseEvent) => {
+//     e.stopPropagation();
+//     setIsImageModalOpen(true);
+//   };
 
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const response = await fetch(image.url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${image.title}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download image:', error);
-    }
-  };
+//   const handleDownload = async (e: React.MouseEvent) => {
+//     e.stopPropagation();
+//     try {
+//       const response = await fetch(image.url);
+//       const blob = await response.blob();
+//       const url = window.URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = url;
+//       link.download = `${image.title}.jpg`;
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//       window.URL.revokeObjectURL(url);
+//     } catch (error) {
+//       console.error("Failed to download image:", error);
+//     }
+//   };
 
-  return (
-    <div style={styles.imageContainer}>
-      {image.url ? (
-        <img src={image.url} alt={`Uploaded ${image.id}`} style={styles.image} onClick={handleImageClick} />
-      ) : (
-        <div style={{...styles.image, backgroundColor: '#f0f0f0', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-          No Image Available
-        </div>
-      )}
-      <div style={{
-        ...styles.statusLabel,
-        backgroundColor: image.status === 'approved' ? 'green' : image.status === 'revision' ? 'orange' : image.status === 'superseded' ? 'gray' : 'blue',
-      }}>
-        {image.status === 'superseded' ? 'replaced' : image.status}
-      </div>
-      {showCheckbox && !isAdmin && (
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => onSelect(image.id, e.target.checked)}
-          style={{ position: 'absolute', top: '5px', right: '5px' }}
-        />
-      )}
-      <div style={{
-        position: 'absolute',
-        bottom: '0',
-        left: '0',
-        right: '0',
-        display: 'flex',
-        justifyContent: 'space-around',
-        padding: '5px',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-      }}>
-        {!isAdmin && image.status !== 'approved' && (
-          <>
-            <button 
-              onClick={() => onApprove(image.id)} 
-              style={{...styles.actionButton, flex: 1, marginRight: '5px'}}
-            >
-              Approve
-            </button>
-            <button 
-              onClick={() => setIsRevising(true)} 
-              style={{...styles.actionButton, flex: 1, marginLeft: '5px'}}
-            >
-              Revise
-            </button>
-          </>
-        )}
-        {isAdmin && image.status === 'revision' && (
-          <>
-            <button 
-              onClick={() => setIsRevisionNoteModalOpen(true)}
-              style={{...styles.actionButton, flex: 1, marginRight: '5px'}}
-            >
-              View Note
-            </button>
-            <button 
-              onClick={() => onUploadRevision(image.id)}
-              style={{...styles.actionButton, flex: 1, marginLeft: '5px'}}
-            >
-              Upload Revision
-            </button>
-          </>
-        )}
-        <button 
-          onClick={handleDownload}
-          style={{...styles.actionButton, flex: 1, marginLeft: isAdmin || image.status === 'approved' ? '0' : '5px'}}
-        >
-          Download
-        </button>
-      </div>
-      {isRevising && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          zIndex: 1000
-        }}>
-          <h3>Request Revision</h3>
-          <textarea
-            value={revisionNote}
-            onChange={(e) => setRevisionNote(e.target.value)}
-            style={{ width: '100%', marginBottom: '10px' }}
-          />
-          <button onClick={() => {
-            onRevise(image.id, revisionNote);
-            setIsRevising(false);
-            setRevisionNote('');
-          }}>Submit Revision</button>
-          <button onClick={() => setIsRevising(false)}>Cancel</button>
-        </div>
-      )}
-      <ImageModal
-        isOpen={isImageModalOpen}
-        onClose={() => setIsImageModalOpen(false)}
-        imageUrl={image.url}
-        title={image.title}
-      />
-      <Modal
-        isOpen={isRevisionNoteModalOpen}
-        onRequestClose={() => setIsRevisionNoteModalOpen(false)}
-        style={{
-          content: {
-            top: '50%',
-            left: '50%',
-            right: 'auto',
-            bottom: 'auto',
-            marginRight: '-50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            maxWidth: '500px',
-            width: '90%',
-          },
-        }}
-      >
-        <h3>Revision Note</h3>
-        <p>{image.revisionNote || 'No revision note provided.'}</p>
-        <button onClick={() => setIsRevisionNoteModalOpen(false)}>Close</button>
-      </Modal>
-    </div>
-  );
-};
+//   return (
+//     <div style={styles.imageContainer}>
+//       {image.url ? (
+//         <img
+//           src={image.url}
+//           alt={`Uploaded ${image.id}`}
+//           style={styles.image}
+//           onClick={handleImageClick}
+//         />
+//       ) : (
+//         <div
+//           style={{
+//             ...styles.image,
+//             backgroundColor: "#f0f0f0",
+//             display: "flex",
+//             justifyContent: "center",
+//             alignItems: "center",
+//           }}
+//         >
+//           No Image Available
+//         </div>
+//       )}
+//       <div
+//         style={{
+//           ...styles.statusLabel,
+//           backgroundColor:
+//             image.status === "approved"
+//               ? "green"
+//               : image.status === "revision"
+//               ? "orange"
+//               : image.status === "superseded"
+//               ? "gray"
+//               : "blue",
+//         }}
+//       >
+//         {image.status === "superseded" ? "replaced" : image.status}
+//       </div>
+//       {showCheckbox && !isAdmin && (
+//         <input
+//           type="checkbox"
+//           checked={isSelected}
+//           onChange={(e) => onSelect(image.id, e.target.checked)}
+//           style={{ position: "absolute", top: "5px", right: "5px" }}
+//         />
+//       )}
+//       <div
+//         style={{
+//           position: "absolute",
+//           bottom: "0",
+//           left: "0",
+//           right: "0",
+//           display: "flex",
+//           justifyContent: "space-around",
+//           padding: "5px",
+//           backgroundColor: "rgba(255, 255, 255, 0.8)",
+//         }}
+//       >
+//         {!isAdmin && image.status !== "approved" && (
+//           <>
+//             <button
+//               onClick={() => onApprove(image.id)}
+//               style={{ ...styles.actionButton, flex: 1, marginRight: "5px" }}
+//             >
+//               Approve
+//             </button>
+//             <button
+//               onClick={() => setIsRevising(true)}
+//               style={{ ...styles.actionButton, flex: 1, marginLeft: "5px" }}
+//             >
+//               Revise
+//             </button>
+//           </>
+//         )}
+//         {isAdmin && image.status === "revision" && (
+//           <>
+//             <button
+//               onClick={() => setIsRevisionNoteModalOpen(true)}
+//               style={{ ...styles.actionButton, flex: 1, marginRight: "5px" }}
+//             >
+//               View Note
+//             </button>
+//             <button
+//               onClick={() => onUploadRevision(image.id)}
+//               style={{ ...styles.actionButton, flex: 1, marginLeft: "5px" }}
+//             >
+//               Upload Revision
+//             </button>
+//           </>
+//         )}
+//         <button
+//           onClick={handleDownload}
+//           style={{
+//             ...styles.actionButton,
+//             flex: 1,
+//             marginLeft: isAdmin || image.status === "approved" ? "0" : "5px",
+//           }}
+//         >
+//           Download
+//         </button>
+//       </div>
+//       {isRevising && (
+//         <div
+//           style={{
+//             position: "fixed",
+//             top: "50%",
+//             left: "50%",
+//             transform: "translate(-50%, -50%)",
+//             backgroundColor: "white",
+//             padding: "20px",
+//             borderRadius: "8px",
+//             zIndex: 1000,
+//           }}
+//         >
+//           <h3>Request Revision</h3>
+//           <textarea
+//             value={revisionNote}
+//             onChange={(e) => setRevisionNote(e.target.value)}
+//             style={{ width: "100%", marginBottom: "10px" }}
+//           />
+//           <button
+//             onClick={() => {
+//               onRevise(image.id, revisionNote);
+//               setIsRevising(false);
+//               setRevisionNote("");
+//             }}
+//           >
+//             Submit Revision
+//           </button>
+//           <button onClick={() => setIsRevising(false)}>Cancel</button>
+//         </div>
+//       )}
+//       <ImageModal
+//         isOpen={isImageModalOpen}
+//         onClose={() => setIsImageModalOpen(false)}
+//         imageUrl={image.url}
+//         title={image.title}
+//       />
+//       <Modal
+//         isOpen={isRevisionNoteModalOpen}
+//         onRequestClose={() => setIsRevisionNoteModalOpen(false)}
+//         style={{
+//           content: {
+//             top: "50%",
+//             left: "50%",
+//             right: "auto",
+//             bottom: "auto",
+//             marginRight: "-50%",
+//             transform: "translate(-50%, -50%)",
+//             backgroundColor: "white",
+//             padding: "20px",
+//             borderRadius: "8px",
+//             maxWidth: "500px",
+//             width: "90%",
+//           },
+//         }}
+//       >
+//         <h3>Revision Note</h3>
+//         <p>{image.revisionNote || "No revision note provided."}</p>
+//         <button onClick={() => setIsRevisionNoteModalOpen(false)}>Close</button>
+//       </Modal>
+//     </div>
+//   );
+// };
 
 const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [images, setImages] = useState<Record<string, Image[]>>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('revision');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("revision");
   const [selectedDesigns, setSelectedDesigns] = useState(new Set<string>());
-  const [sortOrder, setSortOrder] = useState('newest');
+  const [sortOrder, setSortOrder] = useState("newest");
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
-  const [currentRevisionImage, setCurrentRevisionImage] = useState<Image | null>(null);
+  const [currentRevisionImage, setCurrentRevisionImage] =
+    useState<Image | null>(null);
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
-  const [revisionComment, setRevisionComment] = useState('');
+  const [revisionComment, setRevisionComment] = useState("");
   const [customerListings, setCustomerListings] = useState<Listing[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isIndexBuilding, setIsIndexBuilding] = useState(false);
   const ITEMS_PER_PAGE = 10;
-  const [customerListingsWithImages, setCustomerListingsWithImages] = useState<ListingWithImages[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [customerListingsWithImages, setCustomerListingsWithImages] = useState<
+    ListingWithImages[]
+  >([]);
+  const [previewImage, setPreviewImage] =
+    useState<Partial<ListingImage> | null>(null);
   const [localImages, setLocalImages] = useState<Record<string, File[]>>({});
   const [isDragging, setIsDragging] = useState(false);
-  const { createTask } = useTaskCreate()
+  const { createTask } = useTaskCreate();
   const { user } = useAuth();
+  const [uploadingRevision, setUploadingRevision] = useState(false);
+  const [revisionImage, setRevisionImage] = useState<string>();
+  const [isAddingRevision, setIsAddingRevision] = useState(false);
 
   // Add this new state variable
-  const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({});
+  const [listingImages, setListingImages] = useState<
+    Record<string, ListingImage[]>
+  >({});
 
-  console.log('DesignHub props:', { customerId, isAdmin });
+  console.log("DesignHub props:", { customerId, isAdmin });
+
+  const STATUS_COLORS: Record<ListingImage["status"], string> = {
+    approved: "green",
+    pending: "blue",
+    revision: "orange",
+    superseded: "red",
+  };
 
   useEffect(() => {
     if (isAdmin) {
       const fetchCustomers = async () => {
         try {
-          const customersCollection = collection(db, 'customers');
+          const customersCollection = collection(db, "customers");
           const customersSnapshot = await getDocs(customersCollection);
-          const customersList = customersSnapshot.docs.map(doc => ({
+          const customersList = customersSnapshot.docs.map((doc) => ({
             id: doc.id,
             store_owner_name: doc.data().store_owner_name,
             customer_id: doc.data().customer_id,
@@ -517,13 +636,16 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
       console.log("Fetching images for customer_id:", targetCustomerId);
 
-      const imagesCollection = collection(db, 'images');
+      const imagesCollection = collection(db, "images");
       let q;
-      
+
       if (isAdmin) {
         if (selectedCustomerId) {
           console.log("Admin view: fetching images for specific customer");
-          q = query(imagesCollection, where("customer_id", "==", selectedCustomerId));
+          q = query(
+            imagesCollection,
+            where("customer_id", "==", selectedCustomerId),
+          );
         } else {
           console.log("Admin view: fetching all images");
           q = query(imagesCollection);
@@ -539,15 +661,19 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const fetchedImages: Image[] = [];
         querySnapshot.forEach((doc) => {
-          const imageData = doc.data() as Omit<Image, 'id'>;
-          if (imageData.url && imageData.url !== "" && !imageData.url.includes('logo.png')) {
+          const imageData = doc.data() as Omit<Image, "id">;
+          if (
+            imageData.url &&
+            imageData.url !== "" &&
+            !imageData.url.includes("logo.png")
+          ) {
             fetchedImages.push({ id: doc.id, ...imageData });
           }
         });
         console.log("Fetched images:", fetchedImages);
-        setImages(prevImages => ({
+        setImages((prevImages) => ({
           ...prevImages,
-          [isAdmin ? (selectedCustomerId || 'all') : customerId]: fetchedImages
+          [isAdmin ? selectedCustomerId || "all" : customerId]: fetchedImages,
         }));
       });
 
@@ -559,10 +685,10 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   useEffect(() => {
     if (customerListings.length > 0) {
-      const listingsWithImages = customerListings.map(listing => ({
+      const listingsWithImages = customerListings.map((listing) => ({
         ...listing,
         uploadedImages: listing.uploadedImages || [],
-        createdAt: listing.createdAt || new Date().toISOString()
+        createdAt: listing.createdAt || new Date().toISOString(),
       }));
       setCustomerListingsWithImages(listingsWithImages);
     }
@@ -571,35 +697,43 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const fetchCustomerListings = async (customerId: string) => {
     try {
       console.log("Fetching listings for customer:", customerId);
-      const listingsCollection = collection(db, 'listings');
+      const listingsCollection = collection(db, "listings");
       const q = query(
         listingsCollection,
         where("customer_id", "==", customerId),
-        orderBy("listingTitle")
+        orderBy("listingTitle"),
       );
       const listingsSnapshot = await getDocs(q);
-      const listingsData = await Promise.all(listingsSnapshot.docs.map(async (doc) => {
-        const listingData = doc.data() as Listing;
-        const imagesQuery = query(collection(db, 'images'), where('listing_id', '==', doc.id));
-        const imagesSnapshot = await getDocs(imagesQuery);
-        const uploadedImages = imagesSnapshot.docs.map(imgDoc => ({
-          id: imgDoc.id,
-          url: imgDoc.data().url,
-          status: imgDoc.data().status as 'pending' | 'approved' | 'revision'
-        }));
-        return {
-          ...listingData,
-          id: doc.id,
-          uploadedImages,
-          createdAt: listingData.createdAt || new Date().toISOString(),
-        };
-      }));
+      const listingsData = await Promise.all(
+        listingsSnapshot.docs.map(async (doc) => {
+          const listingData = doc.data() as Listing;
+          const imagesQuery = query(
+            collection(db, "images"),
+            where("listing_id", "==", doc.id),
+          );
+          const imagesSnapshot = await getDocs(imagesQuery);
+          const uploadedImages = imagesSnapshot.docs.map((imgDoc) => ({
+            ...imgDoc.data(),
+            id: imgDoc.id,
+            status: imgDoc.data().status as "pending" | "approved" | "revision",
+          }));
+          return {
+            ...listingData,
+            id: doc.id,
+            uploadedImages,
+            createdAt: listingData.createdAt || new Date().toISOString(),
+          };
+        }),
+      );
       console.log("Fetched listings with images:", listingsData);
       setCustomerListings(listingsData as Listing[]);
       setIsIndexBuilding(false);
     } catch (error) {
       console.error("Error fetching customer listings:", error);
-      if (error instanceof FirebaseError && error.code === 'failed-precondition') {
+      if (
+        error instanceof FirebaseError &&
+        error.code === "failed-precondition"
+      ) {
         console.log("Index is building. Please wait.");
         setIsIndexBuilding(true);
       } else {
@@ -612,44 +746,45 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   // Update this useEffect
   useEffect(() => {
     const newListingImages: Record<string, ListingImage[]> = {};
-    customerListings.forEach(listing => {
+    customerListings.forEach((listing) => {
       newListingImages[listing.id] = listing.uploadedImages || [];
     });
+    console.log({ newListingImages, customerListings });
     setListingImages(newListingImages);
   }, [customerListings]);
 
   const handleApprove = async (id: string) => {
     try {
-      const imageRef = doc(db, 'images', id);
+      const imageRef = doc(db, "images", id);
       const imageDoc = await getDoc(imageRef);
       const imageData = imageDoc.data() as Image;
 
       if (imageData.originalImageId) {
-        const originalImageRef = doc(db, 'images', imageData.originalImageId);
-        await updateDoc(originalImageRef, { 
-          status: 'superseded',
-          currentRevisionId: id
+        const originalImageRef = doc(db, "images", imageData.originalImageId);
+        await updateDoc(originalImageRef, {
+          status: "superseded",
+          currentRevisionId: id,
         });
       }
 
-      await updateDoc(imageRef, { 
-        status: 'approved',
-        approvedAt: new Date().toISOString()
+      await updateDoc(imageRef, {
+        status: "approved",
+        approvedAt: new Date().toISOString(),
       });
 
-      setImages(prevImages => {
-        const key = isAdmin ? (selectedCustomerId || 'all') : customerId;
+      setImages((prevImages) => {
+        const key = isAdmin ? selectedCustomerId || "all" : customerId;
         return {
           ...prevImages,
-          [key]: prevImages[key].map(img => {
+          [key]: prevImages[key].map((img) => {
             if (img.id === id) {
-              return { ...img, status: 'approved' };
+              return { ...img, status: "approved" };
             }
             if (img.id === imageData.originalImageId) {
-              return { ...img, status: 'superseded', currentRevisionId: id };
+              return { ...img, status: "superseded", currentRevisionId: id };
             }
             return img;
-          })
+          }),
         };
       });
 
@@ -662,19 +797,21 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   const handleRevise = async (id: string, note: string) => {
     try {
-      const imageRef = doc(db, 'images', id);
-      await updateDoc(imageRef, { 
-        status: 'revision',
-        revisionNote: note
+      const imageRef = doc(db, "images", id);
+      await updateDoc(imageRef, {
+        status: "revision",
+        revisionNote: note,
       });
 
-      setImages(prevImages => {
-        const key = isAdmin ? 'admin' : customerId;
+      setImages((prevImages) => {
+        const key = isAdmin ? "admin" : customerId;
         return {
           ...prevImages,
-          [key]: prevImages[key].map(img => 
-            img.id === id ? { ...img, status: 'revision', revisionNote: note } : img
-          )
+          [key]: prevImages[key].map((img) =>
+            img.id === id
+              ? { ...img, status: "revision", revisionNote: note }
+              : img,
+          ),
         };
       });
     } catch (error) {
@@ -684,7 +821,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   const handleSelect = (id: string, isSelected: boolean) => {
-    setSelectedDesigns(prev => {
+    setSelectedDesigns((prev) => {
       const newSet = new Set(prev);
       if (isSelected) {
         newSet.add(id);
@@ -698,24 +835,26 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const handleBatchApprove = async () => {
     try {
       const batch = writeBatch(db);
-      selectedDesigns.forEach(id => {
-        const imageRef = doc(db, 'images', id);
-        batch.update(imageRef, { 
-          status: 'approved',
+      selectedDesigns.forEach((id) => {
+        const imageRef = doc(db, "images", id);
+        batch.update(imageRef, {
+          status: "approved",
           approvedAt: new Date().toISOString(),
-          revisionNote: null
+          revisionNote: null,
         });
       });
 
       await batch.commit();
 
-      setImages(prevImages => {
-        const key = isAdmin ? 'admin' : customerId;
+      setImages((prevImages) => {
+        const key = isAdmin ? "admin" : customerId;
         return {
           ...prevImages,
-          [key]: prevImages[key].map(img => 
-            selectedDesigns.has(img.id) ? { ...img, status: 'approved', revisionNote: undefined } : img
-          )
+          [key]: prevImages[key].map((img) =>
+            selectedDesigns.has(img.id)
+              ? { ...img, status: "approved", revisionNote: undefined }
+              : img,
+          ),
         };
       });
 
@@ -728,14 +867,18 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   const handleUploadRevision = (id: string) => {
-    const image = images[isAdmin ? (selectedCustomerId || 'all') : customerId].find(img => img.id === id);
+    const image = images[
+      isAdmin ? selectedCustomerId || "all" : customerId
+    ].find((img) => img.id === id);
     if (image) {
       setCurrentRevisionImage(image);
       setIsRevisionModalOpen(true);
     }
   };
 
-  const handleRevisionFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRevisionFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     if (event.target.files && event.target.files[0]) {
       setRevisionFile(event.target.files[0]);
     }
@@ -745,16 +888,18 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     if (!revisionFile || !currentRevisionImage) return;
 
     try {
-      const fileExtension = revisionFile.name.split('.').pop();
-      const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+      const fileExtension = revisionFile.name.split(".").pop();
+      const uniqueFileName = `${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}.${fileExtension}`;
       const storageRef = ref(storage, `designs/${uniqueFileName}`);
-      
+
       const snapshot = await uploadBytes(storageRef, revisionFile);
       const downloadURL = await getDownloadURL(storageRef);
 
-      const newImage: Omit<Image, 'id'> = {
+      const newImage: Omit<Image, "id"> = {
         url: downloadURL,
-        status: 'pending' as const,  // Explicitly type this as a const
+        status: "pending" as const, // Explicitly type this as a const
         title: revisionFile.name,
         date: new Date().toISOString(),
         customer_id: currentRevisionImage.customer_id,
@@ -762,31 +907,35 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         revisionNote: revisionComment,
       };
 
-      const docRef = await addDoc(collection(db, 'images'), newImage);
-      
-      await updateDoc(doc(db, 'images', currentRevisionImage.id), {
+      const docRef = await addDoc(collection(db, "images"), newImage);
+
+      await updateDoc(doc(db, "images", currentRevisionImage.id), {
         currentRevisionId: docRef.id,
-        status: 'superseded' as const  // Explicitly type this as a const
+        status: "superseded" as const, // Explicitly type this as a const
       });
 
-      setImages(prevImages => {
-        const key = isAdmin ? (selectedCustomerId || 'all') : customerId;
+      setImages((prevImages) => {
+        const key = isAdmin ? selectedCustomerId || "all" : customerId;
         return {
           ...prevImages,
           [key]: [
-            ...prevImages[key].map(img => 
-              img.id === currentRevisionImage.id 
-                ? { ...img, status: 'superseded' as const, currentRevisionId: docRef.id }
-                : img
+            ...prevImages[key].map((img) =>
+              img.id === currentRevisionImage.id
+                ? {
+                    ...img,
+                    status: "superseded" as const,
+                    currentRevisionId: docRef.id,
+                  }
+                : img,
             ),
-            { id: docRef.id, ...newImage }
-          ]
+            { id: docRef.id, ...newImage },
+          ],
         };
       });
 
       setIsRevisionModalOpen(false);
       setRevisionFile(null);
-      setRevisionComment('');
+      setRevisionComment("");
       setCurrentRevisionImage(null);
       alert("Revision uploaded successfully!");
     } catch (error) {
@@ -797,41 +946,65 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   const filteredAndSortedListings = useMemo(() => {
     return customerListingsWithImages
-      .filter(listing => {
-        const matchesSearch = listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
-        
+      .filter((listing) => {
+        const matchesSearch =
+          listing.listingTitle
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
+
         const listingImagesArray = listingImages[listing.id] || [];
         const hasImages = listingImagesArray.length > 0 || listing.hasImage;
-        
+
         let matchesStatus;
-        if (statusFilter === 'all') {
+        if (statusFilter === "all") {
           matchesStatus = true; // Show all listings when searching
         } else {
-          matchesStatus = 
-            (statusFilter === 'pending' && listingImagesArray.some(img => img.status === 'pending')) ||
-            (statusFilter === 'revision' && listingImagesArray.some(img => img.status === 'revision')) ||
-            (statusFilter === 'approved' && listingImagesArray.some(img => img.status === 'approved'));
+          matchesStatus =
+            (statusFilter === "pending" &&
+              listingImagesArray.some((img) => img.status === "pending")) ||
+            (statusFilter === "revision" &&
+              listingImagesArray.some((img) => img.status === "revision")) ||
+            (statusFilter === "approved" &&
+              listingImagesArray.some((img) => img.status === "approved"));
         }
-        
+
         // If there's a search term, ignore the status filter
-        return searchTerm ? matchesSearch : (matchesSearch && (statusFilter === 'all' ? hasImages : matchesStatus));
+        return searchTerm
+          ? matchesSearch
+          : matchesSearch &&
+              (statusFilter === "all" ? hasImages : matchesStatus);
       })
       .sort((a, b) => {
-        if (sortOrder === 'newest') {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (sortOrder === "newest") {
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
         } else {
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          return (
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
         }
       });
-  }, [customerListingsWithImages, searchTerm, statusFilter, sortOrder, listingImages]);
+  }, [
+    customerListingsWithImages,
+    searchTerm,
+    statusFilter,
+    sortOrder,
+    listingImages,
+  ]);
 
   const paginatedListings = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredAndSortedListings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    return filteredAndSortedListings.slice(
+      startIndex,
+      startIndex + ITEMS_PER_PAGE,
+    );
   }, [filteredAndSortedListings, currentPage]);
 
-  const totalPages = Math.ceil(filteredAndSortedListings.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(
+    filteredAndSortedListings.length / ITEMS_PER_PAGE,
+  );
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -845,20 +1018,27 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     }
   };
 
-  const handleImagePreview = (imageUrl: string) => {
-    setPreviewImage(imageUrl);
+  const handleImagePreview = (params: {
+    status: ListingImage["status"];
+    url: string;
+    revisionNote?: ListingImage["revisionNote"];
+  }) => {
+    setPreviewImage(params);
   };
 
   const closeImagePreview = () => {
     setPreviewImage(null);
   };
 
-  const handleLocalUpload = (listing: Listing, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLocalUpload = (
+    listing: Listing,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     if (event.target.files && event.target.files.length > 0) {
       const newFiles = Array.from(event.target.files);
-      setLocalImages(prev => ({
+      setLocalImages((prev) => ({
         ...prev,
-        [listing.id]: [...(prev[listing.id] || []), ...newFiles]
+        [listing.id]: [...(prev[listing.id] || []), ...newFiles],
       }));
     }
   };
@@ -906,9 +1086,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
       await createTask({
         customerId: selectedCustomerId,
-        taskName: `${(user as Admin)?.name} added ${
-          localImages[listing.id].length
-        } images`,
+        taskName: `Added ${localImages[listing.id].length} images`,
         teamMemberName: (user as Admin)?.name || user?.email || "",
         dateCompleted: serverTimestamp(),
         listingId: listing.id,
@@ -936,15 +1114,98 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                 hasImage: true,
                 uploadedImages: [...(l.uploadedImages || []), ...newImages],
               }
-            : l
-        )
+            : l,
+        ),
       );
 
-      console.log("Images uploaded successfully. Listing updated with hasImage: true");
+      console.log(
+        "Images uploaded successfully. Listing updated with hasImage: true",
+      );
       alert("Images uploaded successfully and listing updated!");
     } catch (error) {
       console.error("Error uploading images:", error);
       alert("Failed to upload images. Please try again.");
+    }
+  };
+
+  const handleSaveRevision = async (
+    listing: Partial<ListingImage>,
+    base64Image?: string,
+  ) => {
+    setIsAddingRevision(true);
+    console.log({ listing, base64Image });
+    if (!listing.listing_id || !base64Image) {
+      return;
+    }
+    try {
+      const batch = writeBatch(db);
+      const newImages: ListingImage[] = [];
+
+      const matches = base64Image.match(/^data:(image\/\w+);base64,/);
+      const fileExtension = matches ? matches[1].split("/")[1] : "png";
+
+      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length)
+        .fill(0)
+        .map((_, i) => byteCharacters.charCodeAt(i));
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: `image/${fileExtension}` });
+
+      const uniqueFileName = `${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 9)}.${fileExtension}`;
+      const storageRef = ref(storage, `designs/${uniqueFileName}`);
+
+      await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      const newImageDoc: ListingImage = {
+        id: doc(collection(db, "images")).id,
+        url: downloadURL,
+        status: "pending",
+        listing_id: listing.listing_id,
+        customer_id: selectedCustomerId,
+      };
+
+      newImages.push(newImageDoc);
+
+      const fullImageDoc = {
+        ...newImageDoc,
+        title: `${listing.revisionNote?.substring(
+          0,
+          10,
+        )}${new Date().toISOString()}`,
+        date: new Date().toISOString(),
+      };
+
+      batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
+
+      // Update the listing document with hasImage field
+      const listingRef = doc(db, "listings", listing.listing_id);
+      batch.update(listingRef, { hasImage: true });
+
+      // Assuming createTask exists and localImages is in scope
+      await createTask({
+        customerId: selectedCustomerId,
+        taskName: `Added 1 image`,
+        teamMemberName: (user as Admin)?.name || user?.email || "",
+        dateCompleted: serverTimestamp(),
+        listingId: listing.id,
+        isDone: true,
+      });
+
+      await batch.commit();
+
+      await fetchCustomerListings(selectedCustomerId);
+      setRevisionImage("");
+      setUploadingRevision(false)
+      setPreviewImage(null)
+      setIsAddingRevision(false);
+    } catch (error) {
+      setIsAddingRevision(false);
+      console.error("Error uploading images:", error);
+      message.error("Failed to upload images. Please try again.");
     }
   };
 
@@ -972,40 +1233,56 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const newFiles = Array.from(e.dataTransfer.files);
-      setLocalImages(prev => ({
+      setLocalImages((prev) => ({
         ...prev,
-        [listing.id]: [...(prev[listing.id] || []), ...newFiles]
+        [listing.id]: [...(prev[listing.id] || []), ...newFiles],
       }));
     }
   };
 
   const handleRemoveLocalImage = (listingId: string, index: number) => {
-    setLocalImages(prev => {
+    setLocalImages((prev) => {
       const newImages = [...(prev[listingId] || [])];
       newImages.splice(index, 1);
       return {
         ...prev,
-        [listingId]: newImages
+        [listingId]: newImages,
       };
     });
   };
 
   const handleDropZoneClick = (listingId: string) => {
-    const fileInput = document.getElementById(`file-input-${listingId}`) as HTMLInputElement;
+    const fileInput = document.getElementById(
+      `file-input-${listingId}`,
+    ) as HTMLInputElement;
     if (fileInput) {
       fileInput.click();
     }
   };
 
+  const handleSupersession = async (id: string) => {
+    await FirebaseHelper.update("images", id, {
+      status: "superseded",
+    });
+    await fetchCustomerListings(selectedCustomerId);
+  };
+
   return (
     <div style={styles.container}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Design Hub - {isAdmin ? 'Admin View' : 'User View'}</h2>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+        }}
+      >
+        <h2>Design Hub - {isAdmin ? "Admin View" : "User View"}</h2>
         {isAdmin && (
-          <select 
+          <select
             value={selectedCustomerId}
             onChange={(e) => setSelectedCustomerId(e.target.value)}
-            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
+            style={{ padding: "10px", fontSize: "16px", minWidth: "200px" }}
           >
             <option value="">Select a customer</option>
             {customers.map((customer) => (
@@ -1018,8 +1295,12 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       </div>
       {(isAdmin && selectedCustomerId) || (!isAdmin && customerId) ? (
         <>
-          <div style={{ marginBottom: '20px' }}>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={styles.input}>
+          <div style={{ marginBottom: "20px" }}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={styles.input}
+            >
               <option value="all">All Images</option>
               <option value="pending">To Approve</option>
               <option value="revision">For Revision</option>
@@ -1032,7 +1313,11 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
               onChange={(e) => setSearchTerm(e.target.value)}
               style={styles.input}
             />
-            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={styles.input}>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              style={styles.input}
+            >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
             </select>
@@ -1041,18 +1326,21 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
             <div>
               <h3>Customer Listings</h3>
               {isIndexBuilding ? (
-                <p>The database index is currently being built. This process usually takes a few minutes. Please wait...</p>
+                <p>
+                  The database index is currently being built. This process
+                  usually takes a few minutes. Please wait...
+                </p>
               ) : paginatedListings.length === 0 ? (
                 <p>No listings found for this customer.</p>
               ) : (
                 <>
                   <div style={styles.cardGrid}>
                     {paginatedListings.map((listing) => (
-                      <div 
-                        key={listing.id} 
+                      <div
+                        key={listing.id}
                         style={{
                           ...styles.card,
-                          ...(isDragging ? styles.cardDragging : {})
+                          ...(isDragging ? styles.cardDragging : {}),
                         }}
                         onDragEnter={(e) => handleDragEnter(e, listing)}
                         onDragLeave={handleDragLeave}
@@ -1060,52 +1348,81 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                         onDrop={(e) => handleDrop(e, listing)}
                       >
                         <div style={styles.cardContent}>
-                          <div 
+                          <div
                             style={styles.dropZone}
                             onClick={() => handleDropZoneClick(listing.id)}
                           >
                             Drag and drop images here or click to upload
                           </div>
                           <p style={styles.cardId}>ID: {listing.listingID}</p>
-                          <h4 style={styles.cardTitle} title={listing.listingTitle}>
+                          <h4
+                            style={styles.cardTitle}
+                            title={listing.listingTitle}
+                          >
                             {listing.listingTitle}
                           </h4>
                           <p style={styles.cardBestseller}>
-                            {listing.bestseller ? 'Bestseller' : ''}
+                            {listing.bestseller ? "Bestseller" : ""}
                           </p>
                           <div style={styles.uploadedImagesPreview}>
-                            {listingImages[listing.id]?.map((image, index) => (
-                              <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
-                                <img 
-                                  src={image.url} 
-                                  alt={`Uploaded ${index + 1}`}
-                                  style={styles.uploadedImageThumbnail}
-                                  onClick={() => handleImagePreview(image.url)}
-                                />
-                                <span style={{
-                                  position: 'absolute',
-                                  bottom: '0',
-                                  right: '0',
-                                  background: image.status === 'approved' ? 'green' : image.status === 'revision' ? 'orange' : 'blue',
-                                  color: 'white',
-                                  padding: '2px 5px',
-                                  fontSize: '10px',
-                                  borderRadius: '3px'
-                                }}>
-                                  {image.status}
-                                </span>
-                              </div>
-                            ))}
+                            {listingImages[listing.id]
+                              .filter(
+                                (img) =>
+                                  img.status === statusFilter ||
+                                  statusFilter === "all",
+                              )
+                              ?.map((image, index) => (
+                                <div
+                                  key={`uploaded-${index}`}
+                                  style={styles.thumbnailContainer}
+                                >
+                                  <img
+                                    src={image.url}
+                                    alt={`Uploaded ${index + 1}`}
+                                    style={styles.uploadedImageThumbnail}
+                                    onClick={() => handleImagePreview(image)}
+                                  />
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      bottom: "0",
+                                      right: "0",
+                                      background:
+                                        image.status === "approved"
+                                          ? "green"
+                                          : image.status === "revision"
+                                          ? "orange"
+                                          : "blue",
+                                      color: "white",
+                                      padding: "2px 5px",
+                                      fontSize: "10px",
+                                      borderRadius: "3px",
+                                    }}
+                                  >
+                                    {image.status}
+                                  </span>
+                                </div>
+                              ))}
                             {localImages[listing.id]?.map((file, index) => (
-                              <div key={`local-${index}`} style={styles.thumbnailContainer}>
-                                <img 
-                                  src={URL.createObjectURL(file)} 
+                              <div
+                                key={`local-${index}`}
+                                style={styles.thumbnailContainer}
+                              >
+                                <img
+                                  src={URL.createObjectURL(file)}
                                   alt={`Local ${index + 1}`}
                                   style={styles.uploadedImageThumbnail}
-                                  onClick={() => handleImagePreview(URL.createObjectURL(file))}
+                                  onClick={() =>
+                                    handleImagePreview({
+                                      status: "pending",
+                                      url: URL.createObjectURL(file),
+                                    })
+                                  }
                                 />
-                                <button 
-                                  onClick={() => handleRemoveLocalImage(listing.id, index)}
+                                <button
+                                  onClick={() =>
+                                    handleRemoveLocalImage(listing.id, index)
+                                  }
                                   style={styles.removeButton}
                                 >
                                   x
@@ -1120,13 +1437,16 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                             accept="image/*"
                             multiple
                             onChange={(e) => handleLocalUpload(listing, e)}
-                            style={{ display: 'none' }}
+                            style={{ display: "none" }}
                             id={`file-input-${listing.id}`}
                           />
-                          <button 
+                          <button
                             onClick={() => handleSave(listing)}
                             style={styles.button}
-                            disabled={!localImages[listing.id] || localImages[listing.id].length === 0}
+                            disabled={
+                              !localImages[listing.id] ||
+                              localImages[listing.id].length === 0
+                            }
                           >
                             Save
                           </button>
@@ -1135,8 +1455,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                     ))}
                   </div>
                   <div style={styles.pagination}>
-                    <button 
-                      onClick={handlePreviousPage} 
+                    <button
+                      onClick={handlePreviousPage}
                       disabled={currentPage === 1}
                       style={styles.paginationButton}
                     >
@@ -1145,8 +1465,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                     <span style={styles.pageInfo}>
                       Page {currentPage} of {totalPages}
                     </span>
-                    <button 
-                      onClick={handleNextPage} 
+                    <button
+                      onClick={handleNextPage}
                       disabled={currentPage === totalPages}
                       style={styles.paginationButton}
                     >
@@ -1159,14 +1479,157 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           )}
         </>
       ) : (
-        <p>{isAdmin ? "Please select a customer to view designs." : "No customer ID provided."}</p>
+        <p>
+          {isAdmin
+            ? "Please select a customer to view designs."
+            : "No customer ID provided."}
+        </p>
       )}
       {/* Image preview modal */}
-      {previewImage && (
+      {/* {previewImage && (
         <div style={styles.previewModal} onClick={closeImagePreview}>
-          <img src={previewImage} alt="Preview" style={styles.previewImage} />
+          <img
+            src={previewImage.url}
+            alt="Preview"
+            style={styles.previewImage}
+          />
         </div>
-      )}
+      )} */}
+
+      <Modal
+        title="Detail"
+        open={Boolean(previewImage?.url)}
+        onCancel={closeImagePreview}
+        width={"70%"}
+        footer={false}
+      >
+        <Card>
+          <Row gutter={[16, 0]}>
+            <Col span={12}>
+              <div>
+                {uploadingRevision && <p>Previous Image</p>}
+                <Image
+                  src={previewImage?.url}
+                  alt="Preview"
+                  style={{ borderRadius: 8 }}
+                  height={"20vh"}
+                />
+                {uploadingRevision && (
+                  <>
+                    <Divider />
+                    <p>New Image</p>
+                    {revisionImage ? (
+                      <Image
+                        src={revisionImage}
+                        alt="Revision"
+                        style={{ borderRadius: 8 }}
+                        height={"20vh"}
+                      />
+                    ) : (
+                      <></>
+                    )}
+                  </>
+                )}
+              </div>
+            </Col>
+            <Col span={12}>
+              <div>
+                <Tag
+                  color={
+                    previewImage?.status
+                      ? STATUS_COLORS[previewImage?.status]
+                      : "default"
+                  }
+                  style={{ marginBottom: 8 }}
+                >
+                  {previewImage?.status?.toUpperCase()}
+                </Tag>
+                <Divider style={{ margin: "8px 0" }} />
+                {(!isAdmin || previewImage?.revisionNote) && (
+                  <TextArea
+                    placeholder="Write a note here..."
+                    rows={4}
+                    style={{ width: "100%" }}
+                    value={previewImage?.revisionNote}
+                    disabled={isAdmin}
+                  />
+                )}
+                {isAdmin && previewImage?.revisionNote && previewImage.id && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2ch",
+                      marginTop: "2ch",
+                    }}
+                  >
+                    <Popconfirm
+                      title="Delete the task"
+                      description="Are you sure do you want to suspend the image?"
+                      onConfirm={() =>
+                        handleSupersession(previewImage.id || "")
+                      }
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        danger
+                        disabled={previewImage.status === "superseded"}
+                      >
+                        {previewImage.status === "superseded"
+                          ? "Superseded"
+                          : "Supersede"}
+                      </Button>
+                    </Popconfirm>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "row",
+                        gap: "2ch",
+                      }}
+                    >
+                      <Button
+                        danger={uploadingRevision}
+                        type={uploadingRevision ? "default" : "primary"}
+                        onClick={() => {
+                          if (uploadingRevision) {
+                            setRevisionImage(undefined);
+                          }
+                          setUploadingRevision(!uploadingRevision);
+                        }}
+                      >
+                        {uploadingRevision
+                          ? "Cancel Upload"
+                          : "Upload Revision"}
+                      </Button>
+                      {uploadingRevision && (
+                        <Button
+                          disabled={!Boolean(revisionImage)}
+                          type={"primary"}
+                          onClick={() =>
+                            handleSaveRevision(previewImage, revisionImage)
+                          }
+                          loading={isAddingRevision}
+                        >
+                          Save
+                        </Button>
+                      )}
+                    </div>
+
+                    {uploadingRevision && (
+                      <DragDropUpload
+                        handleUpload={(data) => {
+                          setRevisionImage(data?.at(0));
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </Col>
+          </Row>
+        </Card>
+      </Modal>
     </div>
   );
 };
