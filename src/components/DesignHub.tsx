@@ -886,6 +886,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           url: downloadURL,
           status: "pending",
           listing_id: listing.id, // Add this line
+          customer_id: customerId, // Add this line
         };
 
         newImages.push(newImageDoc);
@@ -894,7 +895,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           ...newImageDoc,
           title: file.name,
           date: new Date().toISOString(),
-          customer_id: selectedCustomerId,
+          customer_id: customerId,
         };
 
         batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
@@ -905,7 +906,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       batch.update(listingRef, { hasImage: true });
 
       await createTask({
-        customerId: selectedCustomerId,
+        customerId: customerId,
         taskName: `${(user as Admin)?.name} added ${
           localImages[listing.id].length
         } images`,
