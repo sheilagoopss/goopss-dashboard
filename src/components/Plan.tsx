@@ -241,33 +241,37 @@ function Plan({
                     )}
                   </div>
                   <div style={{ display: "flex", gap: "2ch" }}>
-                    {editing && editing === task.id ? (
+                    {isAdmin && (
                       <>
-                        <Button
-                          type="primary"
-                          onClick={handleUpdate}
-                          loading={isUpdating}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setEditing(undefined);
-                            setEditValue("");
-                          }}
-                          disabled={isUpdating}
-                        >
-                          Cancel
-                        </Button>
+                        {editing && editing === task.id ? (
+                          <>
+                            <Button
+                              type="primary"
+                              onClick={handleUpdate}
+                              loading={isUpdating}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setEditing(undefined);
+                                setEditValue("");
+                              }}
+                              disabled={isUpdating}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              setEditValue(task.task);
+                              setEditing(task.id);
+                            }}
+                            icon={<EditOutlined />}
+                          />
+                        )}
                       </>
-                    ) : (
-                      <Button
-                        onClick={() => {
-                          setEditValue(task.task);
-                          setEditing(task.id);
-                        }}
-                        icon={<EditOutlined />}
-                      />
                     )}
 
                     <span style={statusStyle(task.is_done)}>

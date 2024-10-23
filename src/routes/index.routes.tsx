@@ -11,6 +11,7 @@ import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import { DesignHub } from "../components/DesignHub";
+import { UserDesignHub } from "../components/UserDesignHub";
 import EtsyAdsRecommendation from "../components/EtsyAdsRecommendation";
 import Plan from "../components/Plan";
 import { useEffect, useState } from "react";
@@ -156,11 +157,13 @@ const Routes = () => {
           { path: "/pinterest", element: <PinterestAutomation /> },
           {
             path: "/design-hub",
-            element: (
+            element: isAdmin ? (
               <DesignHub
                 customerId={selectedCustomer?.customer_id || ""}
-                isAdmin={isAdmin}
+                isAdmin={true}
               />
+            ) : (
+              <UserDesignHub customerId={selectedCustomer?.customer_id || ""} />
             ),
           },
           {
