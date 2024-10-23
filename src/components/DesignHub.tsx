@@ -889,6 +889,11 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
         batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
       }
+
+      // Update the listing document with hasImage field (singular)
+      const listingRef = doc(db, "listings", listing.id);
+      batch.update(listingRef, { hasImage: true });
+
       await createTask({
         customerId: selectedCustomerId,
         taskName: `${(user as Admin)?.name} added ${
@@ -899,6 +904,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         listingId: listing.id,
         isDone: true,
       });
+
       await batch.commit();
 
       // Update local state
@@ -912,7 +918,14 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         [listing.id]: [],
       }));
 
-      alert("Images uploaded successfully!");
+      // Update the local listing state to reflect the hasImage change
+      setCustomerListings((prevListings) =>
+        prevListings.map((l) =>
+          l.id === listing.id ? { ...l, hasImage: true } : l
+        )
+      );
+
+      alert("Images uploaded successfully and listing updated!");
     } catch (error) {
       console.error("Error uploading images:", error);
       alert("Failed to upload images. Please try again.");

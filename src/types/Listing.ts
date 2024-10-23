@@ -16,6 +16,7 @@ export interface Listing {
   optimizedTags?: string;
   createdAt?: string;
   uploadedImages?: ListingImage[];
+  hasImage?: boolean;
 }
 
 export interface ListingImage {
