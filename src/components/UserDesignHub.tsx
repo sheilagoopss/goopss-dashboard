@@ -64,7 +64,9 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   const filteredListings = useMemo(() => {
     return customerListings
       .filter(listing => {
-        const matchesSearch = listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = 
+          listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
         const listingImagesArray = listingImages[listing.id] || [];
         const matchesStatus = statusFilter === 'all' || 
                               listingImagesArray.some(img => img.status === statusFilter);
@@ -81,14 +83,19 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
     setPreviewImage(imageUrl);
   };
 
+  const getFilteredImages = (listingId: string) => {
+    const images = listingImages[listingId] || [];
+    return statusFilter === 'all' ? images : images.filter(img => img.status === statusFilter);
+  };
+
   return (
     <div style={styles.container}>
       <h2>Your Designs</h2>
       <div style={{ marginBottom: 16 }}>
         <Search
-          placeholder="Search listings"
+          placeholder="Search listings by title or ID"
           onChange={e => setSearchTerm(e.target.value)}
-          style={{ width: 200, marginRight: 16 }}
+          style={{ width: 300, marginRight: 16 }}
         />
         <Select
           defaultValue="all"
@@ -114,7 +121,7 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
                     {listing.listingTitle}
                   </h4>
                   <div style={styles.uploadedImagesPreview}>
-                    {listingImages[listing.id]?.map((image, index) => (
+                    {getFilteredImages(listing.id).map((image, index) => (
                       <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
                         <img 
                           src={image.url} 
