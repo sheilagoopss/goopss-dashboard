@@ -885,7 +885,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           id: doc(collection(db, "images")).id, // Generate a new ID
           url: downloadURL,
           status: "pending",
-          listing_id: listing.id, // Add this line
+          listing_id: listing.id,
+          customer_id: selectedCustomerId, // Make sure to include customer_id
         };
 
         newImages.push(newImageDoc);
@@ -894,13 +895,12 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           ...newImageDoc,
           title: file.name,
           date: new Date().toISOString(),
-          customer_id: selectedCustomerId,
         };
 
         batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
       }
 
-      // Update the listing document with hasImage field (singular)
+      // Update the listing document with hasImage field
       const listingRef = doc(db, "listings", listing.id);
       batch.update(listingRef, { hasImage: true });
 
@@ -917,19 +917,17 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
       await batch.commit();
 
-      // Update local state for listingImages
+      // Update local state
       setListingImages((prev) => ({
         ...prev,
         [listing.id]: [...(prev[listing.id] || []), ...newImages],
       }));
 
-      // Clear local images for this listing
       setLocalImages((prev) => ({
         ...prev,
         [listing.id]: [],
       }));
 
-      // Update the local customerListingsWithImages state
       setCustomerListingsWithImages((prevListings) =>
         prevListings.map((l) =>
           l.id === listing.id
@@ -942,6 +940,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         )
       );
 
+      console.log("Images uploaded successfully. Listing updated with hasImage: true");
       alert("Images uploaded successfully and listing updated!");
     } catch (error) {
       console.error("Error uploading images:", error);

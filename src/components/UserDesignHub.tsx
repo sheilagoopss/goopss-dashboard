@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, getDocs, query, where, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Listing, ListingImage } from '../types/Listing';
-import { Input, Select, Spin, Pagination, Modal, Button, message } from 'antd';
+import { Input, Select, Spin, Pagination, Modal, Button, message, Form } from 'antd';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -23,6 +23,9 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [revisionModalVisible, setRevisionModalVisible] = useState(false);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [form] = Form.useForm();
 
   const imageCache = useRef<{
     [customerId: string]: {
@@ -54,6 +57,7 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
       const querySnapshot = await getDocs(q);
       
       const listings: Listing[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
+      console.log("Fetched listings with hasImage=true:", listings);
       setCustomerListings(listings);
 
       await fetchImagesForStatus(customerId, statusFilter);
@@ -93,6 +97,8 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
         }
       });
 
+      console.log("Fetched images for customer:", customerId, "Status:", status, "Images:", newImages);
+
       // Update the cache
       if (!imageCache.current[customerId]) {
         imageCache.current[customerId] = {};
@@ -108,17 +114,33 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   };
 
   const filteredListings = useMemo(() => {
+    console.log("Filtering listings. Status filter:", statusFilter); // Add this log
     return customerListings
       .filter(listing => {
         const matchesSearch = 
           listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
           listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
+        
         const listingImagesArray = listingImages[listing.id] || [];
-        const matchesStatus = statusFilter === 'all' || 
-                              listingImagesArray.some(img => img.status === statusFilter);
-        return matchesSearch && (statusFilter === 'all' || matchesStatus);
+        console.log(`Listing ${listing.id} images:`, listingImagesArray); // Add this log
+        
+        let matchesStatus = true;
+        if (statusFilter !== 'all') {
+          matchesStatus = listingImagesArray.some(img => img.status === statusFilter);
+        }
+        
+        const shouldInclude = matchesSearch && matchesStatus;
+        console.log(`Listing ${listing.id} included:`, shouldInclude); // Add this log
+        return shouldInclude;
       });
   }, [customerListings, listingImages, searchTerm, statusFilter]);
+
+  // Move this useEffect after filteredListings declaration
+  useEffect(() => {
+    console.log('customerListings:', customerListings);
+    console.log('listingImages:', listingImages);
+    console.log('filteredListings:', filteredListings);
+  }, [customerListings, listingImages, filteredListings]);
 
   const paginatedListings = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -173,36 +195,41 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
     }
   };
 
-  const handleRevise = async (listingId: string) => {
+  const handleRevise = (imageId: string) => {
+    setSelectedImageId(imageId);
+    setRevisionModalVisible(true);
+  };
+
+  const handleRevisionSubmit = async (values: { revisionNote: string }) => {
+    if (!selectedImageId) return;
+
     try {
-      const images = listingImages[listingId] || [];
-      const pendingImages = images.filter(img => img.status === 'pending');
-
-      if (pendingImages.length === 0) {
-        message.info('No pending images to revise.');
-        return;
-      }
-
-      const batch = writeBatch(db);
-      pendingImages.forEach(image => {
-        const imageRef = doc(db, 'images', image.id);
-        batch.update(imageRef, { status: 'revision' });
+      const imageRef = doc(db, 'images', selectedImageId);
+      await updateDoc(imageRef, { 
+        status: 'revision',
+        statusChangeDate: serverTimestamp(),
+        revisionNote: values.revisionNote
       });
 
-      await batch.commit();
-
       // Update local state
-      setListingImages(prev => ({
-        ...prev,
-        [listingId]: images.map(img => 
-          img.status === 'pending' ? { ...img, status: 'revision' } : img
-        )
-      }));
+      setListingImages(prev => {
+        const updatedImages = { ...prev };
+        for (const listingId in updatedImages) {
+          updatedImages[listingId] = updatedImages[listingId].map(img => 
+            img.id === selectedImageId 
+              ? { ...img, status: 'revision', revisionNote: values.revisionNote }
+              : img
+          );
+        }
+        return updatedImages;
+      });
 
-      message.success('Images marked for revision.');
+      message.success('Revision request submitted successfully.');
+      setRevisionModalVisible(false);
+      form.resetFields();
     } catch (error) {
-      console.error('Error marking images for revision:', error);
-      message.error('Failed to mark images for revision. Please try again.');
+      console.error('Error submitting revision request:', error);
+      message.error('Failed to submit revision request. Please try again.');
     }
   };
 
@@ -241,29 +268,9 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
     }
   };
 
-  const handleReviseImage = async (imageId: string) => {
-    if (!selectedListing) return;
-
-    try {
-      const imageRef = doc(db, 'images', imageId);
-      await updateDoc(imageRef, { 
-        status: 'revision',
-        statusChangeDate: serverTimestamp()
-      });
-
-      // Update local state
-      setListingImages(prev => ({
-        ...prev,
-        [selectedListing]: prev[selectedListing].map(img => 
-          img.id === imageId ? { ...img, status: 'revision', statusChangeDate: new Date() } : img
-        )
-      }));
-
-      message.success('Image marked for revision.');
-    } catch (error) {
-      console.error('Error marking image for revision:', error);
-      message.error('Failed to mark image for revision. Please try again.');
-    }
+  const handleReviseImage = (imageId: string) => {
+    setSelectedImageId(imageId);
+    setRevisionModalVisible(true);
   };
 
   return (
@@ -392,6 +399,29 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
         onCancel={() => setPreviewImage(null)}
       >
         <img alt="Preview" style={{ width: '100%' }} src={previewImage || ''} />
+      </Modal>
+      <Modal
+        title="Request Revision"
+        visible={revisionModalVisible}
+        onCancel={() => {
+          setRevisionModalVisible(false);
+          form.resetFields();
+        }}
+        footer={null}
+      >
+        <Form form={form} onFinish={handleRevisionSubmit}>
+          <Form.Item
+            name="revisionNote"
+            rules={[{ required: true, message: 'Please enter revision notes' }]}
+          >
+            <Input.TextArea rows={4} placeholder="Enter revision notes" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              Submit Revision Request
+            </Button>
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );
