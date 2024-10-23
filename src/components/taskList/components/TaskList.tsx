@@ -18,19 +18,19 @@ export default function TaskList({ tasklists, loading }: TaskListProps) {
           title: "Customer",
           dataIndex: "customer",
           key: "customer",
-          render: (customer: Customer) => (
+          render: (customer: Customer | null) => (
             <div>
               <Avatar
-                src={customer.logo}
-                alt={customer.store_owner_name}
+                src={customer?.logo}
+                alt={customer?.store_owner_name || 'Unknown'}
                 size="default"
                 style={{ marginRight: 8 }}
-                icon={customer.logo ? undefined : customer.store_owner_name[0]}
+                icon={customer?.logo ? undefined : (customer?.store_owner_name?.[0] || 'U')}
               />
-              {customer.store_owner_name}
+              {customer?.store_owner_name || 'Unknown'}
 
               <div style={{ marginTop: 4 }}>
-                <Tag color="geekblue">{customer.store_name}</Tag>{" "}
+                <Tag color="geekblue">{customer?.store_name || 'Unknown Store'}</Tag>{" "}
               </div>
             </div>
           ),
