@@ -885,6 +885,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           id: doc(collection(db, "images")).id, // Generate a new ID
           url: downloadURL,
           status: "pending",
+          listing_id: listing.id, // Add this line
         };
 
         newImages.push(newImageDoc);
@@ -894,7 +895,6 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
           title: file.name,
           date: new Date().toISOString(),
           customer_id: selectedCustomerId,
-          listing_id: listing.id,
         };
 
         batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);

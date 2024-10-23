@@ -18,7 +18,7 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [currentPage, setCurrentPage] = useState(1);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -28,34 +28,68 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
     }
   }, [customerId]);
 
+  useEffect(() => {
+    if (customerId && statusFilter !== 'pending') {
+      fetchImagesForStatus(customerId, statusFilter);
+    }
+  }, [customerId, statusFilter]);
+
   const fetchCustomerListings = async (customerId: string) => {
     setLoading(true);
     try {
       const listingsRef = collection(db, 'listings');
-      const q = query(listingsRef, where('customer_id', '==', customerId));
+      const q = query(
+        listingsRef, 
+        where('customer_id', '==', customerId),
+        where('hasImage', '==', true)
+      );
       const querySnapshot = await getDocs(q);
       
-      const listings: Listing[] = [];
-      const images: Record<string, ListingImage[]> = {};
-
-      for (const doc of querySnapshot.docs) {
-        const listing = { id: doc.id, ...doc.data() } as Listing;
-        listings.push(listing);
-
-        const imagesRef = collection(db, 'images');
-        const imagesQuery = query(imagesRef, where('listing_id', '==', doc.id));
-        const imagesSnapshot = await getDocs(imagesQuery);
-        
-        images[doc.id] = imagesSnapshot.docs.map(imgDoc => ({ 
-          id: imgDoc.id, 
-          ...imgDoc.data() 
-        } as ListingImage));
-      }
-
+      const listings: Listing[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
       setCustomerListings(listings);
-      setListingImages(images);
+
+      await fetchImagesForStatus(customerId, 'pending');
     } catch (error) {
       console.error("Error fetching customer listings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchImagesForStatus = async (customerId: string, status: string) => {
+    setLoading(true);
+    try {
+      const imagesRef = collection(db, 'images');
+      const imagesQuery = query(
+        imagesRef, 
+        where('customer_id', '==', customerId),
+        where('status', '==', status)
+      );
+      const imagesSnapshot = await getDocs(imagesQuery);
+      
+      const newImages: Record<string, ListingImage[]> = {};
+      imagesSnapshot.docs.forEach(doc => {
+        const imageData = doc.data();
+        const image: ListingImage = { 
+          id: doc.id, 
+          url: imageData.url,
+          status: imageData.status,
+          listing_id: imageData.listing_id
+        };
+        if (image.listing_id) {
+          if (!newImages[image.listing_id]) {
+            newImages[image.listing_id] = [];
+          }
+          newImages[image.listing_id].push(image);
+        }
+      });
+
+      setListingImages(prev => ({
+        ...prev,
+        ...newImages
+      }));
+    } catch (error) {
+      console.error("Error fetching images:", error);
     } finally {
       setLoading(false);
     }
@@ -98,7 +132,7 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
           style={{ width: 300, marginRight: 16 }}
         />
         <Select
-          defaultValue="all"
+          defaultValue="pending"
           style={{ width: 120, marginRight: 16 }}
           onChange={value => setStatusFilter(value)}
         >
