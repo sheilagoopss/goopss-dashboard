@@ -22,9 +22,7 @@ export interface Listing {
 export interface ListingImage {
   id: string;
   url: string;
-  listing_id: string;
-  customer_id: string;
   status: 'pending' | 'approved' | 'revision';
+  listing_id: string;
   statusChangeDate?: Date;
-  revisionNote?: string;
 }

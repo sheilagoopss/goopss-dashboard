@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, getDocs, query, where, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Listing, ListingImage } from '../types/Listing';
-import { Input, Select, Spin, Pagination, Modal, Button, message, Form } from 'antd';
+import { Input, Select, Spin, Pagination, Modal, Button, message } from 'antd';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -23,9 +23,6 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [revisionModalVisible, setRevisionModalVisible] = useState(false);
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
-  const [form] = Form.useForm();
 
   const imageCache = useRef<{
     [customerId: string]: {
@@ -245,32 +242,24 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
   };
 
   const handleReviseImage = async (imageId: string) => {
-    setSelectedImageId(imageId);
-    setRevisionModalVisible(true);
-  };
-
-  const handleRevisionSubmit = async (values: { revisionNote: string }) => {
-    if (!selectedListing || !selectedImageId) return;
+    if (!selectedListing) return;
 
     try {
-      const imageRef = doc(db, 'images', selectedImageId);
+      const imageRef = doc(db, 'images', imageId);
       await updateDoc(imageRef, { 
         status: 'revision',
-        statusChangeDate: serverTimestamp(),
-        revisionNote: values.revisionNote
+        statusChangeDate: serverTimestamp()
       });
 
       // Update local state
       setListingImages(prev => ({
         ...prev,
         [selectedListing]: prev[selectedListing].map(img => 
-          img.id === selectedImageId ? { ...img, status: 'revision', statusChangeDate: new Date(), revisionNote: values.revisionNote } : img
+          img.id === imageId ? { ...img, status: 'revision', statusChangeDate: new Date() } : img
         )
       }));
 
-      message.success('Image marked for revision with notes.');
-      setRevisionModalVisible(false);
-      form.resetFields();
+      message.success('Image marked for revision.');
     } catch (error) {
       console.error('Error marking image for revision:', error);
       message.error('Failed to mark image for revision. Please try again.');
@@ -392,36 +381,10 @@ export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
                 }}>
                   {image.status}
                 </span>
-                {image.revisionNote && (
-                  <p style={styles.revisionNote}>Revision Note: {image.revisionNote}</p>
-                )}
               </div>
             ))}
           </div>
         )}
-      </Modal>
-      <Modal
-        title="Request Revision"
-        visible={revisionModalVisible}
-        onCancel={() => {
-          setRevisionModalVisible(false);
-          form.resetFields();
-        }}
-        footer={null}
-      >
-        <Form form={form} onFinish={handleRevisionSubmit}>
-          <Form.Item
-            name="revisionNote"
-            rules={[{ required: true, message: 'Please enter revision notes' }]}
-          >
-            <Input.TextArea rows={4} placeholder="Enter revision notes" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">
-              Submit Revision Request
-            </Button>
-          </Form.Item>
-        </Form>
       </Modal>
       <Modal
         visible={!!previewImage}
@@ -523,12 +486,6 @@ const styles = {
     borderRadius: '3px',
     color: 'white',
     fontSize: '12px',
-  },
-  revisionNote: {
-    marginTop: '8px',
-    fontSize: '12px',
-    color: '#666',
-    fontStyle: 'italic',
   },
 };
 
