@@ -16,15 +16,10 @@ export interface Listing {
   optimizedTags?: string;
   createdAt?: string;
   uploadedImages?: ListingImage[];
-  hasImage?: boolean;
 }
 
 export interface ListingImage {
   id: string;
   url: string;
-  status: 'pending' | 'approved' | 'revision' | 'superseded';
-  listing_id: string;
-  customer_id: string;
-  statusChangeDate?: Date;
-  revisionNote?: string;
+  status: 'pending' | 'approved' | 'revision';
 }
