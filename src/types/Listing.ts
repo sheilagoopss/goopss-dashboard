@@ -14,4 +14,12 @@ export interface Listing {
   optimizedTitle?: string;
   optimizedDescription?: string;
   optimizedTags?: string;
+  createdAt?: string;
+  uploadedImages?: ListingImage[];
+}
+
+export interface ListingImage {
+  id: string;
+  url: string;
+  status: 'pending' | 'approved' | 'revision';
 }
