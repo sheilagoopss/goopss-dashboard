@@ -24,4 +24,5 @@ export interface ListingImage {
   url: string;
   status: 'pending' | 'approved' | 'revision';
   listing_id: string;
+  statusChangeDate?: Date;
 }
