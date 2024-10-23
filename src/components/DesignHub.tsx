@@ -800,12 +800,22 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       .filter(listing => {
         const matchesSearch = listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
+        
         const listingImagesArray = listingImages[listing.id] || [];
-        const matchesStatus = statusFilter === 'all' || 
-                              (statusFilter === 'pending' && listingImagesArray.some(img => img.status === 'pending')) ||
-                              (statusFilter === 'revision' && listingImagesArray.some(img => img.status === 'revision')) ||
-                              (statusFilter === 'approved' && listingImagesArray.some(img => img.status === 'approved'));
-        return matchesSearch && matchesStatus;
+        const hasImages = listingImagesArray.length > 0 || listing.hasImage;
+        
+        let matchesStatus;
+        if (statusFilter === 'all') {
+          matchesStatus = true; // Show all listings when searching
+        } else {
+          matchesStatus = 
+            (statusFilter === 'pending' && listingImagesArray.some(img => img.status === 'pending')) ||
+            (statusFilter === 'revision' && listingImagesArray.some(img => img.status === 'revision')) ||
+            (statusFilter === 'approved' && listingImagesArray.some(img => img.status === 'approved'));
+        }
+        
+        // If there's a search term, ignore the status filter
+        return searchTerm ? matchesSearch : (matchesSearch && (statusFilter === 'all' ? hasImages : matchesStatus));
       })
       .sort((a, b) => {
         if (sortOrder === 'newest') {
@@ -907,21 +917,28 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
       await batch.commit();
 
-      // Update local state
+      // Update local state for listingImages
       setListingImages((prev) => ({
         ...prev,
         [listing.id]: [...(prev[listing.id] || []), ...newImages],
       }));
 
+      // Clear local images for this listing
       setLocalImages((prev) => ({
         ...prev,
         [listing.id]: [],
       }));
 
-      // Update the local listing state to reflect the hasImage change
-      setCustomerListings((prevListings) =>
+      // Update the local customerListingsWithImages state
+      setCustomerListingsWithImages((prevListings) =>
         prevListings.map((l) =>
-          l.id === listing.id ? { ...l, hasImage: true } : l
+          l.id === listing.id
+            ? {
+                ...l,
+                hasImage: true,
+                uploadedImages: [...(l.uploadedImages || []), ...newImages],
+              }
+            : l
         )
       );
 
@@ -1058,9 +1075,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                             {listing.bestseller ? 'Bestseller' : ''}
                           </p>
                           <div style={styles.uploadedImagesPreview}>
-                            {listingImages[listing.id]?.filter(image => 
-                              statusFilter === 'all' || image.status === statusFilter
-                            ).map((image, index) => (
+                            {listingImages[listing.id]?.map((image, index) => (
                               <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
                                 <img 
                                   src={image.url} 
