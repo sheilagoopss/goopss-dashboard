@@ -3,14 +3,8 @@ import { collection, getDocs, query, where, addDoc, updateDoc, doc, limit, start
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
-
-interface Customer {
-  id: string;
-  customer_id: string;
-  store_name: string;
-  store_owner_name: string;
-  logo: string;
-}
+import CustomersDropdown from './CustomersDropdown';
+import { Customer } from '../types/Customer'; // Import the Customer type from your types file
 
 interface EtsyListing {
   id: string;
@@ -318,7 +312,6 @@ export default function Social() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-      {/* Customer selection and info */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -328,166 +321,154 @@ export default function Social() {
         <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Social Calendar</h1>
         
         {isAdmin && (
-          <select 
-            value={selectedCustomer?.id || ''}
-            onChange={(e) => {
-              const customer = customers.find(c => c.id === e.target.value) || null;
-              setSelectedCustomer(customer);
-            }}
-            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
-          >
-            <option value="">Select a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.store_name} - {customer.store_owner_name}
-              </option>
-            ))}
-          </select>
+          <CustomersDropdown
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={isAdmin}
+          />
         )}
       </div>
 
       {selectedCustomer && (
-        <>
-          {/* Customer info */}
-          <div style={{ 
-            backgroundColor: 'white', 
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-            borderRadius: '8px', 
-            padding: '16px', 
-            marginBottom: '20px' 
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <img 
-                src={selectedCustomer.logo || '/placeholder-logo.png'} 
-                alt={`${selectedCustomer.store_name} logo`}
-                style={{ width: '64px', height: '64px', borderRadius: '50%' }}
-              />
-              <div>
-                <h2 style={{ fontSize: '20px', fontWeight: '600' }}>{selectedCustomer.store_name}</h2>
-                <p style={{ color: '#666' }}>{selectedCustomer.store_owner_name}</p>
-                <p style={{ fontSize: '14px', color: '#888' }}>Customer ID: {selectedCustomer.customer_id}</p>
-              </div>
+        <div style={{ 
+          backgroundColor: 'white', 
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
+          borderRadius: '8px', 
+          padding: '16px', 
+          marginBottom: '20px' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img 
+              src={selectedCustomer.logo || '/placeholder-logo.png'} 
+              alt={`${selectedCustomer.store_name} logo`}
+              style={{ width: '64px', height: '64px', borderRadius: '50%' }}
+            />
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: '600' }}>{selectedCustomer.store_name}</h2>
+              <p style={{ color: '#666' }}>{selectedCustomer.store_owner_name}</p>
+              <p style={{ fontSize: '14px', color: '#888' }}>Customer ID: {selectedCustomer.customer_id}</p>
             </div>
           </div>
-
-          {/* Listings table */}
-          <div style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
-            <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <input
-                type="text"
-                placeholder="Search listings..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
-              />
-              <div>
-                <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
-                <span>Page {currentPage}</span>
-                <button onClick={handleNextPage} disabled={filteredListings.length < LISTINGS_PER_PAGE} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredListings.map((listing) => (
-                  <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                    <td style={{ padding: '12px' }}>{listing.listingID}</td>
-                    <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
-                    <td style={{ padding: '12px' }}>
-                      <button 
-                        onClick={() => {
-                          setCurrentListing(listing);
-                          setIsDateDialogOpen(true);
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          backgroundColor: '#007bff',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Schedule Post
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Calendar and side panel container */}
-          <div style={{ display: 'flex', gap: '20px' }}>
-            {/* Calendar view */}
-            <div style={{ flex: 1 }}>
-              <div className="calendar-view">
-                <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    <ChevronLeft size={16} />
-                  </button>
-                  <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
-                  <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-                <div className="calendar-grid" style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(7, 1fr)', 
-                  gap: '8px',
-                  gridAutoRows: 'minmax(100px, auto)'
-                }}>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>
-                  ))}
-                  {renderCalendar()}
-                </div>
-              </div>
-            </div>
-
-            {/* Side panel */}
-            <div style={{
-              width: '300px',
-              backgroundColor: 'white',
-              boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
-              padding: '20px',
-              overflowY: 'auto',
-              height: 'calc(100vh - 40px)',
-              position: 'sticky',
-              top: '20px'
-            }}>
-              <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 'bold' }}>
-                {selectedDate ? `Posts for ${selectedDate.toLocaleDateString()}` : 'Select a date to view posts'}
-              </h3>
-              {selectedDate ? (
-                selectedDatePosts.length > 0 ? (
-                  selectedDatePosts.map(post => (
-                    <div key={post.id} style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
-                        {post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />}
-                        <span style={{ marginLeft: '5px', fontWeight: 'bold' }}>{post.platform}</span>
-                      </div>
-                      <p><strong>Content:</strong></p>
-                      <p>{post.content}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p>No posts scheduled for this date.</p>
-                )
-              ) : (
-                <p>Click on a date in the calendar to view its posts.</p>
-              )}
-            </div>
-          </div>
-        </>
+        </div>
       )}
+
+      {/* Listings table */}
+      <div style={{ marginBottom: '40px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
+        <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Search listings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
+          />
+          <div>
+            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
+            <span>Page {currentPage}</span>
+            <button onClick={handleNextPage} disabled={filteredListings.length < LISTINGS_PER_PAGE} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
+          </div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+              <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
+              <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
+              <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredListings.map((listing) => (
+              <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                <td style={{ padding: '12px' }}>{listing.listingID}</td>
+                <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
+                <td style={{ padding: '12px' }}>
+                  <button 
+                    onClick={() => {
+                      setCurrentListing(listing);
+                      setIsDateDialogOpen(true);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#007bff',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Schedule Post
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Calendar and side panel container */}
+      <div style={{ display: 'flex', gap: '20px' }}>
+        {/* Calendar view */}
+        <div style={{ flex: 1 }}>
+          <div className="calendar-view">
+            <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <ChevronLeft size={16} />
+              </button>
+              <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+              <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="calendar-grid" style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(7, 1fr)', 
+              gap: '8px',
+              gridAutoRows: 'minmax(100px, auto)'
+            }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 'bold' }}>{day}</div>
+              ))}
+              {renderCalendar()}
+            </div>
+          </div>
+        </div>
+
+        {/* Side panel */}
+        <div style={{
+          width: '300px',
+          backgroundColor: 'white',
+          boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
+          padding: '20px',
+          overflowY: 'auto',
+          height: 'calc(100vh - 40px)',
+          position: 'sticky',
+          top: '20px'
+        }}>
+          <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: 'bold' }}>
+            {selectedDate ? `Posts for ${selectedDate.toLocaleDateString()}` : 'Select a date to view posts'}
+          </h3>
+          {selectedDate ? (
+            selectedDatePosts.length > 0 ? (
+              selectedDatePosts.map(post => (
+                <div key={post.id} style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                    {post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />}
+                    <span style={{ marginLeft: '5px', fontWeight: 'bold' }}>{post.platform}</span>
+                  </div>
+                  <p><strong>Content:</strong></p>
+                  <p>{post.content}</p>
+                </div>
+              ))
+            ) : (
+              <p>No posts scheduled for this date.</p>
+            )
+          ) : (
+            <p>Click on a date in the calendar to view its posts.</p>
+          )}
+        </div>
+      </div>
 
       {/* Date dialog */}
       {isDateDialogOpen && currentListing && (

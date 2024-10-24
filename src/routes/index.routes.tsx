@@ -117,7 +117,7 @@ const Routes = () => {
           {
             path: "/seo",
             element: (
-              <div style={{ padding: "20px" }}>
+              <div style={{ padding: "20px", maxWidth: '1200px', margin: '0 auto' }}>
                 <div
                   style={{
                     display: "flex",
@@ -136,6 +136,28 @@ const Routes = () => {
                     />
                   )}
                 </div>
+                {isAdmin && selectedCustomer && (
+                  <div style={{ 
+                    backgroundColor: 'white', 
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
+                    borderRadius: '8px', 
+                    padding: '16px', 
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <img 
+                        src={selectedCustomer.logo || '/placeholder-logo.png'} 
+                        alt={`${selectedCustomer.store_name} logo`}
+                        style={{ width: '64px', height: '64px', borderRadius: '50%' }}
+                      />
+                      <div>
+                        <h2 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 4px 0' }}>{selectedCustomer.store_name}</h2>
+                        <p style={{ color: '#666', margin: '0 0 4px 0' }}>{selectedCustomer.store_owner_name}</p>
+                        <p style={{ fontSize: '14px', color: '#888', margin: '0' }}>Customer ID: {selectedCustomer.customer_id}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {isAdmin ? (
                   <>
                     {selectedCustomer && (

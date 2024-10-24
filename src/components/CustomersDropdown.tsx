@@ -1,74 +1,131 @@
-import React, { Dispatch, SetStateAction, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Customer } from '../types/Customer';
+import { ChevronDown, Users } from 'lucide-react';
 
-interface CustomersPageProps {
+interface CustomersDropdownProps {
   customers: Customer[];
   selectedCustomer: Customer | null;
-  setSelectedCustomer: Dispatch<SetStateAction<Customer | null>>;
+  setSelectedCustomer: (customer: Customer | null) => void;
   isAdmin: boolean;
 }
 
-function CustomersDropdown ({ customers, selectedCustomer, setSelectedCustomer, isAdmin }: CustomersPageProps) {
-  if (!isAdmin && selectedCustomer) {
-    return (
-      <div>
-        <div>
-          <h3>Store Information</h3>
-          <p><strong>Store Name:</strong> {selectedCustomer.store_name}</p>
-          <p><strong>Store Owner:</strong> {selectedCustomer.store_owner_name}</p>
-          <p><strong>Email:</strong> {selectedCustomer.email}</p>
-        </div>
-      </div>
-    );
-  }
+const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
+  customers,
+  selectedCustomer,
+  setSelectedCustomer,
+  isAdmin
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  if (isAdmin) {
-    return (
-      <div>
-        {customers.length === 0 ? (
-          <p>No customers found. Please check your database connection.</p>
-        ) : (
-          <select 
-            value={selectedCustomer?.id || ''}
-            onChange={(e) => {
-              const customer = customers.find(c => c.id === e.target.value) || null;
-              setSelectedCustomer(customer);
-            }}
-            style={{ padding: '10px', fontSize: '16px', minWidth: '200px' }}
-          >
-            <option value="">Select a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.store_name} - {customer.store_owner_name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-    );
-  }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  if (!isAdmin) return null;
+
+  const toggleDropdown = () => setIsOpen(!isOpen);
+
+  const handleSelect = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const filteredCustomers = customers.filter(customer =>
+    `${customer.store_name} ${customer.store_owner_name}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div>
-      {isAdmin ? (
-        <ul>
-          {customers.map((customer) => (
-            <li key={customer.id} onClick={() => setSelectedCustomer(customer)}>
-              {customer.store_name} - {customer.store_owner_name}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        selectedCustomer && (
-          <div>
-            <h3>{selectedCustomer.store_name}</h3>
-            <p>Owner: {selectedCustomer.store_owner_name}</p>
-            <p>Customer ID: {selectedCustomer.customer_id}</p>
-          </div>
-        )
+    <div ref={dropdownRef} style={{ position: 'relative', width: '300px' }}>
+      <button
+        onClick={toggleDropdown}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          padding: '10px',
+          backgroundColor: '#f0f0f0',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center' }}>
+          <Users size={18} style={{ marginRight: '8px' }} />
+          {selectedCustomer ? `${selectedCustomer.store_name} - ${selectedCustomer.store_owner_name}` : 'Select a customer'}
+        </span>
+        <ChevronDown size={18} />
+      </button>
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            borderTop: 'none',
+            borderRadius: '0 0 4px 4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            zIndex: 1000
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Search customers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              border: 'none',
+              borderBottom: '1px solid #ccc'
+            }}
+          />
+          <ul
+            style={{
+              maxHeight: '300px',
+              overflowY: 'auto',
+              listStyle: 'none',
+              padding: 0,
+              margin: 0
+            }}
+          >
+            {filteredCustomers.map((customer, index) => (
+              <li
+                key={customer.id}
+                onClick={() => handleSelect(customer)}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                style={{
+                  padding: '10px',
+                  cursor: 'pointer',
+                  borderBottom: index === filteredCustomers.length - 1 ? 'none' : '1px solid #eee',
+                  backgroundColor: hoveredIndex === index ? '#f0f0f0' : 'white'
+                }}
+              >
+                {customer.store_name} - {customer.store_owner_name}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
-}
+};
 
 export default CustomersDropdown;

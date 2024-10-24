@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import CustomersDropdown from "./CustomersDropdown";
+import { Customer } from "../types/Customer";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { useAuth } from "../contexts/AuthContext";
 
 interface Listing {
   listingId: string;
   title: string;
   image: string;
-}
-
-interface Customer {
-  id: string;
-  store_name: string;
-  store_owner_name: string;
 }
 
 interface AdsRecommendationProps {
@@ -174,20 +170,13 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
         }}
       >
         <h1>Ads Recommendation</h1>
-
         {isAdmin && (
-          <select
-            value={selectedCustomer?.id || ""}
-            onChange={handleCustomerSelect}
-            style={{ padding: "10px", fontSize: "16px", minWidth: "200px" }}
-          >
-            <option value="">Select a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.store_name} - {customer.store_owner_name}
-              </option>
-            ))}
-          </select>
+          <CustomersDropdown
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={isAdmin}
+          />
         )}
       </div>
 

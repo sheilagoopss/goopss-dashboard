@@ -3,8 +3,7 @@ export interface Customer {
   customer_id: string;
   store_name: string;
   store_owner_name: string;
-  isAdmin: boolean;
-  email: string;
+  email?: string;
   phone?: string;
   date_joined?: string;
   package_type?: string;
