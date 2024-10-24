@@ -177,13 +177,11 @@ const Routes = () => {
           { path: "/pinterest", element: <PinterestAutomation /> },
           {
             path: "/design-hub",
-            element: isAdmin ? (
+            element: (
               <DesignHub
                 customerId={selectedCustomer?.customer_id || ""}
-                isAdmin={true}
+                isAdmin={isAdmin}
               />
-            ) : (
-              <UserDesignHub customerId={selectedCustomer?.customer_id || ""} />
             ),
           },
           {
