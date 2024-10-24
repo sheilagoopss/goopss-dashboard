@@ -1,10 +1,10 @@
 import React from "react";
 import { Card, Statistic, Row, Col, Button, Input } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
-import { Customer } from "../../../types/Customer";
+import { ICustomer } from "../../../types/Customer";
 
 interface AnalyticsProps {
-  customers: Customer[];
+  customers: ICustomer[];
   handleSearch: (value?: string) => void;
   handleCSVExport: () => void;
 }

@@ -4,7 +4,7 @@ import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
 import CustomersDropdown from './CustomersDropdown';
-import { Customer } from '../types/Customer'; // Import the Customer type from your types file
+import { ICustomer } from '../types/Customer'; // Import the Customer type from your types file
 
 interface EtsyListing {
   id: string;
@@ -23,8 +23,8 @@ interface Post {
 
 export default function Social() {
   const { isAdmin, user } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
   const [listings, setListings] = useState<EtsyListing[]>([]);
   const [filteredListings, setFilteredListings] = useState<EtsyListing[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +54,7 @@ export default function Social() {
         }
 
         const querySnapshot = await getDocs(q);
-        const customersList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+        const customersList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ICustomer));
         setCustomers(customersList);
 
         if (!isAdmin && customersList.length > 0) {

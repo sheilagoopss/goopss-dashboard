@@ -1,4 +1,4 @@
-export interface Customer {
+export interface ICustomer {
   id: string;
   customer_id: string;
   store_name: string;
@@ -17,7 +17,7 @@ export interface Customer {
   logo?: string;
 }
 
-export interface Admin {
+export interface IAdmin {
   name?: string;
   email: string;
   isAdmin: boolean;

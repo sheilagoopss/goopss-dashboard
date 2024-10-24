@@ -13,11 +13,13 @@ interface AdvancedDateFilterProps {
     startDate: Dayjs | null;
     endDate: Dayjs | null;
   }) => void;
+  onClose?: () => void;
 }
 
 const AdvancedDateFilter: React.FC<AdvancedDateFilterProps> = ({
   handleDateFilter,
   handleClear,
+  onClose,
 }) => {
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs | null>>(null);
   const [quickSelect, setQuickSelect] = useState<string | null>(null);
@@ -43,6 +45,7 @@ const AdvancedDateFilter: React.FC<AdvancedDateFilterProps> = ({
     setDateRange(null);
     setQuickSelect(null);
     handleClear();
+    onClose && onClose();
   };
 
   const applyFilters = () => {
@@ -54,6 +57,7 @@ const AdvancedDateFilter: React.FC<AdvancedDateFilterProps> = ({
       startDate: dateRange[0],
       endDate: dateRange[1],
     });
+    onClose && onClose();
   };
 
   return (

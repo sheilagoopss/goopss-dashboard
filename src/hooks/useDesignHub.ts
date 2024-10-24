@@ -1,27 +1,27 @@
 import { useState, useCallback } from "react";
-import { Image } from "../types/DesignHub";
+import { IImage } from "../types/DesignHub";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { filterUndefined } from "../utils/filterUndefined";
 import { useAuth } from "../contexts/AuthContext";
-import { Admin } from "../types/Customer";
+import { IAdmin } from "../types/Customer";
 import { serverTimestamp } from "firebase/firestore";
-import { Task } from "../types/Task";
+import { ITask } from "../types/Task";
 
 interface UseDesignHubFetchReturn {
-  fetchDesignHub: (imageId: string) => Promise<Image | null>;
+  fetchDesignHub: (imageId: string) => Promise<IImage | null>;
   isLoading: boolean;
 }
 
 interface UseDesignHubCreateReturn {
   createDesignHub: (
-    image: Omit<Image, "id">,
+    image: Omit<IImage, "id">,
     customerId: string,
-  ) => Promise<Image | null>;
+  ) => Promise<IImage | null>;
   isLoading: boolean;
 }
 
 interface UseDesignHubUpdateReturn {
-  updateDesignHub: (imageId: string, image: Partial<Image>) => Promise<boolean>;
+  updateDesignHub: (imageId: string, image: Partial<IImage>) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -31,7 +31,7 @@ interface UseDesignHubDeleteReturn {
 }
 
 interface UseDesignHubFetchAllReturn {
-  fetchAllDesignHubs: () => Promise<Image[]>;
+  fetchAllDesignHubs: () => Promise<IImage[]>;
   isLoading: boolean;
 }
 
@@ -39,10 +39,10 @@ export function useDesignHubFetch(): UseDesignHubFetchReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchDesignHub = useCallback(
-    async (imageId: string): Promise<Image | null> => {
+    async (imageId: string): Promise<IImage | null> => {
       setIsLoading(true);
       try {
-        const image = await FirebaseHelper.findOne<Image>("images", imageId);
+        const image = await FirebaseHelper.findOne<IImage>("images", imageId);
         return image;
       } catch (error) {
         console.error("Error fetching image:", error);
@@ -63,9 +63,9 @@ export function useDesignHubCreate(): UseDesignHubCreateReturn {
 
   const createDesignHub = useCallback(
     async (
-      image: Omit<Image, "id">,
+      image: Omit<IImage, "id">,
       customerId: string,
-    ): Promise<Image | null> => {
+    ): Promise<IImage | null> => {
       setIsLoading(true);
       try {
         const filteredData = filterUndefined(
@@ -75,11 +75,11 @@ export function useDesignHubCreate(): UseDesignHubCreateReturn {
         if (data) {
           await FirebaseHelper.create("tasklists", {
             customerId,
-            taskName: `${(user as Admin)?.name} added images`,
-            teamMemberName: (user as Admin)?.name || user?.email,
+            taskName: `${(user as IAdmin)?.name} added images`,
+            teamMemberName: (user as IAdmin)?.name || user?.email,
             dateCompleted: serverTimestamp(),
             isDone: true,
-          } as Omit<Task, "id">);
+          } as Omit<ITask, "id">);
         }
         return data;
       } catch (error) {
@@ -99,7 +99,7 @@ export function useDesignHubUpdate(): UseDesignHubUpdateReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const updateDesignHub = useCallback(
-    async (imageId: string, image: Partial<Image>): Promise<boolean> => {
+    async (imageId: string, image: Partial<IImage>): Promise<boolean> => {
       setIsLoading(true);
       try {
         const updated = await FirebaseHelper.update("images", imageId, image);
@@ -140,10 +140,10 @@ export function useDesignHubDelete(): UseDesignHubDeleteReturn {
 export function useDesignHubFetchAll(): UseDesignHubFetchAllReturn {
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchAllDesignHubs = useCallback(async (): Promise<Image[]> => {
+  const fetchAllDesignHubs = useCallback(async (): Promise<IImage[]> => {
     setIsLoading(true);
     try {
-      const images = await FirebaseHelper.find<Image>("images");
+      const images = await FirebaseHelper.find<IImage>("images");
       return images;
     } catch (error) {
       console.error("Error fetching images:", error);
