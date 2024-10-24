@@ -1,10 +1,10 @@
 import { Form } from "antd";
-import { Customer } from "../../../types/Customer";
+import { ICustomer } from "../../../types/Customer";
 import dayjs from "dayjs";
 import { CustomerForm } from "../form/CustomerForm";
 
 interface AddCustomerProps {
-  onAddCustomer: (customer: Customer) => Promise<boolean>;
+  onAddCustomer: (customer: ICustomer) => Promise<boolean>;
   isCreating: boolean;
 }
 
@@ -15,7 +15,7 @@ export default function AddCustomer({
   const [form] = Form.useForm();
 
   const handleSubmit = async (values: any) => {
-    const newCustomer: Customer = {
+    const newCustomer: ICustomer = {
       ...values,
       date_joined: values.date_joined ? dayjs(values.date_joined).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
     };

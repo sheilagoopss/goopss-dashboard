@@ -7,4 +7,5 @@ export enum COLLECTIONS {
   socials = "socials",
   trafficAnalysis = "trafficAnalysis",
   tasklists = "tasklists",
+  stats = "stats",
 }

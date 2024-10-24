@@ -1,8 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Customer } from "../types/Customer";
-import { Users, FileText, Calendar, Palette, BarChart2, PenTool, Layout, CheckSquare, BarChart, Tag } from 'lucide-react';
+import { ICustomer } from "../types/Customer";
+import { Users, FileText, Calendar, Palette, BarChart2, PenTool, Layout, CheckSquare, BarChart, Tag, Sheet } from 'lucide-react';
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     { path: "/pinterest", label: "Pinterest", icon: PenTool },
     { path: "/taskSummary", label: "Task Summary", icon: CheckSquare },
     { path: "/store-analysis", label: "Store Analysis", icon: BarChart },
+    { path: "/stats", label: "Stats", icon: Sheet },
   ];
 
   const userMenuItems = [
@@ -101,11 +102,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       {user && !isAdmin && (
         <div style={styles.userInfo}>
           <div style={styles.avatar}>
-            {(user as Customer).store_owner_name?.charAt(0)}
+            {(user as ICustomer).store_owner_name?.charAt(0)}
           </div>
           <div style={styles.userDetails}>
             <span style={styles.userName}>
-              {(user as Customer).store_owner_name}
+              {(user as ICustomer).store_owner_name}
             </span>
             <span style={styles.userEmail}>{user.email}</span>
           </div>

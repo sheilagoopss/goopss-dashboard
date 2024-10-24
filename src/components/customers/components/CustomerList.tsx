@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Table, Tag, Button, Modal, Form, Col, Row, message } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { ChartColumn, Paintbrush, Search, Share2 } from "lucide-react";
-import { Customer } from "../../../types/Customer";
+import { ICustomer } from "../../../types/Customer";
 import {
   useCustomerUpdate,
   useCustomerDelete,
@@ -13,7 +13,7 @@ import { useListingDeleteAll } from "../../../hooks/useListing";
 import dayjs from "dayjs";
 
 interface CustomerListProps {
-  customers: Customer[];
+  customers: ICustomer[];
   loading: boolean;
   refresh: () => void;
 }
@@ -39,14 +39,14 @@ export default function CustomerList({
       title: "Store Name",
       dataIndex: "store_name",
       key: "store_name",
-      sorter: (a: Customer, b: Customer) =>
+      sorter: (a: ICustomer, b: ICustomer) =>
         a.store_name.localeCompare(b.store_name),
     },
     {
       title: "Owner Name",
       dataIndex: "store_owner_name",
       key: "store_owner_name",
-      sorter: (a: Customer, b: Customer) =>
+      sorter: (a: ICustomer, b: ICustomer) =>
         a.store_owner_name.localeCompare(b.store_owner_name),
     },
     {
@@ -58,14 +58,14 @@ export default function CustomerList({
           {packageType || "-"}
         </Tag>
       ),
-      sorter: (a: Customer, b: Customer) =>
+      sorter: (a: ICustomer, b: ICustomer) =>
         (a.package_type || "").localeCompare(b.package_type || ""),
     },
     {
       title: "Current Sales",
       dataIndex: "current_sales",
       key: "current_sales",
-      sorter: (a: Customer, b: Customer) =>
+      sorter: (a: ICustomer, b: ICustomer) =>
         (a.current_sales || 0) - (b.current_sales || 0),
     },
     // {
@@ -78,7 +78,7 @@ export default function CustomerList({
     {
       title: "",
       key: "actions",
-      render: (_: any, record: Customer) => (
+      render: (_: any, record: ICustomer) => (
         <Row gutter={[16, 2]}>
           <Col>
             <Button
@@ -111,7 +111,7 @@ export default function CustomerList({
     },
   ];
 
-  const handleEdit = (record: Customer) => {
+  const handleEdit = (record: ICustomer) => {
     form.setFieldsValue({
       ...record,
       date_joined: record.date_joined ? dayjs(record.date_joined) : undefined,
@@ -175,7 +175,7 @@ export default function CustomerList({
     });
   };
 
-  const expandedRowRender = (record: Customer) => (
+  const expandedRowRender = (record: ICustomer) => (
     <Row>
       <Col span={12}>
         <ul style={{ listStyleType: "none", padding: 0 }}>

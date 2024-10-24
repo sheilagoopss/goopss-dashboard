@@ -1,7 +1,7 @@
 import { FieldValue } from "firebase/firestore";
-import { Customer } from "./Customer";
+import { ICustomer } from "./Customer";
 
-export interface Task {
+export interface ITask {
   id: string;
   taskName: string;
   customerId: string;
@@ -9,10 +9,11 @@ export interface Task {
   dateCompleted?: string | FieldValue;
   listingId?: string;
   isDone?: boolean;
+  category: "Design" | "Optimization" | "Plan";
 }
 
-export interface ITasklist extends Task {
-  customer: Customer | null;
+export interface ITasklist extends ITask {
+  customer: ICustomer | null;
   customerName: string;
   dateCompleted?: string;
 }
