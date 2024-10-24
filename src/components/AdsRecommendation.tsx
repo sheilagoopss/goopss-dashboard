@@ -15,6 +15,11 @@ interface Customer {
   store_owner_name: string;
 }
 
+interface AdsRecommendationProps {
+  customerId: string;
+  isAdmin: boolean;
+}
+
 const styles = {
   listingCard: {
     width: "200px",
@@ -30,11 +35,14 @@ const styles = {
   },
 };
 
-const AdsRecommendation: React.FC = () => {
+const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
+  customerId,
+  isAdmin,
+}) => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,

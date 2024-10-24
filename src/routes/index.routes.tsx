@@ -5,14 +5,12 @@ import {
 } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
-import SocialPostCreator from "../components/SocialPostCreator";
 import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import { DesignHub } from "../components/DesignHub";
 import { UserDesignHub } from "../components/UserDesignHub";
-import EtsyAdsRecommendation from "../components/EtsyAdsRecommendation";
 import Plan from "../components/Plan";
 import { useEffect, useState } from "react";
 import { Customer } from "../types/Customer";
@@ -26,6 +24,7 @@ import UpgradeNotice from "../components/common/UpgradeNotice";
 import Tagify from "../components/tagify/Tagify";
 import TaskManagement from "../components/taskList/TaskManagement";
 import UserListingOptimization from "../components/UserListingOptimization";
+import StoreAnalysis from "../components/StoreAnalysis";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -115,7 +114,6 @@ const Routes = () => {
               />
             ),
           },
-          { path: "/social-posts", element: <SocialPostCreator /> },
           {
             path: "/seo",
             element: (
@@ -167,18 +165,21 @@ const Routes = () => {
             ),
           },
           {
-            path: "/etsy-ads-recommendation",
+            path: "/ads-recommendation",
             element: (
-              <EtsyAdsRecommendation
+              <AdsRecommendation
                 customerId={isAdmin ? "" : selectedCustomer?.customer_id || ""}
                 isAdmin={isAdmin}
               />
             ),
           },
           { path: "/social", element: <Social /> },
-          { path: "/ads-recommendation", element: <AdsRecommendation /> },
           { path: "/tagify", element: !isAdmin && <Tagify /> },
           { path: "/taskSummary", element: isAdmin && <TaskManagement /> },
+          { 
+            path: "/store-analysis", 
+            element: isAdmin && <StoreAnalysis /> 
+          },
         ],
       },
     ]),

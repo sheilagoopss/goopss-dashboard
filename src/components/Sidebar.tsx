@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Customer } from "../types/Customer";
+import { Users, FileText, Calendar, Palette, BarChart2, PenTool, Layout, CheckSquare, BarChart, Tag } from 'lucide-react';
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -11,30 +12,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
 
   const adminMenuItems = [
-    { path: "/customers", label: "Customers" },
-    { path: "/plan", label: "Plan" },
-    { path: "/seo", label: "SEO" },
-    { path: "/social", label: "Social" },
-    { path: "/design-hub", label: "Design" },
-    {
-      path: "/ads-recommendation",
-      label: "Ads Recommendation",
-      allow: ["Admin"],
-    },
-    { path: "/pinterest", label: "Pinterest" },
-    { path: "/taskSummary", label: "Task Summary" },
+    { path: "/customers", label: "Customers", icon: Users },
+    { path: "/plan", label: "Plan", icon: Layout },
+    { path: "/seo", label: "SEO", icon: FileText },
+    { path: "/social", label: "Social", icon: Calendar },
+    { path: "/design-hub", label: "Design", icon: Palette },
+    { path: "/ads-recommendation", label: "Ads Recommendation", icon: BarChart2 },
+    { path: "/pinterest", label: "Pinterest", icon: PenTool },
+    { path: "/taskSummary", label: "Task Summary", icon: CheckSquare },
+    { path: "/store-analysis", label: "Store Analysis", icon: BarChart },
   ];
 
   const userMenuItems = [
-    { path: "/plan", label: "Plan" },
-    { path: "/seo", label: "SEO" },
-    { path: "/social", label: "Social" },
-    { path: "/design-hub", label: "Design" },
-    {
-      path: "/ads-recommendation",
-      label: "Ads Recommendation",
-    },
-    { path: "/tagify", label: "Tagify" },
+    { path: "/plan", label: "Plan", icon: Layout },
+    { path: "/seo", label: "SEO", icon: FileText },
+    { path: "/social", label: "Social", icon: Calendar },
+    { path: "/design-hub", label: "Design", icon: Palette },
+    { path: "/ads-recommendation", label: "Ads Recommendation", icon: BarChart2 },
+    { path: "/tagify", label: "Tagify", icon: Tag },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;
@@ -120,6 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         {menuItems.map((item) => (
           <li key={item.path} style={styles.link}>
             <Link to={item.path} style={styles.link}>
+              <item.icon size={18} style={{ marginRight: '10px' }} />
               {item.label}
             </Link>
           </li>
