@@ -13,7 +13,7 @@ import { DesignHub } from "../components/DesignHub";
 import { UserDesignHub } from "../components/UserDesignHub";
 import Plan from "../components/Plan";
 import { useEffect, useState } from "react";
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import { collection, DocumentData, getDocs } from "firebase/firestore";
@@ -25,13 +25,14 @@ import Tagify from "../components/tagify/Tagify";
 import TaskManagement from "../components/taskList/TaskManagement";
 import UserListingOptimization from "../components/UserListingOptimization";
 import StoreAnalysis from "../components/StoreAnalysis";
+import Stats from "../components/stats/Stats";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
 const Routes = () => {
   const { user, isAdmin, loading, customerData } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
 
@@ -42,7 +43,7 @@ const Routes = () => {
           const customersCollection = collection(db, "customers");
           const customersSnapshot = await getDocs(customersCollection);
           const customersList = customersSnapshot.docs.map(
-            (doc: DocumentData) => ({ id: doc.id, ...doc.data() } as Customer),
+            (doc: DocumentData) => ({ id: doc.id, ...doc.data() } as ICustomer),
           );
           console.log("Fetched customers:", customersList);
           setCustomers(customersList);
@@ -80,7 +81,7 @@ const Routes = () => {
       const isRouteOpen =
         isAdmin ||
         FREE_ROUTES.includes(route.path || "") ||
-        (user as Customer)?.customer_type === "Paid";
+        (user as ICustomer)?.customer_type === "Paid";
 
       return {
         ...route,
@@ -107,7 +108,7 @@ const Routes = () => {
                 customers={
                   isAdmin
                     ? customers
-                    : ([selectedCustomer].filter(Boolean) as Customer[])
+                    : ([selectedCustomer].filter(Boolean) as ICustomer[])
                 }
                 selectedCustomer={selectedCustomer}
                 setSelectedCustomer={setSelectedCustomer}
@@ -201,6 +202,10 @@ const Routes = () => {
           { 
             path: "/store-analysis", 
             element: isAdmin && <StoreAnalysis /> 
+          },
+          { 
+            path: "/stats", 
+            element: isAdmin && <Stats /> 
           },
         ],
       },

@@ -2,10 +2,17 @@
 import { useState, useCallback } from "react";
 import { Listing } from "../types/Listing";
 import FirebaseHelper from "../helpers/FirebaseHelper";
-import { Task } from "../types/Task";
+import { ITask } from "../types/Task";
 import { useAuth } from "../contexts/AuthContext";
-import { Admin } from "../types/Customer";
-import { serverTimestamp, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
+import { IAdmin } from "../types/Customer";
+import {
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 
 interface UseListingFetchReturn {
@@ -105,10 +112,10 @@ export function useListingUpdate(): UseListingUpdateReturn {
           await FirebaseHelper.create("tasklists", {
             customerId,
             taskName: "Listing Optimization",
-            teamMemberName: (user as Admin)?.name || user?.email,
+            teamMemberName: (user as IAdmin)?.name || user?.email,
             dateCompleted: serverTimestamp(),
             isDone: true,
-          } as Omit<Task, "id">);
+          } as Omit<ITask, "id">);
         }
         return updated;
       } catch (error) {
@@ -166,28 +173,33 @@ export function useListingFetchAll(): UseListingFetchAllReturn {
 export function useListingDeleteAll(): UseListingDeleteAllReturn {
   const [isLoading, setIsLoading] = useState(false);
 
-  const deleteAllListings = useCallback(async (customerId: string): Promise<boolean> => {
-    setIsLoading(true);
-    try {
-      const listingsRef = collection(db, 'listings');
-      const q = query(listingsRef, where("customer_id", "==", customerId));
-      const querySnapshot = await getDocs(q);
-      
-      const batch = writeBatch(db);
-      querySnapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
+  const deleteAllListings = useCallback(
+    async (customerId: string): Promise<boolean> => {
+      setIsLoading(true);
+      try {
+        const listingsRef = collection(db, "listings");
+        const q = query(listingsRef, where("customer_id", "==", customerId));
+        const querySnapshot = await getDocs(q);
 
-      console.log(`Successfully deleted all listings for customer ${customerId}`);
-      return true;
-    } catch (error) {
-      console.error("Error deleting listings:", error);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+        const batch = writeBatch(db);
+        querySnapshot.docs.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+
+        console.log(
+          `Successfully deleted all listings for customer ${customerId}`,
+        );
+        return true;
+      } catch (error) {
+        console.error("Error deleting listings:", error);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   return { deleteAllListings, isLoading };
 }

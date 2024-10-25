@@ -1,22 +1,22 @@
 import { useState, useCallback } from "react";
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { filterUndefined } from "../utils/filterUndefined";
 
 interface UseCustomerFetchReturn {
-  fetchCustomer: (customerId: string) => Promise<Customer | null>;
+  fetchCustomer: (customerId: string) => Promise<ICustomer | null>;
   isLoading: boolean;
 }
 
 interface UseCustomerCreateReturn {
-  createCustomer: (customer: Customer) => Promise<boolean>;
+  createCustomer: (customer: ICustomer) => Promise<boolean>;
   isLoading: boolean;
 }
 
 interface UseCustomerUpdateReturn {
   updateCustomer: (
     customerId: string,
-    customer: Partial<Customer>,
+    customer: Partial<ICustomer>,
   ) => Promise<boolean>;
   isLoading: boolean;
 }
@@ -27,7 +27,7 @@ interface UseCustomerDeleteReturn {
 }
 
 interface UseCustomerFetchAllReturn {
-  fetchAllCustomers: () => Promise<Customer[]>;
+  fetchAllCustomers: () => Promise<ICustomer[]>;
   isLoading: boolean;
 }
 
@@ -35,10 +35,10 @@ export function useCustomerFetch(): UseCustomerFetchReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchCustomer = useCallback(
-    async (customerId: string): Promise<Customer | null> => {
+    async (customerId: string): Promise<ICustomer | null> => {
       setIsLoading(true);
       try {
-        const customer = await FirebaseHelper.findOne<Customer>(
+        const customer = await FirebaseHelper.findOne<ICustomer>(
           "customers",
           customerId,
         );
@@ -60,7 +60,7 @@ export function useCustomerCreate(): UseCustomerCreateReturn {
   const [isLoading, setIsLoading] = useState(false);
 
   const createCustomer = useCallback(
-    async (customer: Customer): Promise<boolean> => {
+    async (customer: ICustomer): Promise<boolean> => {
       setIsLoading(true);
       try {
         const filteredData = filterUndefined(
@@ -87,7 +87,7 @@ export function useCustomerUpdate(): UseCustomerUpdateReturn {
   const updateCustomer = useCallback(
     async (
       customerId: string,
-      customer: Partial<Customer>,
+      customer: Partial<ICustomer>,
     ): Promise<boolean> => {
       setIsLoading(true);
       try {
@@ -133,10 +133,10 @@ export function useCustomerDelete(): UseCustomerDeleteReturn {
 export function useCustomerFetchAll(): UseCustomerFetchAllReturn {
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchAllCustomers = useCallback(async (): Promise<Customer[]> => {
+  const fetchAllCustomers = useCallback(async (): Promise<ICustomer[]> => {
     setIsLoading(true);
     try {
-      const customers = await FirebaseHelper.find<Customer>("customers");
+      const customers = await FirebaseHelper.find<ICustomer>("customers");
       return customers;
     } catch (error) {
       console.error("Error fetching customers:", error);

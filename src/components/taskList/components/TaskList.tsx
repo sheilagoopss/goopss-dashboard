@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { Customer } from "../../../types/Customer";
+import { ICustomer } from "../../../types/Customer";
 import { ITasklist } from "../../../types/Task";
 import { Avatar, Table, Tag } from "antd";
 
@@ -18,7 +18,7 @@ export default function TaskList({ tasklists, loading }: TaskListProps) {
           title: "Customer",
           dataIndex: "customer",
           key: "customer",
-          render: (customer: Customer | null) => (
+          render: (customer: ICustomer | null) => (
             <div>
               <Avatar
                 src={customer?.logo}

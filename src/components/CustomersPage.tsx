@@ -1,10 +1,10 @@
 import React, { Dispatch, SetStateAction, useEffect } from 'react';
-import { Customer } from '../types/Customer';
+import { ICustomer } from '../types/Customer';
 
 interface CustomersPageProps {
-  customers: Customer[];
-  selectedCustomer: Customer | null;
-  setSelectedCustomer: Dispatch<SetStateAction<Customer | null>>;
+  customers: ICustomer[];
+  selectedCustomer: ICustomer | null;
+  setSelectedCustomer: Dispatch<SetStateAction<ICustomer | null>>;
   isAdmin: boolean;
 }
 
