@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, limit, startAfter, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, ChevronLeft, ChevronRight, Facebook, Instagram, X } from 'lucide-react';
+import { Facebook, Instagram } from 'lucide-react';
 import CustomersDropdown from './CustomersDropdown';
-import { ICustomer } from '../types/Customer'; // Import the Customer type from your types file
+import { ICustomer } from '../types/Customer';
+import { Modal, Button, DatePicker, Radio, Input, Table, Card, Typography, Space, Image } from 'antd';
 
 interface EtsyListing {
   id: string;
   listingID: string;
   listingTitle: string;
   scheduled_post_date?: string;
+  primaryImage?: string; // Added primaryImage field
 }
 
 interface Post {
@@ -21,51 +23,19 @@ interface Post {
   platform: "facebook" | "instagram";
   listingId: string;
   customerId: string;
+  imageUrl?: string; // Added imageUrl field
 }
 
-const EditPostModal: React.FC<{
-  post: Omit<Post, 'id'>;
-  onSave: (post: Omit<Post, 'id'>) => void;
-  onCancel: () => void;
-}> = ({ post, onSave, onCancel }) => {
-  const [editedContent, setEditedContent] = useState(post.content);
-
-  const handleSave = () => {
-    onSave({
-      ...post,
-      content: editedContent,
-    });
-  };
-
-  return (
-    <div className="modal-content" style={{
-      backgroundColor: 'white',
-      padding: '20px',
-      borderRadius: '8px',
-      maxWidth: '500px',
-      width: '100%'
-    }}>
-      <h2 style={{ marginBottom: '20px' }}>Edit Post</h2>
-      <textarea
-        value={editedContent}
-        onChange={(e) => setEditedContent(e.target.value)}
-        placeholder="Post content"
-        style={{ width: '100%', minHeight: '100px', marginBottom: '15px', padding: '8px' }}
-      />
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={{ /* ... */ }}>Cancel</button>
-        <button onClick={handleSave} style={{ /* ... */ }}>Save</button>
-      </div>
-    </div>
-  );
-};
+const { TextArea } = Input;
+const { Title, Text } = Typography;
 
 const PostCreationModal: React.FC<{
-  listing: EtsyListing;
+  isOpen: boolean;
+  listing: EtsyListing | null;
   customerId: string;
   onSave: (posts: Omit<Post, 'id'>[]) => void;
   onCancel: () => void;
-}> = ({ listing, customerId, onSave, onCancel }) => {
+}> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
   const [facebookContent, setFacebookContent] = useState("");
@@ -78,7 +48,7 @@ const PostCreationModal: React.FC<{
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ listing, platform }),
+        body: JSON.stringify({ listing, platform, imageUrl: listing?.primaryImage }),
       });
 
       if (!response.ok) {
@@ -90,8 +60,8 @@ const PostCreationModal: React.FC<{
     } catch (error) {
       console.error("Error generating content with AI:", error);
       return platform === "facebook"
-        ? `Check out our ${listing.listingTitle}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
-        : `✨ New arrival! ${listing.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`;
+        ? `Check out our ${listing?.listingTitle}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
+        : `✨ New arrival! ${listing?.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`;
     }
   };
 
@@ -108,14 +78,14 @@ const PostCreationModal: React.FC<{
 
   const handleSave = () => {
     if (!scheduledDate) {
-      alert("Please select a date before saving the post.");
+      Modal.error({ content: "Please select a date before saving the post." });
       return;
     }
 
     const basePost = {
-      scheduledDate,
+      scheduledDate, // This is already a Date object now
       dateCreated: new Date(),
-      listingId: listing.listingID,
+      listingId: listing?.listingID || '',
       customerId,
     };
 
@@ -135,7 +105,7 @@ const PostCreationModal: React.FC<{
     }
 
     if (postsToSave.length === 0) {
-      alert("Please enter content for at least one platform before saving.");
+      Modal.error({ content: "Please enter content for at least one platform before saving." });
       return;
     }
 
@@ -143,70 +113,44 @@ const PostCreationModal: React.FC<{
   };
 
   return (
-    <div className="modal-content" style={{
-      backgroundColor: 'white',
-      padding: '20px',
-      borderRadius: '8px',
-      maxWidth: '500px',
-      width: '100%'
-    }}>
-      <h2 style={{ marginBottom: '20px' }}>Create Post for {listing.listingTitle}</h2>
-      <input 
-        type="date" 
-        value={scheduledDate?.toISOString().split('T')[0] || ''}
-        onChange={(e) => setScheduledDate(new Date(e.target.value))}
-        style={{ width: '100%', marginBottom: '15px', padding: '8px' }}
-      />
-      <div style={{ marginBottom: '15px' }}>
-        <label style={{ display: 'block', marginBottom: '10px' }}>
-          <input 
-            type="radio" 
-            value="facebook" 
-            checked={platform === "facebook"}
-            onChange={() => setPlatform("facebook")}
-          /> Facebook
-        </label>
-        <label style={{ display: 'block', marginBottom: '10px' }}>
-          <input 
-            type="radio" 
-            value="instagram" 
-            checked={platform === "instagram"}
-            onChange={() => setPlatform("instagram")}
-          /> Instagram
-        </label>
-        <label style={{ display: 'block' }}>
-          <input 
-            type="radio" 
-            value="both" 
-            checked={platform === "both"}
-            onChange={() => setPlatform("both")}
-          /> Both
-        </label>
-      </div>
-      <button onClick={handleGenerateContent} style={{ /* ... */ }}>
-        Generate Content
-      </button>
-      {(platform === "facebook" || platform === "both") && (
-        <textarea
-          value={facebookContent}
-          onChange={(e) => setFacebookContent(e.target.value)}
-          placeholder="Facebook content"
-          style={{ width: '100%', minHeight: '100px', marginBottom: '15px', padding: '8px' }}
+    <Modal
+      title={`Create Post for ${listing?.listingTitle}`}
+      visible={isOpen}
+      onCancel={onCancel}
+      footer={[
+        <Button key="cancel" onClick={onCancel}>Cancel</Button>,
+        <Button key="save" type="primary" onClick={handleSave}>Save</Button>
+      ]}
+    >
+      <Space direction="vertical" style={{ width: '100%' }}>
+        <DatePicker 
+          style={{ width: '100%' }}
+          onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
         />
-      )}
-      {(platform === "instagram" || platform === "both") && (
-        <textarea
-          value={instagramContent}
-          onChange={(e) => setInstagramContent(e.target.value)}
-          placeholder="Instagram content"
-          style={{ width: '100%', minHeight: '100px', marginBottom: '15px', padding: '8px' }}
-        />
-      )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={onCancel} style={{ /* ... */ }}>Cancel</button>
-        <button onClick={handleSave} style={{ /* ... */ }}>Save</button>
-      </div>
-    </div>
+        <Radio.Group onChange={(e) => setPlatform(e.target.value)} value={platform}>
+          <Radio value="facebook">Facebook</Radio>
+          <Radio value="instagram">Instagram</Radio>
+          <Radio value="both">Both</Radio>
+        </Radio.Group>
+        <Button onClick={handleGenerateContent} type="default">Generate Content</Button>
+        {(platform === "facebook" || platform === "both") && (
+          <TextArea
+            value={facebookContent}
+            onChange={(e) => setFacebookContent(e.target.value)}
+            placeholder="Facebook content"
+            autoSize={{ minRows: 3, maxRows: 5 }}
+          />
+        )}
+        {(platform === "instagram" || platform === "both") && (
+          <TextArea
+            value={instagramContent}
+            onChange={(e) => setInstagramContent(e.target.value)}
+            placeholder="Instagram content"
+            autoSize={{ minRows: 3, maxRows: 5 }}
+          />
+        )}
+      </Space>
+    </Modal>
   );
 };
 
@@ -287,7 +231,8 @@ export default function Social() {
           id: doc.id,
           listingID: doc.data().listingID,
           listingTitle: doc.data().listingTitle,
-          scheduled_post_date: doc.data().scheduled_post_date
+          scheduled_post_date: doc.data().scheduled_post_date,
+          primaryImage: doc.data().primaryImage // Added primaryImage
         } as EtsyListing));
 
         setListings(listingsList);
@@ -341,7 +286,6 @@ export default function Social() {
       let savedPosts: Post[] = [];
 
       for (const post of newPosts) {
-        // Ensure the content is not empty before saving
         if (!post.content.trim()) {
           console.error(`Empty content for ${post.platform} post. Skipping.`);
           continue;
@@ -351,8 +295,9 @@ export default function Social() {
           ...post,
           scheduledDate: post.scheduledDate,
           dateCreated: new Date(),
+          imageUrl: currentListing?.primaryImage, // Added imageUrl
         });
-        savedPosts.push({ id: docRef.id, ...post });
+        savedPosts.push({ id: docRef.id, ...post, imageUrl: currentListing?.primaryImage });
       }
 
       if (savedPosts.length === 0) {
@@ -462,7 +407,7 @@ export default function Social() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
       const postsForDay = calendarPosts.filter(post => 
-        post.scheduledDate.toDateString() === date.toDateString()  // Changed from 'date' to 'scheduledDate'
+        post.scheduledDate.toDateString() === date.toDateString()
       );
 
       calendarDays.push(
@@ -478,7 +423,7 @@ export default function Social() {
               key={post.id} 
               className={`post-indicator ${post.platform}`}
             >
-              {post.platform === 'facebook' ? <Facebook size={12} /> : <Instagram size={12} />}
+              {post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />}
             </div>
           ))}
         </div>
@@ -529,6 +474,14 @@ export default function Social() {
       console.error("Error saving edited post:", error);
     }
   };
+
+  useEffect(() => {
+    console.log("Current listing updated:", currentListing);
+  }, [currentListing]);
+
+  useEffect(() => {
+    console.log("Post creation modal open state:", isPostCreationModalOpen);
+  }, [isPostCreationModalOpen]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
@@ -631,11 +584,11 @@ export default function Social() {
           <div className="calendar-view">
             <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <button onClick={prevMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                <ChevronLeft size={16} />
+                Previous
               </button>
               <h2>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
               <button onClick={nextMonth} style={{ padding: '8px 16px', backgroundColor: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                <ChevronRight size={16} />
+                Next
               </button>
             </div>
             <div className="calendar-grid" style={{ 
@@ -670,6 +623,13 @@ export default function Social() {
             selectedDatePosts.length > 0 ? (
               selectedDatePosts.map(post => (
                 <div key={post.id} style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  {post.imageUrl && (
+                    <Image
+                      src={post.imageUrl}
+                      alt="Listing"
+                      style={{ width: '100%', marginBottom: '10px' }}
+                    />
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
                     {post.platform === 'facebook' ? <Facebook size={16} /> : <Instagram size={16} />}
                     <span style={{ marginLeft: '5px', fontWeight: 'bold' }}>{post.platform}</span>
@@ -687,27 +647,13 @@ export default function Social() {
         </div>
       </div>
 
-      {isPostCreationModalOpen && currentListing && selectedCustomer && (
-        <div className="modal-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <PostCreationModal
-            listing={currentListing}
-            customerId={selectedCustomer.id}  // Pass the customerId
-            onSave={handleSavePost}
-            onCancel={() => setIsPostCreationModalOpen(false)}
-          />
-        </div>
-      )}
+      <PostCreationModal
+        isOpen={isPostCreationModalOpen}
+        listing={currentListing}
+        customerId={selectedCustomer?.id || ''}
+        onSave={handleSavePost}
+        onCancel={() => setIsPostCreationModalOpen(false)}
+      />
     </div>
   );
 }
