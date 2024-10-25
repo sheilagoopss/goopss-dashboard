@@ -34,6 +34,9 @@ import { Listing } from "../types/Listing";
 import Papa from "papaparse";
 import dayjs from "dayjs";
 import { Button } from "antd";
+import { useTaskCreate } from "../hooks/useTask";
+import { useAuth } from "../contexts/AuthContext";
+import { IAdmin } from "../types/Customer";
 
 interface SEOListingsProps {
   customerId: string;
@@ -78,7 +81,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   } | null>(null);
   const [editedTags, setEditedTags] = useState("");
   const [recentlyCopied, setRecentlyCopied] = useState<string | null>(null);
-  const { updateListing } = useListingUpdate();
+  const { createTask } = useTaskCreate();
+  const { user } = useAuth();
 
   const LISTINGS_PER_PAGE = 10; // Changed from 5 to 10
 
@@ -317,6 +321,16 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
 
       const listingRef = doc(db, "listings", selectedListing.id);
       await updateDoc(listingRef, updateData);
+
+      await createTask({
+        customerId: customerId,
+        taskName: `Optimized Listing`,
+        teamMemberName: (user as IAdmin)?.name || user?.email || "",
+        dateCompleted: serverTimestamp(),
+        listingId: selectedListing.listingID,
+        isDone: true,
+        category: "Optimization",
+      });
 
       setAllListings((prevListings) =>
         prevListings.map((l) =>

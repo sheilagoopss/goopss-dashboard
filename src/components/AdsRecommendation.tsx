@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "./CustomersDropdown";
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 
@@ -39,17 +39,17 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
 
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
-    } else if ((user as Customer)?.store_name) {
-      console.log("User store name:", (user as Customer).store_name);
-      fetchListings((user as Customer).store_name);
+    } else if ((user as ICustomer)?.store_name) {
+      console.log("User store name:", (user as ICustomer).store_name);
+      fetchListings((user as ICustomer).store_name);
     } else {
       console.error("User or store name is undefined");
       setError(
@@ -67,7 +67,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
           ({
             id: doc.id,
             ...doc.data(),
-          } as Customer),
+          } as ICustomer),
       );
       setCustomers(customersList);
       setLoading(false);
@@ -149,7 +149,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
   const handleCardClick = (listingId: string) => {
     const storeName = isAdmin
       ? selectedCustomer?.store_name
-      : (user as Customer)?.store_name;
+      : (user as ICustomer)?.store_name;
     if (storeName) {
       const url = getEtsyListingUrl(storeName, listingId);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -180,7 +180,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
         )}
       </div>
 
-      {!isAdmin && user && <p>Store: {(user as Customer).store_name}</p>}
+      {!isAdmin && user && <p>Store: {(user as ICustomer).store_name}</p>}
 
       {listings.length === 0 ? (
         <p>

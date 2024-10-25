@@ -1,7 +1,7 @@
 import React, { useState, useEffect, SetStateAction, Dispatch } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "./CustomersDropdown";
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 import { db } from "../firebase/config";
 import {
   collection,
@@ -19,9 +19,9 @@ import { Button, Input } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 
 interface PlanPageProps {
-  customers: Customer[];
-  selectedCustomer: Customer | null;
-  setSelectedCustomer: Dispatch<SetStateAction<Customer | null>>;
+  customers: ICustomer[];
+  selectedCustomer: ICustomer | null;
+  setSelectedCustomer: Dispatch<SetStateAction<ICustomer | null>>;
 }
 
 interface PlanTask {
@@ -90,6 +90,7 @@ function Plan({
         teamMemberName: user?.email || "",
         dateCompleted: dayjs().toISOString(),
         isDone: newIsDone,
+        category: "Plan",
       });
       // Update local state
       setPlanTasks((prevTasks) =>

@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Customer } from '../types/Customer';
+import { ICustomer } from '../types/Customer';
 import { ChevronDown, Users } from 'lucide-react';
 
 interface CustomersDropdownProps {
-  customers: Customer[];
-  selectedCustomer: Customer | null;
-  setSelectedCustomer: (customer: Customer | null) => void;
+  customers: ICustomer[];
+  selectedCustomer: ICustomer | null;
+  setSelectedCustomer: (customer: ICustomer | null) => void;
   isAdmin: boolean;
 }
 
@@ -37,7 +37,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
 
   const toggleDropdown = () => setIsOpen(!isOpen);
 
-  const handleSelect = (customer: Customer) => {
+  const handleSelect = (customer: ICustomer) => {
     setSelectedCustomer(customer);
     setIsOpen(false);
     setSearchTerm('');

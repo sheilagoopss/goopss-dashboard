@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext"; // Import the useAuth hook
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 
 const styles = {
   container: {
@@ -180,7 +180,7 @@ function PinterestAutomation() {
     // If there's a logged-in user, set their store as the only option
     if (user) {
       setStores([
-        { id: 1, name: (user as Customer).store_name, pinterestAccount: "" },
+        { id: 1, name: (user as ICustomer).store_name, pinterestAccount: "" },
       ]);
     }
   }, [user]);

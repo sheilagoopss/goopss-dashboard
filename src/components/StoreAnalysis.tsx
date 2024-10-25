@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "./CustomersDropdown";
-import { Customer } from "../types/Customer";
+import { ICustomer } from "../types/Customer";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 
 const StoreAnalysis: React.FC = () => {
   const { isAdmin } = useAuth();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +21,7 @@ const StoreAnalysis: React.FC = () => {
           const customersList = customersSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-          } as Customer));
+          } as ICustomer));
           setCustomers(customersList);
         } catch (err) {
           console.error("Error fetching customers:", err);
@@ -89,7 +89,7 @@ const StoreAnalysis: React.FC = () => {
         {selectedCustomer ? (
           <p>Store analysis for {selectedCustomer.store_name}</p>
         ) : (
-          <p>Please select a customer to view store analysis.</p>
+          <p>Please select a customer first to view store analysis.</p>
         )}
       </div>
     </div>

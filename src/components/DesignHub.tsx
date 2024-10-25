@@ -1,8 +1,6 @@
 import React, {
   useState,
   useEffect,
-  useRef,
-  useCallback,
   useMemo,
   CSSProperties,
   DragEvent,
@@ -25,9 +23,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase/config";
 import { Listing, ListingImage } from "../types/Listing";
 import { FirebaseError } from "firebase/app";
-import { useDesignHubCreate } from "../hooks/useDesignHub";
 import { useTaskCreate } from "../hooks/useTask";
-import { Admin, Customer } from "../types/Customer";
+import { IAdmin, ICustomer } from "../types/Customer";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Button,
@@ -38,7 +35,6 @@ import {
   message,
   Modal,
   Popconfirm,
-  Popover,
   Row,
   Tag,
 } from "antd";
@@ -46,6 +42,7 @@ import TextArea from "antd/es/input/TextArea";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import DragDropUpload from "./common/DragDropUpload";
 import CustomersDropdown from "./CustomersDropdown";
+import { IImage } from "../types/DesignHub";
 
 // Remove the local Customer interface definition
 
@@ -53,20 +50,6 @@ interface DesignHubProps {
   customerId: string;
   isAdmin: boolean;
 }
-
-interface Image {
-  id: string;
-  url: string;
-  status: "pending" | "approved" | "revision" | "superseded";
-  title: string;
-  date: string;
-  revisionNote?: string;
-  customer_id: string;
-  originalImageId?: string;
-  currentRevisionId?: string;
-  listing_id?: string;
-}
-
 interface ListingWithImages extends Listing {
   uploadedImages: ListingImage[];
   createdAt: string;
@@ -546,16 +529,18 @@ const ImageModal = ({
 // };
 
 const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
-  const [images, setImages] = useState<Record<string, Image[]>>({});
+  const [images, setImages] = useState<Record<string, IImage[]>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("revision");
   const [selectedDesigns, setSelectedDesigns] = useState(new Set<string>());
   const [sortOrder, setSortOrder] = useState("newest");
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
+    null,
+  );
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [currentRevisionImage, setCurrentRevisionImage] =
-    useState<Image | null>(null);
+    useState<IImage | null>(null);
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [revisionComment, setRevisionComment] = useState("");
   const [customerListings, setCustomerListings] = useState<Listing[]>([]);
@@ -603,10 +588,10 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
               store_owner_name: data.store_owner_name,
               customer_id: data.customer_id,
               store_name: data.store_name,
-              email: data.email || '',
+              email: data.email || "",
               // Remove the isAdmin field
               // Add any other required properties of the Customer type here
-            } as Customer;
+            } as ICustomer;
           });
           setCustomers(customersList);
         } catch (error) {
@@ -626,7 +611,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
 
   useEffect(() => {
     const fetchImages = async () => {
-      const targetCustomerId = isAdmin ? selectedCustomer?.customer_id : customerId;
+      const targetCustomerId = isAdmin
+        ? selectedCustomer?.customer_id
+        : customerId;
       if (!targetCustomerId) return;
 
       console.log("Fetching images for customer_id:", targetCustomerId);
@@ -654,9 +641,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       }
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const fetchedImages: Image[] = [];
+        const fetchedImages: IImage[] = [];
         querySnapshot.forEach((doc) => {
-          const imageData = doc.data() as Omit<Image, "id">;
+          const imageData = doc.data() as Omit<IImage, "id">;
           if (
             imageData.url &&
             imageData.url !== "" &&
@@ -668,7 +655,8 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         console.log("Fetched images:", fetchedImages);
         setImages((prevImages) => ({
           ...prevImages,
-          [isAdmin ? selectedCustomer?.customer_id || "all" : customerId]: fetchedImages,
+          [isAdmin ? selectedCustomer?.customer_id || "all" : customerId]:
+            fetchedImages,
         }));
       });
 
@@ -752,7 +740,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     try {
       const imageRef = doc(db, "images", id);
       const imageDoc = await getDoc(imageRef);
-      const imageData = imageDoc.data() as Image;
+      const imageData = imageDoc.data() as IImage;
 
       if (imageData.originalImageId) {
         const originalImageRef = doc(db, "images", imageData.originalImageId);
@@ -768,7 +756,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       });
 
       setImages((prevImages) => {
-        const key = isAdmin ? selectedCustomer?.customer_id || "all" : customerId;
+        const key = isAdmin
+          ? selectedCustomer?.customer_id || "all"
+          : customerId;
         return {
           ...prevImages,
           [key]: prevImages[key].map((img) => {
@@ -892,7 +882,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       const snapshot = await uploadBytes(storageRef, revisionFile);
       const downloadURL = await getDownloadURL(storageRef);
 
-      const newImage: Omit<Image, "id"> = {
+      const newImage: Omit<IImage, "id"> = {
         url: downloadURL,
         status: "pending" as const, // Explicitly type this as a const
         title: revisionFile.name,
@@ -910,7 +900,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       });
 
       setImages((prevImages) => {
-        const key = isAdmin ? selectedCustomer?.customer_id || "all" : customerId;
+        const key = isAdmin
+          ? selectedCustomer?.customer_id || "all"
+          : customerId;
         return {
           ...prevImages,
           [key]: [
@@ -1082,10 +1074,11 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       await createTask({
         customerId: selectedCustomer?.customer_id || "",
         taskName: `Added ${localImages[listing.id].length} images`,
-        teamMemberName: (user as Admin)?.name || user?.email || "",
+        teamMemberName: (user as IAdmin)?.name || user?.email || "",
         dateCompleted: serverTimestamp(),
-        listingId: listing.id,
+        listingId: listing.listingID,
         isDone: true,
+        category: "Design",
       });
 
       await batch.commit();
@@ -1184,18 +1177,19 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
       await createTask({
         customerId: selectedCustomer?.customer_id || "",
         taskName: `Added 1 image`,
-        teamMemberName: (user as Admin)?.name || user?.email || "",
+        teamMemberName: (user as IAdmin)?.name || user?.email || "",
         dateCompleted: serverTimestamp(),
-        listingId: listing.id,
+        listingId: listing.listing_id,
         isDone: true,
+        category: "Design",
       });
 
       await batch.commit();
 
       await fetchCustomerListings(selectedCustomer?.customer_id || "");
       setRevisionImage("");
-      setUploadingRevision(false)
-      setPreviewImage(null)
+      setUploadingRevision(false);
+      setPreviewImage(null);
       setIsAddingRevision(false);
     } catch (error) {
       setIsAddingRevision(false);

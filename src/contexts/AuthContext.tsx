@@ -17,7 +17,7 @@ import {
   EmailAuthProvider,
 } from "firebase/auth";
 import { auth } from "../firebase/config";
-import { Admin, Customer } from "../types/Customer";
+import { IAdmin, ICustomer } from "../types/Customer";
 import { message } from "antd";
 import {
   clientSetCookie,
@@ -29,7 +29,7 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import dayjs from "dayjs";
 
 interface AuthContextType {
-  user: Customer | Admin | null;
+  user: ICustomer | IAdmin | null;
   isAdmin: boolean;
   login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -38,7 +38,7 @@ interface AuthContextType {
   loggingIn: boolean;
   googleLoggingIn: boolean;
   loading: boolean;
-  customerData: Customer | null;
+  customerData: ICustomer | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,12 +46,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<Customer | Admin | null>(null);
+  const [user, setUser] = useState<ICustomer | IAdmin | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [customerData, setCustomerData] = useState<Customer | null>(null);
+  const [customerData, setCustomerData] = useState<ICustomer | null>(null);
 
   const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const token = await user.user.getIdToken();
     clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
 
-    const customers = await FirebaseHelper.find<Customer>("customers");
+    const customers = await FirebaseHelper.find<ICustomer>("customers");
     const customerDoc = customers.find((doc) => doc.email === user.user.email);
 
     if (customerDoc) {
@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setCustomerData(customerDoc);
       setIsAdmin(false);
     } else {
-      const admins = await FirebaseHelper.find<Admin>("admin");
+      const admins = await FirebaseHelper.find<IAdmin>("admin");
       const admin = admins.find(
         (admin) =>
           admin.email?.toLowerCase() === user.user.email?.toLowerCase(),
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         const userData = {
           ...admin,
           isAdmin: true,
-        } as Admin;
+        } as IAdmin;
         setUser(userData);
         setIsAdmin(true);
         setCustomerData(null);
@@ -88,8 +88,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           customer_type: "Free",
           store_owner_name: user.user.displayName,
           logo: user.user.photoURL,
-        } as Customer);
-        const customer = await FirebaseHelper.findOne<Customer>(
+        } as ICustomer);
+        const customer = await FirebaseHelper.findOne<ICustomer>(
           "customers",
           created,
         );

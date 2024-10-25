@@ -11,7 +11,7 @@ import {
   useCustomerCreate,
   useCustomerFetchAll,
 } from "../../hooks/useCustomer";
-import { Customer } from "../../types/Customer";
+import { ICustomer } from "../../types/Customer";
 import { caseInsensitiveSearch } from "../../utils/caseInsensitveMatch";
 import Papa from "papaparse";
 import { ReloadOutlined } from "@ant-design/icons";
@@ -19,8 +19,8 @@ import { ReloadOutlined } from "@ant-design/icons";
 const { Content } = Layout;
 
 export default function CustomerManagement() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<ICustomer[]>([]);
   const [addNewCustomerModal, setAddNewCustomerModal] = useState(false);
   const { isLoading, fetchAllCustomers } = useCustomerFetchAll();
   const { isLoading: isCreating, createCustomer } = useCustomerCreate();
@@ -41,7 +41,7 @@ export default function CustomerManagement() {
   }, []);
 
   const handleSearch = (searchTerm?: string) => {
-    const filterColumns: (keyof Customer)[] = [
+    const filterColumns: (keyof ICustomer)[] = [
       "package_type",
       "email",
       "phone",
@@ -57,7 +57,7 @@ export default function CustomerManagement() {
     setFilteredCustomers(filtered);
   };
 
-  const handleAddCustomer = async (newCustomer: Customer): Promise<boolean> => {
+  const handleAddCustomer = async (newCustomer: ICustomer): Promise<boolean> => {
     const response = await createCustomer(newCustomer);
     if (response) {
       message.success({ content: "Customer Created" });
