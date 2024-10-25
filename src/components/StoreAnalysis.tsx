@@ -89,7 +89,7 @@ const StoreAnalysis: React.FC = () => {
         {selectedCustomer ? (
           <p>Store analysis for {selectedCustomer.store_name}</p>
         ) : (
-          <p>Please select a customer to view store analysis.</p>
+          <p>Please select a customer first to view store analysis.</p>
         )}
       </div>
     </div>
