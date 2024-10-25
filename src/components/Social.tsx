@@ -16,9 +16,11 @@ interface EtsyListing {
 interface Post {
   id: string;
   content: string;
-  date: Date;
+  scheduledDate: Date;  // Changed from 'date' to 'scheduledDate'
+  dateCreated: Date;    // New field
   platform: "facebook" | "instagram" | "both";
   listingId: string;
+  customerId: string;
 }
 
 export default function Social() {
@@ -125,7 +127,7 @@ export default function Social() {
     if (selectedCustomer) {
       fetchPostsForMonth(currentMonth);
     }
-  }, [selectedCustomer, currentMonth, posts]);
+  }, [selectedCustomer, currentMonth]);
 
   const handleCustomerSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const customer = customers.find(c => c.id === event.target.value);
@@ -156,45 +158,60 @@ export default function Social() {
     }
   };
 
-  const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", date: Date) => {
-    const createPost = async (plt: "facebook" | "instagram") => ({
+  const generatePost = async (listing: EtsyListing, platform: "facebook" | "instagram" | "both", scheduledDate: Date) => {
+    if (!selectedCustomer || !selectedCustomer.id) {
+      console.error("No customer selected or customer has no ID");
+      return;
+    }
+
+    const createPost = async (plt: "facebook" | "instagram"): Promise<Omit<Post, 'id'>> => ({
       content: await generateContentWithAI(listing, plt),
-      date: date,
+      scheduledDate: scheduledDate,
+      dateCreated: new Date(),
       platform: plt,
       listingId: listing.listingID,
+      customerId: selectedCustomer.id,
     });
 
     try {
-      if (selectedCustomer) {
-        const socialCollection = collection(db, `customers/${selectedCustomer.id}/social`);
-        let newPosts: Post[] = [];
+      console.log("Starting to create post(s) in Firestore");
+      const socialCollection = collection(db, 'socials');
+      let newPosts: Post[] = [];
 
-        if (platform === "both") {
-          const fbPost = await createPost("facebook");
-          const igPost = await createPost("instagram");
-          const fbDoc = await addDoc(socialCollection, fbPost);
-          const igDoc = await addDoc(socialCollection, igPost);
-          newPosts = [
-            { id: fbDoc.id, ...fbPost },
-            { id: igDoc.id, ...igPost }
-          ];
-        } else {
-          const post = await createPost(platform);
-          const doc = await addDoc(socialCollection, post);
-          newPosts = [{ id: doc.id, ...post }];
-        }
-
-        // Update the scheduled_post_date in the listing
-        const listingRef = doc(db, 'listings', listing.id);
-        await updateDoc(listingRef, { scheduled_post_date: date.toISOString() });
-
-        // Update local state
-        setPosts(prevPosts => [...prevPosts, ...newPosts]);
-        setCalendarPosts(prevPosts => [...prevPosts, ...newPosts]);
-
-        // Refresh listings
-        fetchListings();
+      if (platform === "both") {
+        const fbPost = await createPost("facebook");
+        const igPost = await createPost("instagram");
+        console.log("Attempting to add Facebook post to Firestore");
+        const fbDoc = await addDoc(socialCollection, fbPost);
+        console.log("Facebook post added, doc ID:", fbDoc.id);
+        console.log("Attempting to add Instagram post to Firestore");
+        const igDoc = await addDoc(socialCollection, igPost);
+        console.log("Instagram post added, doc ID:", igDoc.id);
+        newPosts = [
+          { id: fbDoc.id, ...fbPost },
+          { id: igDoc.id, ...igPost }
+        ];
+      } else {
+        const post = await createPost(platform);
+        console.log("Attempting to add single post to Firestore");
+        const docRef = await addDoc(socialCollection, post);
+        console.log("Post added, doc ID:", docRef.id);
+        newPosts = [{ id: docRef.id, ...post }];
       }
+
+      console.log("Updating listing with scheduled_post_date");
+      const listingRef = doc(db, 'listings', listing.id);
+      await updateDoc(listingRef, { scheduled_post_date: scheduledDate.toISOString() });
+
+      console.log("Updating local state");
+      setPosts(prevPosts => [...prevPosts, ...newPosts]);
+      setCalendarPosts(prevPosts => [...prevPosts, ...newPosts]);
+
+      console.log("Refreshing listings");
+      fetchListings();
+      fetchPostsForMonth(currentMonth);  // Add this line to refresh the posts for the current month
+
+      console.log("Posts saved to Firestore:", newPosts);
     } catch (error) {
       console.error("Error creating post:", error);
     }
@@ -203,13 +220,18 @@ export default function Social() {
   const fetchPosts = async () => {
     if (selectedCustomer) {
       try {
-        const socialCollection = collection(db, `customers/${selectedCustomer.id}/social`);
-        const socialSnapshot = await getDocs(socialCollection);
+        console.log("Fetching posts for customer:", selectedCustomer.id);
+        const socialCollection = collection(db, 'socials');
+        const q = query(socialCollection, where('customerId', '==', selectedCustomer.id));
+        const socialSnapshot = await getDocs(q);
+        console.log("Number of posts fetched:", socialSnapshot.size);
         const postsList = socialSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          date: doc.data().date.toDate(),
+          scheduledDate: doc.data().scheduledDate.toDate(),
+          dateCreated: doc.data().dateCreated.toDate(),
         } as Post));
+        console.log("Fetched posts:", postsList);
         setPosts(postsList);
       } catch (error) {
         console.error("Error fetching posts:", error);
@@ -228,11 +250,13 @@ export default function Social() {
     const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
     try {
-      const postsRef = collection(db, 'customers', selectedCustomer.id, 'social');
+      console.log("Fetching posts for month:", month);
+      const postsRef = collection(db, 'socials');
       const q = query(
         postsRef,
-        where('date', '>=', startOfMonth),
-        where('date', '<=', endOfMonth)
+        where('customerId', '==', selectedCustomer.id),
+        where('scheduledDate', '>=', startOfMonth),
+        where('scheduledDate', '<=', endOfMonth)
       );
       const querySnapshot = await getDocs(q);
       const fetchedPosts = querySnapshot.docs.map(doc => {
@@ -240,9 +264,12 @@ export default function Social() {
         return {
           id: doc.id,
           ...data,
-          date: data.date.toDate() // Convert Firestore Timestamp to JavaScript Date
+          scheduledDate: data.scheduledDate.toDate(),
+          dateCreated: data.dateCreated.toDate(),
         } as Post;
       });
+      console.log("Fetched posts for month:", fetchedPosts);
+      setPosts(fetchedPosts);
       setCalendarPosts(fetchedPosts);
     } catch (error) {
       console.error("Error fetching posts for calendar:", error);
@@ -269,7 +296,7 @@ export default function Social() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
       const postsForDay = calendarPosts.filter(post => 
-        post.date.toDateString() === date.toDateString()
+        post.scheduledDate.toDateString() === date.toDateString()  // Changed from 'date' to 'scheduledDate'
       );
 
       calendarDays.push(
