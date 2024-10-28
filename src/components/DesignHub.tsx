@@ -575,33 +575,31 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   };
 
   useEffect(() => {
-    // Fetch customers if admin
-    if (isAdmin) {
-      const fetchCustomers = async () => {
-        try {
-          const customersCollection = collection(db, "customers");
-          const customersSnapshot = await getDocs(customersCollection);
-          const customersList = customersSnapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              store_owner_name: data.store_owner_name,
-              customer_id: data.customer_id,
-              store_name: data.store_name,
-              email: data.email || "",
-              // Remove the isAdmin field
-              // Add any other required properties of the Customer type here
-            } as ICustomer;
-          });
-          setCustomers(customersList);
-        } catch (error) {
-          console.error("Error fetching customers:", error);
+    const fetchCustomers = async () => {
+      try {
+        const customersCollection = collection(db, 'customers');
+        let q;
+        
+        if (isAdmin) {
+          q = query(customersCollection);
+        } else {
+          q = query(customersCollection, where("email", "==", user?.email));
         }
-      };
 
-      fetchCustomers();
-    }
-  }, [isAdmin]);
+        const querySnapshot = await getDocs(q);
+        const customersList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ICustomer));
+        setCustomers(customersList);
+
+        if (!isAdmin && customersList.length > 0) {
+          setSelectedCustomer(customersList[0]);
+        }
+      } catch (error) {
+        console.error("Error fetching customers:", error);
+      }
+    };
+
+    fetchCustomers();
+  }, [isAdmin, user]);
 
   useEffect(() => {
     if (isAdmin && selectedCustomer) {
