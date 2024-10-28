@@ -43,9 +43,11 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
     setSearchTerm('');
   };
 
-  const filteredCustomers = customers.filter(customer =>
-    `${customer.store_name} ${customer.store_owner_name}`.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCustomers = customers
+    .filter(customer => customer.customer_type === "Paid")
+    .filter(customer =>
+      `${customer.store_name} ${customer.store_owner_name}`.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', width: '300px' }}>
@@ -86,7 +88,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
         >
           <input
             type="text"
-            placeholder="Search customers..."
+            placeholder="Search paid customers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
