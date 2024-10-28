@@ -6,9 +6,10 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import PreviousAnalysis from "./components/PreviousAnalysis";
 import { Button, Col, Row } from "antd";
-import useScrape from "../../hooks/useScrape";
 import ScrapeDataModal from "./components/ScrapeDataModal";
 import { IStoreDetail } from "../../types/StoreDetail";
+import { useStoreAnalytics } from "../../hooks/useStoreAnalytics";
+// import useScrape from "../../hooks/useScrape";
 
 const StoreAnalysis: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -18,11 +19,12 @@ const StoreAnalysis: React.FC = () => {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isScraping, setIsScraping] = useState(false);
   const [scrapedData, setScrapedData] = useState<
     IStoreDetail | undefined | null
   >();
-  const { scrape, isLoading } = useScrape();
+  const { isScraping, scrape } = useStoreAnalytics();
+  // const { scrape } = useScrape();
+  const [scrapingInProgress, setScrapingInProgress] = useState(false);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -53,13 +55,20 @@ const StoreAnalysis: React.FC = () => {
   }, [isAdmin]);
 
   const handleScraping = async () => {
-    setIsScraping(true);
     if (!selectedCustomer) {
       return null;
     }
+    setScrapingInProgress(true);
     const scrapedData = await scrape(selectedCustomer.store_name);
     console.log(scrapedData);
-    setScrapedData(scrapedData);
+    if (scrapedData?.data) {
+      setScrapedData(scrapedData?.data);
+    }
+  };
+
+  const handleCloseScraping = () => {
+    setScrapedData(undefined);
+    setScrapingInProgress(false);
   };
 
   if (loading) return <div>Loading...</div>;
@@ -150,14 +159,11 @@ const StoreAnalysis: React.FC = () => {
             </Row>
             <ScrapeDataModal
               title={selectedCustomer.store_name}
-              open={isScraping}
+              open={scrapingInProgress}
               storeName={selectedCustomer.store_name}
-              isLoading={isLoading}
+              isLoading={isScraping}
               scrapedData={scrapedData}
-              onCancel={() => {
-                setIsScraping(false);
-                setScrapedData(undefined);
-              }}
+              onCancel={handleCloseScraping}
               footer={false}
             />
           </>

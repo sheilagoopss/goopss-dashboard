@@ -1,4 +1,4 @@
-import axios from "axios";
+// import axios from "axios";
 import * as cheerio from "cheerio";
 import { IStoreDetail } from "../types/StoreDetail";
 
@@ -20,10 +20,10 @@ function cleanHTML(html: string): string {
 }
 
 export async function processStoreDetails(
-  url: string,
+  html: string,
 ): Promise<IStoreDetail | null> {
   try {
-    const { data: html } = await axios.get(url);
+    // const { data: html } = await axios.get(url);
     const $ = cheerio.load(html);
 
     const storeName = $("title").text().split(" - ")[0].trim();
@@ -61,7 +61,7 @@ export async function processStoreDetails(
       bannerImage: bannerImageUrl,
     };
   } catch (error) {
-    console.error(`Error fetching details for ${url}:`, error);
+    console.error(error);
     return null;
   }
 }
