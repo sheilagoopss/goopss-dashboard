@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { IStoreDetail } from "../types/StoreDetail";
 import { IAPIResponse } from "../types/API";
 import HttpHelper from "../helpers/HttpHelper";
-import { endpoints } from "../components/storeAnalysys/constants/endpoints";
+import { endpoints } from "../components/constants/endpoints";
 
 interface UseStoreAnalyticsReturn {
   scrape: (storeName: string) => Promise<IAPIResponse<IStoreDetail> | null>;
@@ -22,11 +22,14 @@ export function useStoreAnalytics(): UseStoreAnalyticsReturn {
       setIsScraping(true);
       try {
         const url = `https://etsy.com/shop/${storeName}`;
-        const scrapeData = await HttpHelper.post(endpoints.scrape, {
-          data: {
-            url,
+        const scrapeData = await HttpHelper.post(
+          endpoints.storeAnalytics.scrape,
+          {
+            data: {
+              url,
+            },
           },
-        });
+        );
 
         return scrapeData?.data;
       } catch (error) {
@@ -44,7 +47,7 @@ export function useStoreAnalytics(): UseStoreAnalyticsReturn {
       setIsLoading(true);
       try {
         const scrapeData = await HttpHelper.get(
-          endpoints.getStoreAnalytics(storeName),
+          endpoints.storeAnalytics.getStoreAnalytics(storeName),
         );
 
         return scrapeData?.data;
