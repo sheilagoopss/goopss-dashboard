@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Facebook, Instagram } from 'lucide-react';
 import CustomersDropdown from './CustomersDropdown';
 import { ICustomer } from '../types/Customer';
-import { Modal, Button, DatePicker, Radio, Input, Table, Card, Typography, Space, Image } from 'antd';
+import { Modal, Button, DatePicker, Radio, Input, Table, Card, Typography, Space, Image, Divider } from 'antd';
+import FacebookLoginPopup from './FacebookLoginPopup';
 
 interface EtsyListing {
   id: string;
@@ -154,7 +155,7 @@ const PostCreationModal: React.FC<{
   );
 };
 
-export default function Social() {
+const Social: React.FC = () => {
   const { isAdmin, user } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
@@ -177,6 +178,33 @@ export default function Social() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
+
+  const columns = [
+    {
+      title: 'Listing ID',
+      dataIndex: 'listingID',
+      key: 'listingID',
+    },
+    {
+      title: 'Title',
+      dataIndex: 'listingTitle',
+      key: 'listingTitle',
+    },
+    {
+      title: 'Scheduled Date',
+      dataIndex: 'scheduled_post_date',
+      key: 'scheduled_post_date',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (text: string, record: EtsyListing) => (
+        <Button onClick={() => handleSchedulePost(record)}>Schedule Post</Button>
+      ),
+    },
+  ];
+
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -483,16 +511,31 @@ export default function Social() {
     console.log("Post creation modal open state:", isPostCreationModalOpen);
   }, [isPostCreationModalOpen]);
 
+  const handleFacebookLoginSuccess = async (accessToken: string) => {
+    console.log('Logged in successfully, Access Token:', accessToken);
+
+    try {
+      // Use the API URL from environment variable
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/facebook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accessToken }),
+      });
+
+      const data = await response.json();
+      console.log('User data:', data);
+      // Process user data or perform additional actions here
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '20px' 
-      }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Social Calendar</h1>
-        
+    <div style={{ padding: '20px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Social Media Calendar</h2>
         {isAdmin && (
           <CustomersDropdown
             customers={customers}
@@ -503,83 +546,32 @@ export default function Social() {
         )}
       </div>
 
-      {selectedCustomer && (
-        <div style={{ 
-          backgroundColor: 'white', 
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-          borderRadius: '8px', 
-          padding: '16px', 
-          marginBottom: '20px' 
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img 
-              src={selectedCustomer.logo || '/placeholder-logo.png'} 
-              alt={`${selectedCustomer.store_name} logo`}
-              style={{ width: '64px', height: '64px', borderRadius: '50%' }}
-            />
-            <div>
-              <h2 style={{ fontSize: '20px', fontWeight: '600' }}>{selectedCustomer.store_name}</h2>
-              <p style={{ color: '#666' }}>{selectedCustomer.store_owner_name}</p>
-              <p style={{ fontSize: '14px', color: '#888' }}>Customer ID: {selectedCustomer.customer_id}</p>
-            </div>
-          </div>
+      {!isAdmin && selectedCustomer && (
+        <div style={{ marginBottom: '20px' }}>
+          <FacebookLoginPopup 
+            onLoginSuccess={handleFacebookLoginSuccess}
+            customerId={selectedCustomer.customer_id}
+          />
         </div>
       )}
 
-      {/* Listings table */}
-      <div style={{ marginBottom: '40px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '10px' }}>Etsy Listings</h2>
-        <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '200px' }}
-          />
-          <div>
-            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ marginRight: '10px', padding: '5px 10px' }}>Previous</button>
-            <span>Page {currentPage}</span>
-            <button onClick={handleNextPage} disabled={filteredListings.length < LISTINGS_PER_PAGE} style={{ marginLeft: '10px', padding: '5px 10px' }}>Next</button>
-          </div>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Listing ID</th>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Title</th>
-              <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredListings.map((listing) => (
-              <tr key={listing.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                <td style={{ padding: '12px' }}>{listing.listingID}</td>
-                <td style={{ padding: '12px' }}>{listing.listingTitle}</td>
-                <td style={{ padding: '12px' }}>
-                  <button 
-                    onClick={() => handleSchedulePost(listing)}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#007bff',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Schedule Post
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isAdmin && (
+        <>
+          <Card style={{ marginBottom: '20px' }}>
+            <Title level={4}>Listings</Title>
+            <Table
+              dataSource={filteredListings}
+              columns={columns}
+              loading={loading}
+              pagination={false}
+              rowKey="id"
+            />
+          </Card>
+          <Divider />
+        </>
+      )}
 
-      {/* Calendar and side panel container */}
       <div style={{ display: 'flex', gap: '20px' }}>
-        {/* Calendar view */}
         <div style={{ flex: 1 }}>
           <div className="calendar-view">
             <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -605,7 +597,6 @@ export default function Social() {
           </div>
         </div>
 
-        {/* Side panel */}
         <div style={{
           width: '300px',
           backgroundColor: 'white',
@@ -647,13 +638,17 @@ export default function Social() {
         </div>
       </div>
 
-      <PostCreationModal
-        isOpen={isPostCreationModalOpen}
-        listing={currentListing}
-        customerId={selectedCustomer?.id || ''}
-        onSave={handleSavePost}
-        onCancel={() => setIsPostCreationModalOpen(false)}
-      />
+      {isAdmin && (
+        <PostCreationModal
+          isOpen={isPostCreationModalOpen}
+          listing={currentListing}
+          customerId={selectedCustomer?.id || ''}
+          onSave={handleSavePost}
+          onCancel={() => setIsPostCreationModalOpen(false)}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default Social;
