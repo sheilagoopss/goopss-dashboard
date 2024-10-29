@@ -1,6 +1,6 @@
 import { PinterestOutlined } from "@ant-design/icons";
 import { Button } from "antd";
-import { endpoints } from "../constants/endpoints";
+import { endpoints } from "../../constants/endpoints";
 
 const PinterestButton = () => {
   async function handlePinterestLogin() {
