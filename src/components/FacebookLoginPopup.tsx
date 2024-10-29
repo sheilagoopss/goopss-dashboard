@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import FacebookLogin, { SuccessResponse, FailResponse, ProfileSuccessResponse } from '@greatsumini/react-facebook-login';
 import { db } from '../firebase/config';
 import { serverTimestamp } from 'firebase/firestore';
@@ -9,17 +9,57 @@ interface FacebookLoginPopupProps {
   customerId: string;
 }
 
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: any;
+  }
+}
+
 const FacebookLoginPopup: React.FC<FacebookLoginPopupProps> = ({ onLoginSuccess, customerId }) => {
+  useEffect(() => {
+    // Initialize Facebook SDK
+    window.fbAsyncInit = function() {
+      window.FB.init({
+        appId: process.env.REACT_APP_FACEBOOK_APP_ID,
+        cookie: true,
+        xfbml: true,
+        version: 'v18.0'
+      });
+    };
+
+    // Load Facebook SDK
+    (function(d, s, id) {
+      var js: any, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) return;
+      js = d.createElement(s);
+      js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode?.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
+  }, []);
+
+  console.log('Rendering FacebookLoginPopup with:', {
+    customerId,
+    appId: process.env.REACT_APP_FACEBOOK_APP_ID
+  });
+
   const handleResponse = async (response: SuccessResponse) => {
+    console.log('Facebook login response:', response);
+    
     if (response.accessToken) {
+      console.log('Got access token:', response.accessToken);
       onLoginSuccess(response.accessToken);
 
-      // Get user profile data
-      const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${response.accessToken}`);
-      const userData = await userResponse.json();
-
       try {
-        // Store in customers collection with a dedicated facebook section
+        // Get user profile data
+        console.log('Fetching user profile...');
+        const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${response.accessToken}`);
+        const userData = await userResponse.json();
+        console.log('User profile data:', userData);
+
+        // Store in customers collection
+        console.log('Saving to Firebase...');
         const customerRef = doc(db, 'customers', customerId);
         await setDoc(customerRef, {
           facebook_integration: {
@@ -32,12 +72,12 @@ const FacebookLoginPopup: React.FC<FacebookLoginPopupProps> = ({ onLoginSuccess,
             is_connected: true
           }
         }, { merge: true });
-        console.log('Facebook integration data saved to customer profile');
+        console.log('Successfully saved to Firebase');
       } catch (error) {
-        console.error('Error saving Facebook integration data:', error);
+        console.error('Error in Facebook integration:', error);
       }
     } else {
-      console.error('User did not authorize Facebook login');
+      console.error('No access token in response:', response);
     }
   };
 
@@ -46,10 +86,10 @@ const FacebookLoginPopup: React.FC<FacebookLoginPopupProps> = ({ onLoginSuccess,
       appId={process.env.REACT_APP_FACEBOOK_APP_ID || ''}
       onSuccess={handleResponse}
       onFail={(error: FailResponse) => {
-        console.log('Login Failed!', error);
+        console.error('Facebook Login Failed:', error);
       }}
       onProfileSuccess={(response: ProfileSuccessResponse) => {
-        console.log('Get Profile Success!', response);
+        console.log('Profile Success:', response);
       }}
       style={{
         backgroundColor: '#4267b2',
