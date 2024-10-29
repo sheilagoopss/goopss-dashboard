@@ -24,7 +24,7 @@ import UpgradeNotice from "../components/common/UpgradeNotice";
 import Tagify from "../components/tagify/Tagify";
 import TaskManagement from "../components/taskList/TaskManagement";
 import UserListingOptimization from "../components/UserListingOptimization";
-import StoreAnalysis from "../components/StoreAnalysis";
+import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
 import PinterestCallback from "../components/PinterestCallback";
 
