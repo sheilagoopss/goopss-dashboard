@@ -26,6 +26,7 @@ import TaskManagement from "../components/taskList/TaskManagement";
 import UserListingOptimization from "../components/UserListingOptimization";
 import StoreAnalysis from "../components/StoreAnalysis";
 import Stats from "../components/stats/Stats";
+import PinterestCallback from "../components/PinterestCallback";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -92,11 +93,15 @@ const Routes = () => {
   };
 
   const router = createBrowserRouter(
-    applyUpgradeNotice([
+    [
+      {
+        path: "/pinterest-callback",
+        element: <PinterestCallback />,
+      },
       {
         path: "/",
         element: <DashboardLayout />,
-        children: [
+        children: applyUpgradeNotice([
           {
             path: "/customers",
             element: isAdmin && <CustomerManagement />,
@@ -207,9 +212,9 @@ const Routes = () => {
             path: "/stats", 
             element: isAdmin && <Stats /> 
           },
-        ],
+        ]),
       },
-    ]),
+    ]
   );
 
   return loading ? (
