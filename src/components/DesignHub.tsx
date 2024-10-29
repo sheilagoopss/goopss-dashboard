@@ -317,215 +317,6 @@ const ImageModal = ({
   </div>
 );
 
-// const DesignCard = ({
-//   image,
-//   onApprove,
-//   onRevise,
-//   onSelect,
-//   isSelected,
-//   showCheckbox,
-//   isAdmin,
-//   onUploadRevision,
-// }: {
-//   image: Image;
-//   onApprove: (id: string) => void;
-//   onRevise: (id: string, note: string) => void;
-//   onSelect: (id: string, checked: boolean) => void;
-//   isSelected: boolean;
-//   showCheckbox: boolean;
-//   isAdmin: boolean;
-//   onUploadRevision: (id: string) => void;
-// }) => {
-//   const [isRevising, setIsRevising] = useState(false);
-//   const [revisionNote, setRevisionNote] = useState("");
-//   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-//   const [isRevisionNoteModalOpen, setIsRevisionNoteModalOpen] = useState(false);
-
-//   const handleImageClick = (e: React.MouseEvent) => {
-//     e.stopPropagation();
-//     setIsImageModalOpen(true);
-//   };
-
-//   const handleDownload = async (e: React.MouseEvent) => {
-//     e.stopPropagation();
-//     try {
-//       const response = await fetch(image.url);
-//       const blob = await response.blob();
-//       const url = window.URL.createObjectURL(blob);
-//       const link = document.createElement("a");
-//       link.href = url;
-//       link.download = `${image.title}.jpg`;
-//       document.body.appendChild(link);
-//       link.click();
-//       document.body.removeChild(link);
-//       window.URL.revokeObjectURL(url);
-//     } catch (error) {
-//       console.error("Failed to download image:", error);
-//     }
-//   };
-
-//   return (
-//     <div style={styles.imageContainer}>
-//       {image.url ? (
-//         <img
-//           src={image.url}
-//           alt={`Uploaded ${image.id}`}
-//           style={styles.image}
-//           onClick={handleImageClick}
-//         />
-//       ) : (
-//         <div
-//           style={{
-//             ...styles.image,
-//             backgroundColor: "#f0f0f0",
-//             display: "flex",
-//             justifyContent: "center",
-//             alignItems: "center",
-//           }}
-//         >
-//           No Image Available
-//         </div>
-//       )}
-//       <div
-//         style={{
-//           ...styles.statusLabel,
-//           backgroundColor:
-//             image.status === "approved"
-//               ? "green"
-//               : image.status === "revision"
-//               ? "orange"
-//               : image.status === "superseded"
-//               ? "gray"
-//               : "blue",
-//         }}
-//       >
-//         {image.status === "superseded" ? "replaced" : image.status}
-//       </div>
-//       {showCheckbox && !isAdmin && (
-//         <input
-//           type="checkbox"
-//           checked={isSelected}
-//           onChange={(e) => onSelect(image.id, e.target.checked)}
-//           style={{ position: "absolute", top: "5px", right: "5px" }}
-//         />
-//       )}
-//       <div
-//         style={{
-//           position: "absolute",
-//           bottom: "0",
-//           left: "0",
-//           right: "0",
-//           display: "flex",
-//           justifyContent: "space-around",
-//           padding: "5px",
-//           backgroundColor: "rgba(255, 255, 255, 0.8)",
-//         }}
-//       >
-//         {!isAdmin && image.status !== "approved" && (
-//           <>
-//             <button
-//               onClick={() => onApprove(image.id)}
-//               style={{ ...styles.actionButton, flex: 1, marginRight: "5px" }}
-//             >
-//               Approve
-//             </button>
-//             <button
-//               onClick={() => setIsRevising(true)}
-//               style={{ ...styles.actionButton, flex: 1, marginLeft: "5px" }}
-//             >
-//               Revise
-//             </button>
-//           </>
-//         )}
-//         {isAdmin && image.status === "revision" && (
-//           <>
-//             <button
-//               onClick={() => setIsRevisionNoteModalOpen(true)}
-//               style={{ ...styles.actionButton, flex: 1, marginRight: "5px" }}
-//             >
-//               View Note
-//             </button>
-//             <button
-//               onClick={() => onUploadRevision(image.id)}
-//               style={{ ...styles.actionButton, flex: 1, marginLeft: "5px" }}
-//             >
-//               Upload Revision
-//             </button>
-//           </>
-//         )}
-//         <button
-//           onClick={handleDownload}
-//           style={{
-//             ...styles.actionButton,
-//             flex: 1,
-//             marginLeft: isAdmin || image.status === "approved" ? "0" : "5px",
-//           }}
-//         >
-//           Download
-//         </button>
-//       </div>
-//       {isRevising && (
-//         <div
-//           style={{
-//             position: "fixed",
-//             top: "50%",
-//             left: "50%",
-//             transform: "translate(-50%, -50%)",
-//             backgroundColor: "white",
-//             padding: "20px",
-//             borderRadius: "8px",
-//             zIndex: 1000,
-//           }}
-//         >
-//           <h3>Request Revision</h3>
-//           <textarea
-//             value={revisionNote}
-//             onChange={(e) => setRevisionNote(e.target.value)}
-//             style={{ width: "100%", marginBottom: "10px" }}
-//           />
-//           <button
-//             onClick={() => {
-//               onRevise(image.id, revisionNote);
-//               setIsRevising(false);
-//               setRevisionNote("");
-//             }}
-//           >
-//             Submit Revision
-//           </button>
-//           <button onClick={() => setIsRevising(false)}>Cancel</button>
-//         </div>
-//       )}
-//       <ImageModal
-//         isOpen={isImageModalOpen}
-//         onClose={() => setIsImageModalOpen(false)}
-//         imageUrl={image.url}
-//         title={image.title}
-//       />
-//       <Modal
-//         isOpen={isRevisionNoteModalOpen}
-//         onRequestClose={() => setIsRevisionNoteModalOpen(false)}
-//         style={{
-//           content: {
-//             top: "50%",
-//             left: "50%",
-//             right: "auto",
-//             bottom: "auto",
-//             marginRight: "-50%",
-//             transform: "translate(-50%, -50%)",
-//             backgroundColor: "white",
-//             padding: "20px",
-//             borderRadius: "8px",
-//             maxWidth: "500px",
-//             width: "90%",
-//           },
-//         }}
-//       >
-//         <h3>Revision Note</h3>
-//         <p>{image.revisionNote || "No revision note provided."}</p>
-//         <button onClick={() => setIsRevisionNoteModalOpen(false)}>Close</button>
-//       </Modal>
-//     </div>
-//   );
 // };
 
 const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
@@ -1254,6 +1045,29 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
     await fetchCustomerListings(selectedCustomer?.customer_id || "");
   };
 
+  // Add this function after other handler functions, before the return statement
+  const handleDownloadImages = async (listing: Listing) => {
+    const images = listingImages[listing.id] || [];
+    if (images.length === 0) {
+      message.info('No images available to download');
+      return;
+    }
+
+    try {
+      message.info('Opening images in new tabs...');
+      
+      for (const image of images) {
+        window.open(image.url, '_blank');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      message.success('Please right-click and save each image manually');
+    } catch (error) {
+      console.error('Error opening images:', error);
+      message.error('Failed to open images. Please try again.');
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div
@@ -1421,16 +1235,29 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                             style={{ display: "none" }}
                             id={`file-input-${listing.id}`}
                           />
-                          <button
-                            onClick={() => handleSave(listing)}
-                            style={styles.button}
-                            disabled={
-                              !localImages[listing.id] ||
-                              localImages[listing.id].length === 0
-                            }
-                          >
-                            Save
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleSave(listing)}
+                              style={styles.button}
+                              disabled={
+                                !localImages[listing.id] ||
+                                localImages[listing.id].length === 0
+                              }
+                            >
+                              Save
+                            </button>
+                            {listingImages[listing.id]?.length > 0 && (
+                              <button
+                                onClick={() => handleDownloadImages(listing)}
+                                style={{
+                                  ...styles.button,
+                                  backgroundColor: '#28a745'  // Different color for download button
+                                }}
+                              >
+                                Download Images
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1615,5 +1442,5 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   );
 };
 
-// Change the export statement
+// Only one export statement at the end
 export { DesignHub };
