@@ -7,6 +7,7 @@ export const endpoints = {
       `${API_URL}/api/v1/storeAnalytics/${storeName}`,
   },
   facebook: {
+    getUserData: `${API_URL}/api/v1/facebook/userData`,
     login: `${API_URL}/api/v1/auth/facebook`,
   },
   pinterest: {

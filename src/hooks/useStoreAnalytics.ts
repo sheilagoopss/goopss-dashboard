@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { IStoreDetail } from "../types/StoreDetail";
 import { IAPIResponse } from "../types/API";
 import HttpHelper from "../helpers/HttpHelper";
-import { endpoints } from "../components/constants/endpoints";
+import { endpoints } from "../constants/endpoints";
 
 interface UseStoreAnalyticsReturn {
   scrape: (storeName: string) => Promise<IAPIResponse<IStoreDetail> | null>;
