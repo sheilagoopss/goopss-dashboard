@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext"; // Import the useAuth hook
 import { ICustomer } from "../types/Customer";
-import PinterestLoginPopup from './PinterestLoginPopup';
-import CustomersDropdown from './CustomersDropdown';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
 
 const styles = {
   container: {
@@ -130,12 +126,20 @@ const styles = {
   },
 };
 
+function PinterestConnectButton({ onConnect }: { onConnect: () => void }) {
+  return (
+    <button style={styles.button} onClick={onConnect}>
+      Connect to Pinterest
+    </button>
+  );
+}
+
 function PinterestAutomation() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth(); // Get the current user from AuthContext
   const [isPinterestConnected, setIsPinterestConnected] = useState(false);
-  const [customers, setCustomers] = useState<ICustomer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
-  const [stores, setStores] = useState<Array<{ id: number; name: string; pinterestAccount: string }>>([]);
+  const [stores, setStores] = useState<
+    Array<{ id: number; name: string; pinterestAccount: string }>
+  >([]);
 
   const [rules, setRules] = useState<
     Array<{
@@ -171,33 +175,6 @@ function PinterestAutomation() {
     "Europe/London",
     "Asia/Tokyo",
   ];
-
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const customersCollection = collection(db, 'customers');
-        let q;
-        
-        if (isAdmin) {
-          q = query(customersCollection);
-        } else {
-          q = query(customersCollection, where("email", "==", user?.email));
-        }
-
-        const querySnapshot = await getDocs(q);
-        const customersList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ICustomer));
-        setCustomers(customersList);
-
-        if (!isAdmin && customersList.length > 0) {
-          setSelectedCustomer(customersList[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching customers:", error);
-      }
-    };
-
-    fetchCustomers();
-  }, [isAdmin, user]);
 
   useEffect(() => {
     // If there's a logged-in user, set their store as the only option
@@ -245,68 +222,19 @@ function PinterestAutomation() {
     alert("Successfully connected to Pinterest!");
   };
 
-  // Show customer selection first if admin and no customer selected
-  if (isAdmin && !selectedCustomer) {
-    return (
-      <div style={styles.container}>
-        <div style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>Pinterest Automation</h2>
-            <CustomersDropdown
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              isAdmin={isAdmin}
-            />
-          </div>
-          <p>Please select a customer to proceed.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show Pinterest connect button if not connected
   if (!isPinterestConnected) {
     return (
       <div style={styles.container}>
-        <div style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>Pinterest Automation</h2>
-            {isAdmin && (
-              <CustomersDropdown
-                customers={customers}
-                selectedCustomer={selectedCustomer}
-                setSelectedCustomer={setSelectedCustomer}
-                isAdmin={isAdmin}
-              />
-            )}
-          </div>
-          <PinterestLoginPopup 
-            onLoginSuccess={(accessToken) => {
-              setIsPinterestConnected(true);
-              // Handle the access token
-            }}
-            customerId={selectedCustomer?.customer_id || ''}
-          />
-        </div>
+        <PinterestConnectButton onConnect={handleConnectPinterest} />
       </div>
     );
   }
 
-  // Main content after Pinterest is connected
   return (
     <div style={styles.container}>
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <h2 style={styles.title}>Pinterest Automation</h2>
-          {isAdmin && (
-            <CustomersDropdown
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              isAdmin={isAdmin}
-            />
-          )}
         </div>
       </div>
 

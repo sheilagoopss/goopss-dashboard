@@ -7,8 +7,6 @@ import CustomersDropdown from './CustomersDropdown';
 import { ICustomer } from '../types/Customer';
 import { Modal, Button, DatePicker, Radio, Input, Table, Card, Typography, Space, Image, Divider } from 'antd';
 import FacebookLoginPopup from './FacebookLoginPopup';
-import FacebookButton from './common/FacebookButton';
-import PinterestButton from './common/PinterestButton';
 
 interface EtsyListing {
   id: string;
@@ -548,16 +546,15 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {/* {!isAdmin && selectedCustomer && (
+      {!isAdmin && selectedCustomer && (
         <div style={{ marginBottom: '20px' }}>
           <FacebookLoginPopup 
             onLoginSuccess={handleFacebookLoginSuccess}
             customerId={selectedCustomer.customer_id}
           />
         </div>
-      )} */}
-      <FacebookButton />
-      <PinterestButton />
+      )}
+
       {isAdmin && (
         <>
           <Card style={{ marginBottom: '20px' }}>
