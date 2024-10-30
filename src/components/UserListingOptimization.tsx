@@ -28,6 +28,7 @@ const formatDate = (date: Date | null): string => {
 
 export default function UserListingOptimization() {
   const { customerData } = useAuth();
+  const [activeTab, setActiveTab] = useState('optimized');
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,6 +37,22 @@ export default function UserListingOptimization() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<"optimizedAt" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const tabs = [
+    { 
+      id: 'optimized', 
+      label: 'Listings we\'ve optimized',
+      subtitle: 'We\'ve enhanced these listings to improve their performance and visibility.'
+    },
+    { 
+      id: 'duplicated', 
+      label: 'Listings we\'ve duplicated',
+      subtitle: 'These listings have been replicated to expand your reach across multiple platforms.'
+    }
+  ];
+
+  // Get first name from store_owner_name
+  const firstName = customerData?.store_owner_name?.split(' ')[0] || '';
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -139,117 +156,203 @@ export default function UserListingOptimization() {
   // Then in the return statement, add this before the table
   return (
     <div>
-      <h2>Optimized Listings for {customerData?.store_name}</h2>
-      <p>Total optimized listings: {filteredListings.length}</p>
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ position: 'relative', width: '300px' }}>
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '10px', paddingLeft: '30px' }}
-          />
-          <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+      {/* Header Section */}
+      <div style={{ width: '100%', padding: '32px 16px', backgroundColor: '#f9fafb' }}>
+        <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+          <h1 style={{ 
+            fontSize: '2.5rem', 
+            fontWeight: 'bold', 
+            marginBottom: '2rem', 
+            textAlign: 'center',
+            fontFamily: 'Poppins, sans-serif'
+          }}>
+            Hi {firstName} 👋! Here's everything we've done with your listings
+          </h1>
+          <div style={{ 
+            backgroundColor: 'white', 
+            borderRadius: '0.5rem', 
+            padding: '0.5rem',
+            display: 'flex',
+            justifyContent: 'between',
+            alignItems: 'center',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  position: 'relative',
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '0.75rem',
+                  fontSize: '1.5rem',
+                  fontWeight: '600',
+                  transition: 'all 0.3s',
+                  color: activeTab === tab.id ? 'white' : '#4B5563',
+                  backgroundColor: activeTab === tab.id ? '#7C3AED' : 'transparent',
+                  borderRadius: '0.375rem',
+                  fontFamily: 'Poppins, sans-serif'
+                }}
+              >
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ 
+            marginTop: '2rem',
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            padding: '1.5rem',
+            transition: 'opacity 0.3s, transform 0.3s',
+            opacity: 1,
+            transform: 'translateY(0)'
+          }}>
+            <div>
+              <h2 style={{ 
+                fontSize: '2rem',
+                fontWeight: '600',
+                marginBottom: '1rem',
+                fontFamily: 'Poppins, sans-serif'
+              }}>
+                {tabs.find(tab => tab.id === activeTab)?.label}
+              </h2>
+              <p style={{ 
+                fontSize: '1.25rem',
+                color: '#4B5563',
+                fontFamily: 'Poppins, sans-serif'
+              }}>
+                {tabs.find(tab => tab.id === activeTab)?.subtitle}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
-        <thead>
-          <tr>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Details</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Image</th>
-            <th style={{ padding: '10px', textAlign: 'left' }}>Listing ID</th>
-            <th style={{ padding: '10px', textAlign: 'left', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Optimized Title</th>
-            <th 
-              style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}
-              onClick={handleSort}
-            >
-              Optimized On{' '}
-              <ArrowUpDown size={14} style={{ verticalAlign: 'middle', marginLeft: '5px' }} />
-              {sortColumn === "optimizedAt" && (sortDirection === "asc" ? " ↑" : " ↓")}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentListings.map((listing) => (
-            <React.Fragment key={listing.id}>
-              <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleRowExpansion(listing.id)}>
-                <td style={{ padding: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    {expandedRows.includes(listing.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    <span style={{ marginLeft: '5px', fontSize: '14px', color: '#666' }}>
-                      {expandedRows.includes(listing.id) ? 'Hide Details' : 'Show Details'}
-                    </span>
-                  </div>
-                </td>
-                <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.optimizedTitle} style={{ width: '50px', height: '50px', objectFit: 'cover' }} /></td>
-                <td style={{ padding: '10px' }}>{listing.listingID}</td>
-                <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <a 
-                    href={getEtsyUrl(listing.listingID)} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ color: '#0066c0', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
-                  >
-                    {listing.optimizedTitle}
-                    <ExternalLink size={14} style={{ marginLeft: '5px' }} />
-                  </a>
-                </td>
-                <td style={{ padding: '10px' }}>{formatDate(listing.optimizedAt)}</td>
+
+      {/* Content Section - Show based on active tab */}
+      {activeTab === 'optimized' ? (
+        <>
+          {/* Existing optimized listings content */}
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ position: 'relative', width: '300px' }}>
+              <input
+                type="text"
+                placeholder="Search listings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ width: '100%', padding: '10px', paddingLeft: '30px' }}
+              />
+              <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+            </div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '10px', textAlign: 'left' }}>Details</th>
+                <th style={{ padding: '10px', textAlign: 'left' }}>Image</th>
+                <th style={{ padding: '10px', textAlign: 'left' }}>Listing ID</th>
+                <th style={{ padding: '10px', textAlign: 'left', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Optimized Title</th>
+                <th 
+                  style={{ padding: '10px', textAlign: 'left', cursor: 'pointer' }}
+                  onClick={handleSort}
+                >
+                  Optimized On{' '}
+                  <ArrowUpDown size={14} style={{ verticalAlign: 'middle', marginLeft: '5px' }} />
+                  {sortColumn === "optimizedAt" && (sortDirection === "asc" ? " ↑" : " ↓")}
+                </th>
               </tr>
-              {expandedRows.includes(listing.id) && (
-                <tr>
-                  <td colSpan={5}>
-                    <div style={{ padding: '20px', backgroundColor: '#f0f0f0' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                        <div>
-                          <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Original Listing</h4>
-                          <p><strong>Title:</strong> {listing.listingTitle}</p>
-                          <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} /></p>
-                          <div style={{ marginTop: '8px' }}>
-                            <strong>Tags:</strong>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                              {listing.listingTags.split(',').map((tag, index) => (
-                                <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
-                                  {tag.trim()}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Optimized Listing</h4>
-                          <p><strong>Title:</strong> {listing.optimizedTitle}</p>
-                          <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription)} /></p>
-                          <div style={{ marginTop: '8px' }}>
-                            <strong>Tags:</strong>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                              {listing.optimizedTags.split(',').map((tag, index) => (
-                                <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
-                                  {tag.trim()}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
+            </thead>
+            <tbody>
+              {currentListings.map((listing) => (
+                <React.Fragment key={listing.id}>
+                  <tr style={{ backgroundColor: '#f9f9f9', cursor: 'pointer' }} onClick={() => toggleRowExpansion(listing.id)}>
+                    <td style={{ padding: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        {expandedRows.includes(listing.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <span style={{ marginLeft: '5px', fontSize: '14px', color: '#666' }}>
+                          {expandedRows.includes(listing.id) ? 'Hide Details' : 'Show Details'}
+                        </span>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
-          <ChevronLeft /> Previous
-        </button>
-        <span>Page {currentPage} of {pageCount}</span>
-        <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, pageCount))} disabled={currentPage === pageCount}>
-          Next <ChevronRight />
-        </button>
-      </div>
+                    </td>
+                    <td style={{ padding: '10px' }}><img src={listing.primaryImage} alt={listing.optimizedTitle} style={{ width: '50px', height: '50px', objectFit: 'cover' }} /></td>
+                    <td style={{ padding: '10px' }}>{listing.listingID}</td>
+                    <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <a 
+                        href={getEtsyUrl(listing.listingID)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ color: '#0066c0', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                      >
+                        {listing.optimizedTitle}
+                        <ExternalLink size={14} style={{ marginLeft: '5px' }} />
+                      </a>
+                    </td>
+                    <td style={{ padding: '10px' }}>{formatDate(listing.optimizedAt)}</td>
+                  </tr>
+                  {expandedRows.includes(listing.id) && (
+                    <tr>
+                      <td colSpan={5}>
+                        <div style={{ padding: '20px', backgroundColor: '#f0f0f0' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                            <div>
+                              <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Original Listing</h4>
+                              <p><strong>Title:</strong> {listing.listingTitle}</p>
+                              <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.listingDescription)} /></p>
+                              <div style={{ marginTop: '8px' }}>
+                                <strong>Tags:</strong>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                  {listing.listingTags.split(',').map((tag, index) => (
+                                    <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                                      {tag.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <h4 style={{ fontWeight: 'bold', marginBottom: '8px' }}>Optimized Listing</h4>
+                              <p><strong>Title:</strong> {listing.optimizedTitle}</p>
+                              <p><strong>Description:</strong> <span dangerouslySetInnerHTML={sanitizeHtml(listing.optimizedDescription)} /></p>
+                              <div style={{ marginTop: '8px' }}>
+                                <strong>Tags:</strong>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                                  {listing.optimizedTags.split(',').map((tag, index) => (
+                                    <span key={index} style={{ backgroundColor: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                                      {tag.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
+              <ChevronLeft /> Previous
+            </button>
+            <span>Page {currentPage} of {pageCount}</span>
+            <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, pageCount))} disabled={currentPage === pageCount}>
+              Next <ChevronRight />
+            </button>
+          </div>
+        </>
+      ) : (
+        // Duplicated listings content (empty for now)
+        <div style={{ 
+          padding: '2rem',
+          textAlign: 'center',
+          color: '#6B7280'
+        }}>
+          <p>No duplicated listings available yet.</p>
+        </div>
+      )}
     </div>
   );
 }
