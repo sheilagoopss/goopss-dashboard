@@ -55,7 +55,7 @@ const getLastImageDate = (listing: Listing): string => {
   return formatDate(lastImage?.statusChangeDate || null);
 };
 
-// Update the fetchImagesForListing function with proper types
+// Update the fetchImagesForListing function
 const fetchImagesForListing = async (listingId: string): Promise<ListingImage[]> => {
   try {
     const imagesRef = collection(db, 'images');
@@ -249,25 +249,8 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
               Images Added
             </h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-              {/* Primary Image */}
-              <div style={{ flex: '0 0 auto' }}>
-                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Primary Image:</div>
-                <img 
-                  src={listing.primaryImage} 
-                  alt="Primary"
-                  style={{ 
-                    width: '120px', 
-                    height: '120px', 
-                    objectFit: 'cover',
-                    borderRadius: '4px',
-                    border: '1px solid #eee'
-                  }}
-                />
-              </div>
-              {/* Additional Images */}
-              {listing.uploadedImages && listing.uploadedImages.length > 0 && (
+              {listing.uploadedImages && listing.uploadedImages.length > 0 ? (
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, marginBottom: '8px' }}>Additional Images:</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {listing.uploadedImages.map((image, index) => (
                       <img 
@@ -285,6 +268,8 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
                     ))}
                   </div>
                 </div>
+              ) : (
+                <div style={{ color: '#666' }}>No additional images have been added.</div>
               )}
             </div>
             {/* Date information */}
@@ -347,9 +332,13 @@ export default function UserListingOptimization() {
         const fetchedListings = await Promise.all(querySnapshot.docs.map(async doc => {
           const data = doc.data();
           let images: ListingImage[] = [];
-          if (data.hasImage) {
+          
+          // Check hasImage flag first
+          if (data.hasImage === true) {  // Explicitly check for true
+            // Then fetch images using the listing's ID
             images = await fetchImagesForListing(doc.id);
           }
+
           return {
             id: doc.id,
             ...data,
