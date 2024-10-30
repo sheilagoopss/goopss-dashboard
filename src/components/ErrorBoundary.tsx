@@ -13,19 +13,21 @@ class ErrorBoundary extends Component<Props, State> {
     hasError: false
   };
 
-  public static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  public static getDerivedStateFromError(error: Error): State {
+    if (!error.message.includes('ResizeObserver')) {
+      return { hasError: true };
+    }
+    return { hasError: false };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    if (!error.message.includes('ResizeObserver')) {
+      console.error("Error:", error);
+      console.error("Error Info:", errorInfo);
+    }
   }
 
   public render() {
-    if (this.state.hasError) {
-      return <h1>Sorry.. there was an error</h1>;
-    }
-
     return this.props.children;
   }
 }

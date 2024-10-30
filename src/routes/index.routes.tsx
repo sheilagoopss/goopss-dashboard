@@ -27,6 +27,8 @@ import UserListingOptimization from "../components/UserListingOptimization";
 import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
 import PinterestCallback from "../components/PinterestCallback";
+import StoreInformation from "../components/storeInformation/StoreInformation";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -211,6 +213,35 @@ const Routes = () => {
           { 
             path: "/stats", 
             element: isAdmin && <Stats /> 
+          },
+          {
+            path: "/store-information",
+            element: (
+              <div style={{ padding: "20px", maxWidth: '1200px', margin: '0 auto' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <h1>Store Information</h1>
+                  {isAdmin && (
+                    <CustomersDropdown
+                      customers={customers}
+                      selectedCustomer={selectedCustomer}
+                      setSelectedCustomer={setSelectedCustomer}
+                      isAdmin={isAdmin}
+                    />
+                  )}
+                </div>
+                <StoreInformation 
+                  customerId={selectedCustomer?.customer_id || ""} 
+                  isAdmin={isAdmin}
+                />
+              </div>
+            ),
           },
         ]),
       },
