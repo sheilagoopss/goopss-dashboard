@@ -28,6 +28,7 @@ export interface ICustomer {
 }
 
 export interface IAdmin {
+  id: string;
   name?: string;
   email: string;
   isAdmin: boolean;

@@ -39,6 +39,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     pinterestLink: ''
   });
   const [error, setError] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState('');
 
   // Add styles for the error notification
   const notificationStyles = {
@@ -73,6 +74,9 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         const customerDoc = await getDoc(doc(db, 'customers', customerId));
         if (customerDoc.exists()) {
           const data = customerDoc.data();
+          const firstNameOnly = data.store_owner_name?.split(' ')[0] || '';
+          setFirstName(firstNameOnly);
+          
           setFormData({
             fullName: data.store_owner_name || '',
             email: data.email || '',
@@ -378,7 +382,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         </div>
       )}
 
-      <h2 style={{ marginBottom: '1rem' }}>Hello! 👋 Let's get to know you better.</h2>
+      <h2 style={{ marginBottom: '1rem' }}>Hello {firstName}! 👋 Let's get to know you better.</h2>
       <p style={{ marginBottom: '2rem' }}>
         We're excited to learn about your Etsy journey. Fill out the details below to help us tailor your experience.
       </p>

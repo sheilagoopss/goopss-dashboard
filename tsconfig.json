@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "es2015",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -9,21 +13,16 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "module": "commonjs",
+    "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": [
-      "node",
-      "@babel/core",
-      "@babel/generator",
-      "@babel/template",
-      "@babel/traverse",
-      "history",
-      "prettier"
-    ]
+    "downlevelIteration": true,
+    "baseUrl": "src"
   },
-  "include": ["src", "server.ts"]
+  "include": [
+    "src"
+  ]
 }
