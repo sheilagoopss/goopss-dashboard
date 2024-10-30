@@ -13,6 +13,7 @@ import {
   BarChartOutlined,
   LineChartOutlined,
   PieChartOutlined,
+  InstagramOutlined,
 } from '@ant-design/icons';
 import logo from '../assets/images/logo.png';
 
@@ -47,6 +48,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       key: 'social',
       icon: <MessageOutlined />,
       label: <Link to="/social">Social</Link>,
+    },
+    {
+      key: 'pinterest',
+      icon: <InstagramOutlined />,
+      label: <Link to="/pinterest">Pinterest</Link>,
     },
     {
       key: 'ads-recommendation',

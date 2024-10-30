@@ -86,18 +86,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         icon: tool.icon,
         label: (
           <Link to={tool.path}>
-            <span style={{ position: 'relative' }}>
+            <span style={{ position: 'relative', paddingRight: '50px' }}>
               {tool.label}
               {tool.comingSoon && (
                 <span style={{
                   position: 'absolute',
-                  top: -10,
-                  right: -60,
+                  top: -6,
+                  right: -40,
                   background: '#FFF8E6',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  fontSize: '10px',
-                  color: '#000'
+                  padding: '1px 6px',
+                  borderRadius: '8px',
+                  fontSize: '9px',
+                  color: '#000',
+                  whiteSpace: 'nowrap'
                 }}>
                   Coming Soon
                 </span>

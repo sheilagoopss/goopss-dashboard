@@ -25,6 +25,7 @@ import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
+import StoreInformation from "../components/storeInformation/StoreInformation";
 
 export default function AppRoutes() {
   const { isAdmin, user } = useAuth();
@@ -89,7 +90,7 @@ export default function AppRoutes() {
             <Route 
               path="listings" 
               element={
-                <div>
+                <div style={{ paddingTop: '16px' }}>
                   <div style={{ 
                     marginBottom: '24px',
                     display: 'flex',
@@ -118,6 +119,7 @@ export default function AppRoutes() {
               } 
             />
             <Route path="social" element={<Social />} />
+            <Route path="pinterest" element={<PinterestAutomation />} />
             <Route 
               path="ads-recommendation" 
               element={<AdsRecommendation customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
@@ -128,21 +130,7 @@ export default function AppRoutes() {
             <Route 
               path="plan" 
               element={
-                <div>
-                  <div style={{ 
-                    marginBottom: '24px',
-                    display: 'flex',
-                    justifyContent: 'flex-end'
-                  }}>
-                    <div style={{ width: '300px' }}>
-                      <CustomersDropdown 
-                        customers={customers}
-                        selectedCustomer={selectedCustomer}
-                        setSelectedCustomer={setSelectedCustomer}
-                        isAdmin={true}
-                      />
-                    </div>
-                  </div>
+                <div style={{ paddingTop: '16px' }}>
                   <Plan 
                     customers={customers} 
                     selectedCustomer={selectedCustomer} 
@@ -167,26 +155,29 @@ export default function AppRoutes() {
             <Route path="tagify" element={<Tagify />} />
             <Route
               path="description-hero"
-              element={<UpgradeNotice />}
+              element={<div style={{ 
+                textAlign: 'center', 
+                padding: '40px',
+                fontSize: '18px',
+                color: '#666'
+              }}>
+                Coming Soon
+              </div>}
             />
             <Route
               path="ads-recommendation"
-              element={
-                <AdsRecommendation 
-                  customerId={user?.id || ''} 
-                  isAdmin={false}
-                />
-              }
+              element={<div style={{ 
+                textAlign: 'center', 
+                padding: '40px',
+                fontSize: '18px',
+                color: '#666'
+              }}>
+                Coming Soon
+              </div>}
             />
             <Route
               path="my-info"
-              element={
-                <Plan
-                  customers={customers}
-                  selectedCustomer={selectedCustomer}
-                  setSelectedCustomer={setSelectedCustomer}
-                />
-              }
+              element={<StoreInformation customerId={user?.id || ''} isAdmin={false} />}
             />
           </>
         )}
