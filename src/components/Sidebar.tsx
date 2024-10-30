@@ -36,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       key: 'home',
       label: "Home",
       icon: <HomeOutlined />,
+      path: "/home",
       children: [
         { key: 'my-info', label: "My Info", path: "/my-info" }
       ]
@@ -68,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       key: item.key,
       icon: item.icon,
       label: item.children ? (
-        item.label
+        <Link to={item.path}>{item.label}</Link>
       ) : (
         <Link to={item.path}>{item.label}</Link>
       ),

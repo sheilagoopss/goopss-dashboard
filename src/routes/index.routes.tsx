@@ -23,7 +23,7 @@ import { useState, useEffect } from "react";
 import { ICustomer, IAdmin } from "../types/Customer";
 import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 
@@ -31,6 +31,8 @@ export default function AppRoutes() {
   const { isAdmin, user } = useAuth();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
+  const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
@@ -47,12 +49,55 @@ export default function AppRoutes() {
     }
   };
 
-  // Add useEffect to fetch customers when component mounts
+  // Add function to fetch current user's type
+  const fetchUserType = async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    try {
+      console.log("Fetching user type for ID:", user.id);
+      const userDoc = await getDocs(
+        query(collection(db, "customers"), where("customer_id", "==", user.id))
+      );
+      console.log("Query result:", userDoc.docs.map(doc => doc.data()));
+      if (!userDoc.empty) {
+        const userData = userDoc.docs[0].data() as ICustomer;
+        console.log("Found user data:", userData);
+        setUserType(userData.customer_type);
+      } else {
+        console.log("No user document found");
+        setUserType("Free");
+      }
+    } catch (error) {
+      console.error("Error fetching user type:", error);
+      setUserType("Free");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
+      setIsLoading(false);
+    } else if (user?.id) {
+      fetchUserType();
     }
-  }, [isAdmin]);
+  }, [isAdmin, user]);
+
+  console.log("Current state:", { isAdmin, userType, isLoading });
+
+  if (!isAdmin && isLoading && user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        Loading...
+      </div>
+    );
+  }
 
   // Protected route wrapper
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -142,42 +187,61 @@ export default function AppRoutes() {
           </>
         ) : (
           <>
-            <Route index element={<Navigate to="/design-hub" replace />} />
-            <Route
-              path="design-hub"
-              element={<UserDesignHub customerId={user?.id || ''} />}
-            />
-            <Route
-              path="listings"
-              element={<UserListingOptimization />}
-            />
-            <Route path="social" element={<Social />} />
-            <Route path="tagify" element={<Tagify />} />
-            <Route
-              path="description-hero"
-              element={<div style={{ 
-                textAlign: 'center', 
-                padding: '40px',
-                fontSize: '18px',
-                color: '#666'
-              }}>
-                Coming Soon
-              </div>}
-            />
-            <Route
-              path="ads-recommendation"
-              element={<div style={{ 
-                textAlign: 'center', 
-                padding: '40px',
-                fontSize: '18px',
-                color: '#666'
-              }}>
-                Coming Soon
-              </div>}
-            />
+            <Route index element={<Navigate to="/home" replace />} />
+            <Route path="home" element={
+              userType === "Free" ? <UpgradeNotice /> : (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px',
+                  fontSize: '18px',
+                  color: '#666'
+                }}>
+                  Welcome to Goopss Dashboard
+                </div>
+              )
+            } />
             <Route
               path="my-info"
               element={<StoreInformation customerId={user?.id || ''} isAdmin={false} />}
+            />
+            <Route
+              path="design-hub"
+              element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
+            />
+            <Route
+              path="listings"
+              element={userType === "Free" ? <UpgradeNotice /> : <UserListingOptimization />}
+            />
+            <Route 
+              path="social" 
+              element={userType === "Free" ? <UpgradeNotice /> : <Social />} 
+            />
+            <Route path="tagify" element={<Tagify />} />
+            <Route
+              path="description-hero"
+              element={
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px',
+                  fontSize: '18px',
+                  color: '#666'
+                }}>
+                  Coming Soon
+                </div>
+              }
+            />
+            <Route
+              path="ads-recommendation"
+              element={
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px',
+                  fontSize: '18px',
+                  color: '#666'
+                }}>
+                  Coming Soon
+                </div>
+              }
             />
           </>
         )}
