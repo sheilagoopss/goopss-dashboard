@@ -14,7 +14,16 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "@babel/core",
+      "@babel/generator",
+      "@babel/template",
+      "@babel/traverse",
+      "history",
+      "prettier"
+    ]
   },
   "include": ["src", "server.ts"]
 }

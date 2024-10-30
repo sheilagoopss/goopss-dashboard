@@ -3,18 +3,28 @@ export interface ICustomer {
   customer_id: string;
   store_name: string;
   store_owner_name: string;
-  email?: string;
-  phone?: string;
+  email: string;
+  customer_type: "Free" | "Paid";
+  logo?: string;
   date_joined?: string;
   package_type?: string;
-  customer_type?: "Free" | "Paid";
   products_count?: number;
   notes?: string;
   weeks?: number;
   lists?: number;
   sales_when_joined?: number;
   current_sales?: number;
-  logo?: string;
+  phone?: string;
+  
+  // New fields for store information
+  website?: string;
+  industry?: string;
+  about?: string;
+  target_audience?: string;
+  facebook_link?: string;
+  instagram_link?: string;
+  pinterest_link?: string;
+  content_tone?: string;
 }
 
 export interface IAdmin {

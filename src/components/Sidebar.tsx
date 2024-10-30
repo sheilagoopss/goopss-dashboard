@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { ICustomer } from "../types/Customer";
-import { Users, FileText, Calendar, Palette, BarChart2, PenTool, Layout, CheckSquare, BarChart, Tag, Sheet } from 'lucide-react';
+import { Users, FileText, Calendar, Palette, BarChart2, PenTool, Layout, CheckSquare, BarChart, Tag, Sheet, Store } from 'lucide-react';
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -21,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     { path: "/pinterest", label: "Pinterest", icon: PenTool },
     { path: "/taskSummary", label: "Task Summary", icon: CheckSquare },
     { path: "/store-analysis", label: "Store Analysis", icon: BarChart },
+    { path: "/store-information", label: "Store Information", icon: Store },
     { path: "/stats", label: "Stats", icon: Sheet },
   ];
 
@@ -30,6 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     { path: "/social", label: "Social", icon: Calendar },
     { path: "/design-hub", label: "Design", icon: Palette },
     { path: "/ads-recommendation", label: "Ads Recommendation", icon: BarChart2 },
+    { path: "/store-information", label: "Store Information", icon: Store },
     { path: "/tagify", label: "Tagify", icon: Tag },
   ];
 

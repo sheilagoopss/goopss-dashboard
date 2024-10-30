@@ -27,6 +27,8 @@ import UserListingOptimization from "../components/UserListingOptimization";
 import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
 import PinterestCallback from "../components/PinterestCallback";
+import StoreInformation from "../components/storeInformation/StoreInformation";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const FREE_ROUTES = ["/", "/tagify"];
 
@@ -123,60 +125,59 @@ const Routes = () => {
           {
             path: "/seo",
             element: (
-              <div style={{ padding: "20px", maxWidth: '1200px', margin: '0 auto' }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "20px",
-                  }}
-                >
-                  <h1>SEO</h1>
-                  {isAdmin && (
-                    <CustomersDropdown
-                      customers={customers}
-                      selectedCustomer={selectedCustomer}
-                      setSelectedCustomer={setSelectedCustomer}
-                      isAdmin={isAdmin}
-                    />
-                  )}
-                </div>
-                {isAdmin && selectedCustomer && (
-                  <div style={{ 
-                    backgroundColor: 'white', 
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-                    borderRadius: '8px', 
-                    padding: '16px', 
-                    marginBottom: '20px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <img 
-                        src={selectedCustomer.logo || '/placeholder-logo.png'} 
-                        alt={`${selectedCustomer.store_name} logo`}
-                        style={{ width: '64px', height: '64px', borderRadius: '50%' }}
-                      />
-                      <div>
-                        <h2 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 4px 0' }}>{selectedCustomer.store_name}</h2>
-                        <p style={{ color: '#666', margin: '0 0 4px 0' }}>{selectedCustomer.store_owner_name}</p>
-                        <p style={{ fontSize: '14px', color: '#888', margin: '0' }}>Customer ID: {selectedCustomer.customer_id}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <>
                 {isAdmin ? (
-                  <>
+                  <div style={{ width: '100%' }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        marginBottom: "20px",
+                      }}
+                    >
+                      <CustomersDropdown
+                        customers={customers}
+                        selectedCustomer={selectedCustomer}
+                        setSelectedCustomer={setSelectedCustomer}
+                        isAdmin={isAdmin}
+                      />
+                    </div>
+                    {selectedCustomer && (
+                      <div style={{ 
+                        backgroundColor: 'white', 
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
+                        borderRadius: '8px', 
+                        padding: '16px', 
+                        marginBottom: '20px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <img 
+                            src={selectedCustomer.logo || '/placeholder-logo.png'} 
+                            alt={`${selectedCustomer.store_name} logo`}
+                            style={{ width: '64px', height: '64px', borderRadius: '50%' }}
+                          />
+                          <div>
+                            <h2 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 4px 0' }}>{selectedCustomer.store_name}</h2>
+                            <p style={{ color: '#666', margin: '0 0 4px 0' }}>{selectedCustomer.store_owner_name}</p>
+                            <p style={{ fontSize: '14px', color: '#888', margin: '0' }}>Customer ID: {selectedCustomer.customer_id}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {selectedCustomer && (
                       <SEOListings
                         customerId={selectedCustomer.customer_id}
                         storeName={selectedCustomer.store_name}
                       />
                     )}
-                  </>
+                  </div>
                 ) : (
-                  <UserListingOptimization />
+                  <div style={{ width: '100%' }}>
+                    <UserListingOptimization />
+                  </div>
                 )}
-              </div>
+              </>
             ),
           },
           { path: "/pinterest-automation", element: <PinterestAutomation /> },
@@ -211,6 +212,35 @@ const Routes = () => {
           { 
             path: "/stats", 
             element: isAdmin && <Stats /> 
+          },
+          {
+            path: "/store-information",
+            element: (
+              <div style={{ width: '100%' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <h1>Store Information</h1>
+                  {isAdmin && (
+                    <CustomersDropdown
+                      customers={customers}
+                      selectedCustomer={selectedCustomer}
+                      setSelectedCustomer={setSelectedCustomer}
+                      isAdmin={isAdmin}
+                    />
+                  )}
+                </div>
+                <StoreInformation 
+                  customerId={selectedCustomer?.customer_id || ""} 
+                  isAdmin={isAdmin}
+                />
+              </div>
+            ),
           },
         ]),
       },
