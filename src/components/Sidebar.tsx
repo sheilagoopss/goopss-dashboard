@@ -32,9 +32,11 @@ interface CustomerData {
 
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
-  const [homeExpanded, setHomeExpanded] = useState(false);
+  const [homeExpanded, setHomeExpanded] = useState(() => {
+    const saved = localStorage.getItem('homeExpanded');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
-  const [openKeys, setOpenKeys] = useState<string[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -58,6 +60,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     fetchCustomerData();
   }, [user]);
 
+  useEffect(() => {
+    localStorage.setItem('homeExpanded', JSON.stringify(homeExpanded));
+  }, [homeExpanded]);
+
   const menuItems = [
     {
       key: 'home',
@@ -79,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     ...(homeExpanded ? [{
       key: 'my-info',
       label: (
-        <span
+        <div
           onClick={(e) => {
             e.stopPropagation();
             navigate('/my-info');
@@ -87,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           style={{ cursor: 'pointer', paddingLeft: '32px' }}
         >
           My Info
-        </span>
+        </div>
       )
     }] : []),
     {
