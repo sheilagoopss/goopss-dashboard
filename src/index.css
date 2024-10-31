@@ -1,0 +1,98 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ant Design custom styles */
+.ant-menu-inline .ant-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.ant-layout {
+  background: #fff;
+}
+
+.ant-menu-inline .ant-menu-item:not(:last-child) {
+  margin-bottom: 4px;
+}
+
+.ant-menu-light .ant-menu-item-selected {
+  background-color: #f5f5f5;
+}
+
+/* Admin specific styles */
+.admin-content {
+  padding: 8px !important;
+}
+
+.admin-content .ant-card {
+  margin-bottom: 8px;
+}
+
+.admin-content .ant-table {
+  margin-top: 8px;
+}
+
+.admin-content .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.admin-content h1, 
+.admin-content h2, 
+.admin-content h3, 
+.admin-content h4 {
+  margin-bottom: 8px !important;
+  margin-top: 8px !important;
+}
+
+.admin-content .ant-row {
+  margin-bottom: 8px;
+}
+
+.admin-content .ant-divider {
+  margin: 8px 0;
+}
+
+.admin-content .ant-table-wrapper {
+  margin-top: 8px;
+}
+
+.admin-content .ant-table.ant-table-small {
+  font-size: 14px;
+}
+
+.admin-content .ant-table.ant-table-small .ant-table-thead > tr > th,
+.admin-content .ant-table.ant-table-small .ant-table-tbody > tr > td {
+  padding: 8px;
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Override Ant Design Layout styles */
+:where(.css-dev-only-do-not-override-1318dkc).ant-layout.ant-layout-has-sider >.ant-layout,
+.ant-layout.ant-layout-has-sider >.ant-layout {
+  flex: none !important;
+} 

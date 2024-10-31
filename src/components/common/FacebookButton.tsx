@@ -1,6 +1,6 @@
 import { FacebookOutlined } from "@ant-design/icons";
 import { Button } from "antd";
-import { endpoints } from "../constants/endpoints";
+import { endpoints } from "../../constants/endpoints";
 
 const FacebookButton = () => {
   async function handleFacebookLogin() {
