@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu, Button, Card, Dropdown } from "antd";
 import { 
@@ -34,6 +34,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
   const [homeExpanded, setHomeExpanded] = useState(false);
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -61,17 +63,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       key: 'home',
       icon: <Home className="h-6 w-6" />,
       label: (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setHomeExpanded(!homeExpanded);
+          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+        >
           <span>Home</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${homeExpanded ? 'rotate-180' : ''}`} />
         </div>
       ),
-      onClick: () => setHomeExpanded(!homeExpanded),
     },
     ...(homeExpanded ? [{
       key: 'my-info',
-      label: <Link to="/my-info" onClick={(e) => e.stopPropagation()}>My Info</Link>,
-      style: { paddingLeft: '32px' }
+      label: (
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/my-info');
+          }}
+          style={{ cursor: 'pointer', paddingLeft: '32px' }}
+        >
+          My Info
+        </span>
+      )
     }] : []),
     {
       key: 'design-hub',
@@ -161,8 +178,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
             paddingTop: 0
           }}
           items={menuItems}
-          openKeys={homeExpanded ? ['home'] : []}
-          onOpenChange={(keys) => setHomeExpanded(keys.includes('home'))}
         />
 
         <div style={{ padding: '8px 16px' }}>
