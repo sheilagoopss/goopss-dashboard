@@ -1,21 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Layout, Menu, Button, Card, Avatar, Dropdown } from "antd";
-import type { MenuProps } from 'antd';
+import { Layout, Menu, Button, Card, Dropdown } from "antd";
 import { 
-  FileTextOutlined,
-  HomeOutlined,
-  AppstoreOutlined,
-  MessageOutlined,
-  TagOutlined,
-  FileOutlined,
-  StarOutlined,
-  RocketOutlined,
-  LogoutOutlined,
-  UserOutlined,
-  MoreOutlined,
-} from '@ant-design/icons';
+  FileText,
+  Home,
+  LayoutGrid,
+  MessageSquare,
+  Tag,
+  FileEdit,
+  Sparkles,
+  MoreVertical,
+  ChevronDown
+} from "lucide-react";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../firebase/config";
 import logo from '../assets/images/logo.png';
 import rocket from '../assets/images/rocket.png';
 
@@ -25,90 +24,107 @@ interface SidebarProps {
   isAdmin: boolean;
 }
 
-type MenuItem = Required<MenuProps>['items'][number];
+interface CustomerData {
+  logo: string;
+  store_name: string;
+  store_owner_name: string;
+}
 
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
   const [homeExpanded, setHomeExpanded] = useState(false);
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
 
-  const userMenuItems = [
-    { 
-      key: 'home',
-      label: "Home",
-      icon: <HomeOutlined />,
-      path: "/home",
-      children: [
-        { key: 'my-info', label: "My Info", path: "/my-info" }
-      ]
-    },
-    { key: 'design-hub', label: "Design Hub", icon: <AppstoreOutlined />, path: "/design-hub" },
-    { key: 'listings', label: "Listings", icon: <FileTextOutlined />, path: "/listings" },
-    { key: 'social', label: "Social", icon: <MessageOutlined />, path: "/social" },
-  ];
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (!user?.id) return;
+      try {
+        const q = query(
+          collection(db, "customers"),
+          where("customer_id", "==", user.id)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const data = querySnapshot.docs[0].data() as CustomerData;
+          setCustomerData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching customer data:", error);
+      }
+    };
 
-  const aiTools = [
-    { key: 'tagify', label: "Tagify", icon: <TagOutlined />, path: "/tagify" },
-    { 
-      key: 'description-hero', 
-      label: "Description Hero", 
-      icon: <FileOutlined />, 
-      path: "/description-hero",
-      comingSoon: true 
-    },
-    { 
-      key: 'ads-recommendation', 
-      label: "Ads Analysis", 
-      icon: <StarOutlined />, 
-      path: "/ads-recommendation",
-      comingSoon: true 
-    },
-  ];
+    fetchCustomerData();
+  }, [user]);
 
-  const menuItems: MenuItem[] = [
-    ...userMenuItems.map(item => ({
-      key: item.key,
-      icon: item.icon,
-      label: item.children ? (
-        <Link to={item.path}>{item.label}</Link>
-      ) : (
-        <Link to={item.path}>{item.label}</Link>
-      ),
-      children: item.children?.map(child => ({
-        key: child.key,
-        label: <Link to={child.path}>{child.label}</Link>,
-      }))
-    })),
-    { type: 'divider' as const },
+  const menuItems = [
     {
+      key: 'home',
+      icon: <Home className="h-6 w-6" />,
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span>Home</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${homeExpanded ? 'rotate-180' : ''}`} />
+        </div>
+      ),
+      onClick: () => setHomeExpanded(!homeExpanded),
+    },
+    ...(homeExpanded ? [{
+      key: 'my-info',
+      label: <Link to="/my-info" onClick={(e) => e.stopPropagation()}>My Info</Link>,
+      style: { paddingLeft: '32px' }
+    }] : []),
+    {
+      key: 'design-hub',
+      icon: <LayoutGrid className="h-6 w-6" />,
+      label: <Link to="/design-hub">Design Hub</Link>
+    },
+    {
+      key: 'listings',
+      icon: <FileText className="h-6 w-6" />,
+      label: <Link to="/listings">Listings</Link>
+    },
+    {
+      key: 'social',
+      icon: <MessageSquare className="h-6 w-6" />,
+      label: <Link to="/social">Social</Link>
+    },
+    {
+      key: 'ai-tools',
       type: 'group' as const,
       label: 'AI Tools',
-      children: aiTools.map(tool => ({
-        key: tool.key,
-        icon: tool.icon,
-        label: (
-          <Link to={tool.path}>
-            <span style={{ position: 'relative', paddingRight: '50px' }}>
-              {tool.label}
-              {tool.comingSoon && (
-                <span style={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -40,
-                  background: '#FFF8E6',
-                  padding: '1px 6px',
-                  borderRadius: '8px',
-                  fontSize: '9px',
-                  color: '#000',
-                  whiteSpace: 'nowrap'
-                }}>
-                  Coming Soon
-                </span>
-              )}
-            </span>
-          </Link>
-        )
-      }))
+      children: [
+        {
+          key: 'tagify',
+          icon: <Tag className="h-6 w-6" />,
+          label: <Link to="/tagify">Tagify</Link>
+        },
+        {
+          key: 'description-hero',
+          icon: <FileEdit className="h-6 w-6" />,
+          label: (
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Link to="/description-hero">Description Hero</Link>
+              <span className="coming-soon-badge">Coming Soon</span>
+            </div>
+          )
+        },
+        {
+          key: 'ads-recommendation',
+          icon: <Sparkles className="h-6 w-6" />,
+          label: (
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Link to="/ads-recommendation">Ads Analysis</Link>
+              <span className="coming-soon-badge">Coming Soon</span>
+            </div>
+          )
+        }
+      ]
     }
+  ];
+
+  const dropdownItems = [
+    { key: 'help', label: 'Help' },
+    { key: 'signout', label: 'Sign out', onClick: logout }
   ];
 
   return (
@@ -121,16 +137,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         left: 0,
         top: 0,
         bottom: 0,
-        overflowY: 'auto',
+        overflowY: 'visible',
+        fontFamily: 'Poppins, sans-serif'
       }}
     >
       <div style={{ 
         height: '100vh',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'visible'
       }}>
-        <div style={{ padding: '24px 16px 0' }}>
-          <img src={logo} alt="goopss logo" style={{ height: 64, marginBottom: 24 }} />
+        <div style={{ padding: '4px 24px 0' }}>
+          <img src={logo} alt="goopss logo" style={{ height: 64, marginBottom: 0 }} />
         </div>
 
         <Menu
@@ -138,19 +156,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           style={{ 
             borderRight: 'none',
             flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden'
+            overflow: 'visible',
+            position: 'relative',
+            paddingTop: 0
           }}
           items={menuItems}
+          openKeys={homeExpanded ? ['home'] : []}
+          onOpenChange={(keys) => setHomeExpanded(keys.includes('home'))}
         />
 
-        <div style={{ padding: '20px 16px' }}>
+        <div style={{ padding: '8px 16px' }}>
           <Card
             style={{ 
               background: '#f5f5f5',
               borderRadius: 12,
               position: 'relative',
-              marginBottom: 16
+              marginBottom: 8
             }}
           >
             <div style={{ 
@@ -165,48 +186,92 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               textAlign: 'center',
               marginTop: 24
             }}>
-              <p style={{ fontWeight: 500, marginBottom: 16 }}>
+              <p style={{ 
+                fontWeight: 500, 
+                marginBottom: 16,
+                fontSize: '14px'
+              }}>
                 Want to accelerate your store?
               </p>
               <Button
                 type="primary"
-                shape="round"
                 block
                 style={{ 
                   background: '#141414',
-                  borderColor: '#141414'
+                  borderColor: '#141414',
+                  borderRadius: '9999px',
+                  height: 'auto',
+                  padding: '8px 0'
                 }}
               >
                 Join goopss
               </Button>
             </div>
           </Card>
+        </div>
 
+        <div style={{ 
+          borderTop: '1px solid #f0f0f0',
+          padding: '8px',
+          marginTop: 'auto'
+        }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            padding: '12px 16px',
-            marginTop: 'auto'
+            gap: '12px'
           }}>
-            <Button
-              type="text"
-              icon={<LogoutOutlined />}
-              onClick={logout}
-              className="flex w-full items-center gap-3 rounded-full px-6 py-6 text-base font-medium hover:bg-zinc-900 hover:text-white group"
+            <img
+              src={customerData?.logo || logo}
+              alt="Store logo"
               style={{
-                height: 'auto',
-                width: '100%',
-                textAlign: 'left',
+                height: '48px',
+                width: '48px',
+                borderRadius: '50%',
+                padding: '8px'
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
-                fontSize: '16px',
-                padding: '24px',
-                borderRadius: '9999px',
-              }}
-            >
-              Logout
-            </Button>
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ 
+                    fontSize: '16px',
+                    fontWeight: 500,
+                    color: '#000'
+                  }}>
+                    {customerData?.store_name || 'Goopss Store'}
+                  </span>
+                  <span style={{ 
+                    fontSize: '14px',
+                    color: '#666'
+                  }}>
+                    {customerData?.store_owner_name || 'Frankie Sullivan'}
+                  </span>
+                </div>
+                <Dropdown
+                  menu={{ items: dropdownItems }}
+                  placement="topRight"
+                  trigger={['click']}
+                >
+                  <Button
+                    type="text"
+                    icon={<MoreVertical size={20} />}
+                    style={{ 
+                      border: 'none',
+                      width: '36px',
+                      height: '36px',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  />
+                </Dropdown>
+              </div>
+            </div>
           </div>
         </div>
       </div>
