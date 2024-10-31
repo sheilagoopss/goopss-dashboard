@@ -9,7 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
-import { DesignHub } from "../components/DesignHub";
+// import { DesignHub } from "../components/DesignHub";
 import UserDesignHub from "../components/UserDesignHub";
 import Plan from "../components/Plan";
 import Social from "../components/Social";
@@ -27,6 +27,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import { Spin } from 'antd';
+import DesignHub from "components/designHub/DesignHub";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -146,10 +147,11 @@ export default function AppRoutes() {
         {isAdmin ? (
           <>
             <Route index element={<CustomerManagement />} />
-            <Route 
+            {/* <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            />
+            /> */}
+            <Route path="design-hub" element={<DesignHub />} />
             <Route 
               path="listings" 
               element={
