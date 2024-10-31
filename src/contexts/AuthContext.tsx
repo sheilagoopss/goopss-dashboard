@@ -29,7 +29,7 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import dayjs from "dayjs";
 
 interface AuthContextType {
-  user: ICustomer | IAdmin | null | undefined;
+  user: ICustomer | IAdmin | null;
   isAdmin: boolean;
   login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -41,23 +41,12 @@ interface AuthContextType {
   customerData: ICustomer | null;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: undefined,
-  isAdmin: false,
-  login: async () => {},
-  logout: async () => {},
-  googleLogin: async () => {},
-  toggleAdminMode: () => {},
-  loggingIn: false,
-  googleLoggingIn: false,
-  loading: true,
-  customerData: null,
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<ICustomer | IAdmin | null | undefined>(undefined);
+  const [user, setUser] = useState<ICustomer | IAdmin | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);

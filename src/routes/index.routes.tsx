@@ -26,7 +26,6 @@ import Stats from "../components/stats/Stats";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
-import { Spin } from 'antd';
 
 export default function AppRoutes() {
   const { isAdmin, user } = useAuth();
@@ -34,7 +33,6 @@ export default function AppRoutes() {
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
@@ -78,43 +76,31 @@ export default function AppRoutes() {
   };
 
   useEffect(() => {
-    if (user === undefined) return;
-    
-    setIsAuthChecked(true);
-    
     if (isAdmin) {
       fetchCustomers();
       setIsLoading(false);
     } else if (user?.id) {
       fetchUserType();
-    } else {
-      setIsLoading(false);
     }
   }, [isAdmin, user]);
 
-  // Create a loading component to reuse
-  const LoadingScreen = () => (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      flexDirection: 'column',
-      gap: '16px'
-    }}>
-      <Spin size="large" />
-      <span style={{ color: '#666' }}>Loading...</span>
-    </div>
-  );
+  console.log("Current state:", { isAdmin, userType, isLoading });
 
-  if (!isAuthChecked) {
-    return <LoadingScreen />;
+  if (!isAdmin && isLoading && user) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        Loading...
+      </div>
+    );
   }
 
   // Protected route wrapper
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!isAuthChecked) return null;
-    
     if (!user) {
       console.log("No user found, redirecting to login");
       return <Navigate to="/login" replace />;
@@ -128,13 +114,7 @@ export default function AppRoutes() {
       <Route 
         path="/login" 
         element={
-          !isAuthChecked ? (
-            <LoadingScreen />
-          ) : user ? (
-            <Navigate to="/" replace />
-          ) : (
-            <LoginPage />
-          )
+          user ? <Navigate to="/" replace /> : <LoginPage />
         } 
       />
       <Route
