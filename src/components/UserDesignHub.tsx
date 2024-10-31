@@ -1,522 +1,486 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, getDocs, query, where, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { Listing, ListingImage } from '../types/Listing';
-import { Input, Select, Spin, Pagination, Modal, Button, message, Form } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react'
+import { collection, getDocs, query, where, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
+import { db } from '../firebase/config'
+import { Listing, ListingImage } from '../types/Listing'
+import { Layout, Card, Button, Input, Select, Spin, Pagination, Modal, Tabs, Checkbox, message, Form } from 'antd'
+import { CheckOutlined, CloseOutlined, DownloadOutlined, ZoomInOutlined, RightOutlined } from '@ant-design/icons'
 
-const { Search } = Input;
-const { Option } = Select;
+const { Header, Content } = Layout
+const { Search } = Input
+const { Option } = Select
+const { TabPane } = Tabs
 
-interface UserDesignHubProps {
-  customerId: string;
-}
+const ITEMS_PER_PAGE = 10
 
-const ITEMS_PER_PAGE = 12;
+const ImageModal: React.FC<{ visible: boolean; onClose: () => void; imageUrl: string; title: string }> = ({ visible, onClose, imageUrl, title }) => (
+  <Modal visible={visible} onCancel={onClose} footer={null} width={800}>
+    <img src={imageUrl} alt={title} style={{ width: '100%', height: 'auto' }} />
+  </Modal>
+)
 
-export const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
-  const [customerListings, setCustomerListings] = useState<Listing[]>([]);
-  const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('pending');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [selectedListing, setSelectedListing] = useState<string | null>(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [revisionModalVisible, setRevisionModalVisible] = useState(false);
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
-  const [form] = Form.useForm();
+const DesignCard: React.FC<{
+  design: ListingImage;
+  onApprove: (id: string) => void;
+  onRevise: (id: string, note: string) => void;
+  onSelect: (id: string, isSelected: boolean) => void;
+  isSelected: boolean;
+  showCheckbox: boolean;
+}> = ({ design, onApprove, onRevise, onSelect, isSelected, showCheckbox }) => {
+  const [isRevising, setIsRevising] = useState(false)
+  const [revisionNote, setRevisionNote] = useState('')
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [form] = Form.useForm()
 
-  const imageCache = useRef<{
-    [customerId: string]: {
-      [status: string]: Record<string, ListingImage[]>
-    }
-  }>({});
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsImageModalOpen(true)
+  }
 
-  useEffect(() => {
-    if (customerId) {
-      fetchCustomerListings(customerId);
-    }
-  }, [customerId]);
-
-  useEffect(() => {
-    if (customerId) {
-      fetchImagesForStatus(customerId, statusFilter);
-    }
-  }, [customerId, statusFilter]);
-
-  const fetchCustomerListings = async (customerId: string) => {
-    setLoading(true);
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     try {
-      const listingsRef = collection(db, 'listings');
-      const q = query(
-        listingsRef, 
-        where('customer_id', '==', customerId),
-        where('hasImage', '==', true)
-      );
-      const querySnapshot = await getDocs(q);
-      
-      const listings: Listing[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Listing));
-      console.log("Fetched listings with hasImage=true:", listings);
-      setCustomerListings(listings);
-
-      await fetchImagesForStatus(customerId, statusFilter);
+      const response = await fetch(design.url)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${design.id}.jpg`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error("Error fetching customer listings:", error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to download image:', error)
     }
-  };
+  }
 
-  const fetchImagesForStatus = async (customerId: string, status: string) => {
-    setLoading(true);
-    try {
-      // Check if images for this status are already in the cache
-      if (imageCache.current[customerId]?.[status]) {
-        setListingImages(imageCache.current[customerId][status]);
-        setLoading(false);
-        return;
-      }
-
-      const imagesRef = collection(db, 'images');
-      const imagesQuery = query(
-        imagesRef, 
-        where('customer_id', '==', customerId),
-        status === 'all' ? where('status', 'in', ['pending', 'approved', 'revision']) : where('status', '==', status)
-      );
-      const imagesSnapshot = await getDocs(imagesQuery);
-      
-      const newImages: Record<string, ListingImage[]> = {};
-      imagesSnapshot.docs.forEach(doc => {
-        const image = { id: doc.id, ...doc.data() } as ListingImage;
-        if (image.listing_id) {
-          if (!newImages[image.listing_id]) {
-            newImages[image.listing_id] = [];
-          }
-          newImages[image.listing_id].push(image);
-        }
-      });
-
-      console.log("Fetched images for customer:", customerId, "Status:", status, "Images:", newImages);
-
-      // Update the cache
-      if (!imageCache.current[customerId]) {
-        imageCache.current[customerId] = {};
-      }
-      imageCache.current[customerId][status] = newImages;
-
-      setListingImages(newImages);
-    } catch (error) {
-      console.error("Error fetching images:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredListings = useMemo(() => {
-    console.log("Filtering listings. Status filter:", statusFilter); // Add this log
-    return customerListings
-      .filter(listing => {
-        const matchesSearch = 
-          listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          listing.listingID.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const listingImagesArray = listingImages[listing.id] || [];
-        console.log(`Listing ${listing.id} images:`, listingImagesArray); // Add this log
-        
-        let matchesStatus = true;
-        if (statusFilter !== 'all') {
-          matchesStatus = listingImagesArray.some(img => img.status === statusFilter);
-        }
-        
-        const shouldInclude = matchesSearch && matchesStatus;
-        console.log(`Listing ${listing.id} included:`, shouldInclude); // Add this log
-        return shouldInclude;
-      });
-  }, [customerListings, listingImages, searchTerm, statusFilter]);
-
-  // Move this useEffect after filteredListings declaration
-  useEffect(() => {
-    console.log('customerListings:', customerListings);
-    console.log('listingImages:', listingImages);
-    console.log('filteredListings:', filteredListings);
-  }, [customerListings, listingImages, filteredListings]);
-
-  const paginatedListings = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredListings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredListings, currentPage]);
-
-  const handleImagePreview = (imageUrl: string) => {
-    setPreviewImage(imageUrl);
-  };
-
-  const getFilteredImages = (listingId: string) => {
-    const images = listingImages[listingId] || [];
-    return statusFilter === 'all' ? images : images.filter(img => img.status === statusFilter);
-  };
-
-  const handleStatusChange = (value: string) => {
-    setStatusFilter(value);
-    setCurrentPage(1); // Reset to first page when changing filter
-    fetchImagesForStatus(customerId, value); // Fetch images for the new status
-  };
-
-  const handleApprove = async (listingId: string) => {
-    try {
-      const images = listingImages[listingId] || [];
-      const pendingImages = images.filter(img => img.status === 'pending');
-
-      if (pendingImages.length === 0) {
-        message.info('No pending images to approve.');
-        return;
-      }
-
-      const batch = writeBatch(db);
-      pendingImages.forEach(image => {
-        const imageRef = doc(db, 'images', image.id);
-        batch.update(imageRef, { status: 'approved' });
-      });
-
-      await batch.commit();
-
-      // Update local state
-      setListingImages(prev => ({
-        ...prev,
-        [listingId]: images.map(img => 
-          img.status === 'pending' ? { ...img, status: 'approved' } : img
-        )
-      }));
-
-      message.success('Images approved successfully.');
-    } catch (error) {
-      console.error('Error approving images:', error);
-      message.error('Failed to approve images. Please try again.');
-    }
-  };
-
-  const handleRevise = (imageId: string) => {
-    setSelectedImageId(imageId);
-    setRevisionModalVisible(true);
-  };
-
-  const handleRevisionSubmit = async (values: { revisionNote: string }) => {
-    if (!selectedImageId) return;
-
-    try {
-      const imageRef = doc(db, 'images', selectedImageId);
-      await updateDoc(imageRef, { 
-        status: 'revision',
-        statusChangeDate: serverTimestamp(),
-        revisionNote: values.revisionNote
-      });
-
-      // Update local state
-      setListingImages(prev => {
-        const updatedImages = { ...prev };
-        for (const listingId in updatedImages) {
-          updatedImages[listingId] = updatedImages[listingId].map(img => 
-            img.id === selectedImageId 
-              ? { ...img, status: 'revision', revisionNote: values.revisionNote }
-              : img
-          );
-        }
-        return updatedImages;
-      });
-
-      message.success('Revision request submitted successfully.');
-      setRevisionModalVisible(false);
-      form.resetFields();
-    } catch (error) {
-      console.error('Error submitting revision request:', error);
-      message.error('Failed to submit revision request. Please try again.');
-    }
-  };
-
-  const handleOpenModal = (listingId: string) => {
-    setSelectedListing(listingId);
-    setIsModalVisible(true);
-  };
-
-  const handleCloseModal = () => {
-    setSelectedListing(null);
-    setIsModalVisible(false);
-  };
-
-  const handleApproveImage = async (imageId: string) => {
-    if (!selectedListing) return;
-
-    try {
-      const imageRef = doc(db, 'images', imageId);
-      await updateDoc(imageRef, { 
-        status: 'approved',
-        statusChangeDate: serverTimestamp()
-      });
-
-      // Update local state
-      setListingImages(prev => ({
-        ...prev,
-        [selectedListing]: prev[selectedListing].map(img => 
-          img.id === imageId ? { ...img, status: 'approved', statusChangeDate: new Date() } : img
-        )
-      }));
-
-      message.success('Image approved successfully.');
-    } catch (error) {
-      console.error('Error approving image:', error);
-      message.error('Failed to approve image. Please try again.');
-    }
-  };
-
-  const handleReviseImage = (imageId: string) => {
-    setSelectedImageId(imageId);
-    setRevisionModalVisible(true);
-  };
+  const handleRevisionSubmit = () => {
+    form.validateFields().then(values => {
+      onRevise(design.id, values.revisionNote)
+      setIsRevising(false)
+      form.resetFields()
+    })
+  }
 
   return (
-    <div style={styles.container}>
-      <h2>Your Designs</h2>
-      <div style={{ marginBottom: 16 }}>
-        <Search
-          placeholder="Search listings by title or ID"
-          onChange={e => setSearchTerm(e.target.value)}
-          style={{ width: 300, marginRight: 16 }}
-        />
-        <Select
-          defaultValue="pending"
-          style={{ width: 120, marginRight: 16 }}
-          onChange={handleStatusChange}
-        >
-          <Option value="all">All Status</Option>
-          <Option value="pending">Pending</Option>
-          <Option value="approved">Approved</Option>
-          <Option value="revision">Revision</Option>
-        </Select>
-      </div>
-      {loading ? (
-        <Spin size="large" />
-      ) : (
-        <>
-          <div style={styles.cardGrid}>
-            {paginatedListings.map(listing => (
-              <div key={listing.id} style={styles.card}>
-                <div style={styles.cardContent}>
-                  <p style={styles.cardId}>ID: {listing.listingID}</p>
-                  <h4 style={styles.cardTitle} title={listing.listingTitle}>
-                    {listing.listingTitle}
-                  </h4>
-                  <div style={styles.uploadedImagesPreview}>
-                    {getFilteredImages(listing.id).map((image, index) => (
-                      <div key={`uploaded-${index}`} style={styles.thumbnailContainer}>
-                        <img 
-                          src={image.url} 
-                          alt={`Uploaded ${index + 1}`}
-                          style={styles.uploadedImageThumbnail}
-                          onClick={() => handleImagePreview(image.url)}
-                        />
-                        <span style={{
-                          position: 'absolute',
-                          bottom: '0',
-                          right: '0',
-                          background: image.status === 'approved' ? 'green' : image.status === 'revision' ? 'orange' : 'blue',
-                          color: 'white',
-                          padding: '2px 5px',
-                          fontSize: '10px',
-                          borderRadius: '3px'
-                        }}>
-                          {image.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={styles.cardActions}>
-                    <Button 
-                      onClick={() => handleOpenModal(listing.id)}
-                      style={styles.actionButton}
-                    >
-                      Approve/Revise
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Pagination
-            current={currentPage}
-            total={filteredListings.length}
-            pageSize={ITEMS_PER_PAGE}
-            onChange={setCurrentPage}
-            style={{ marginTop: 16, textAlign: 'center' }}
+    <Card
+      hoverable
+      style={{ width: 200 }}
+      cover={
+        <div style={{ position: 'relative', height: 200, overflow: 'hidden' }}>
+          <img
+            alt={design.id}
+            src={design.url}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onClick={handleImageClick}
           />
-        </>
-      )}
-      <Modal
-        title="Manage Images"
-        visible={isModalVisible}
-        onCancel={handleCloseModal}
-        footer={null}
-        width={800}
-      >
-        {selectedListing && (
-          <div style={styles.modalContent}>
-            {getFilteredImages(selectedListing).map((image, index) => (
-              <div key={image.id} style={styles.modalImageContainer}>
-                <img 
-                  src={image.url} 
-                  alt={`Image ${index + 1}`}
-                  style={styles.modalImage}
-                />
-                <div style={styles.modalImageActions}>
-                  <Button 
-                    onClick={() => handleApproveImage(image.id)}
-                    disabled={image.status === 'approved'}
-                    style={styles.approveButton}
-                  >
-                    Approve
-                  </Button>
-                  <Button 
-                    onClick={() => handleReviseImage(image.id)}
-                    disabled={image.status === 'revision'}
-                    style={styles.reviseButton}
-                  >
-                    Request Revision
-                  </Button>
-                </div>
-                <span style={{
-                  ...styles.statusLabel,
-                  background: image.status === 'approved' ? 'green' : image.status === 'revision' ? 'orange' : 'blue',
-                }}>
-                  {image.status}
-                </span>
-              </div>
-            ))}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            background: design.status === 'approved' ? '#52c41a' : design.status === 'revision' ? '#faad14' : '#1890ff',
+            color: 'white',
+            padding: '2px 8px',
+            borderBottomLeftRadius: 4
+          }}>
+            {design.status}
           </div>
-        )}
-      </Modal>
-      <Modal
-        visible={!!previewImage}
-        footer={null}
-        onCancel={() => setPreviewImage(null)}
-      >
-        <img alt="Preview" style={{ width: '100%' }} src={previewImage || ''} />
-      </Modal>
+        </div>
+      }
+      actions={[
+        <Button icon={<CheckOutlined />} onClick={() => onApprove(design.id)} disabled={design.status === 'approved'} />,
+        <Button icon={<CloseOutlined />} onClick={() => setIsRevising(true)} disabled={design.status === 'revision'} />,
+        <Button icon={<DownloadOutlined />} onClick={handleDownload} />,
+      ]}
+    >
+      <Card.Meta
+        title={design.id}
+        description={
+          <>
+            <p>Date: {
+              design.statusChangeDate 
+                ? new Date(design.statusChangeDate).toLocaleDateString()
+                : 'N/A'
+            }</p>
+            {design.revisionNote && <p>Revision: {design.revisionNote}</p>}
+            {showCheckbox && (
+              <Checkbox checked={isSelected} onChange={(e) => onSelect(design.id, e.target.checked)}>
+                Select
+              </Checkbox>
+            )}
+          </>
+        }
+      />
       <Modal
         title="Request Revision"
-        visible={revisionModalVisible}
-        onCancel={() => {
-          setRevisionModalVisible(false);
-          form.resetFields();
-        }}
-        footer={null}
+        visible={isRevising}
+        onOk={handleRevisionSubmit}
+        onCancel={() => setIsRevising(false)}
       >
-        <Form form={form} onFinish={handleRevisionSubmit}>
+        <Form form={form}>
           <Form.Item
             name="revisionNote"
             rules={[{ required: true, message: 'Please enter revision notes' }]}
           >
             <Input.TextArea rows={4} placeholder="Enter revision notes" />
           </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit">
-              Submit Revision Request
-            </Button>
-          </Form.Item>
         </Form>
       </Modal>
-    </div>
-  );
-};
+      <ImageModal
+        visible={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        imageUrl={design.url}
+        title={design.id}
+      />
+    </Card>
+  )
+}
 
-const styles = {
-  container: {
-    padding: '20px',
-  },
-  cardGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-    gap: '1rem',
-  },
-  card: {
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    overflow: 'hidden',
-  },
-  cardContent: {
-    padding: '16px',
-  },
-  cardId: {
-    fontSize: '14px',
-    color: '#666',
-  },
-  cardTitle: {
-    fontSize: '16px',
-    fontWeight: 'bold' as const,
-    marginBottom: '8px',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-  },
-  uploadedImagesPreview: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: '5px',
-    marginTop: '10px',
-  },
-  thumbnailContainer: {
-    position: 'relative' as const,
-  },
-  uploadedImageThumbnail: {
-    width: '50px',
-    height: '50px',
-    objectFit: 'cover' as const,
-    cursor: 'pointer',
-  },
-  cardActions: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginTop: '10px',
-  },
-  approveButton: {
-    backgroundColor: '#52c41a',
-    color: 'white',
-  },
-  reviseButton: {
-    backgroundColor: '#faad14',
-    color: 'white',
-  },
-  modalContent: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-    gap: '1rem',
-  },
-  modalImageContainer: {
-    position: 'relative' as const,
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    padding: '8px',
-  },
-  modalImage: {
-    width: '100%',
-    height: '150px',
-    objectFit: 'cover' as const,
-    marginBottom: '8px',
-  },
-  modalImageActions: {
-    display: 'flex',
-    justifyContent: 'space-between',
-  },
-  actionButton: {
-    width: '100%',
-  },
-  statusLabel: {
-    position: 'absolute' as const,
-    top: '8px',
-    right: '8px',
-    padding: '2px 5px',
-    borderRadius: '3px',
-    color: 'white',
-    fontSize: '12px',
-  },
-};
+const ListingGroup: React.FC<{
+  listingName: string;
+  designs: ListingImage[];
+  onApprove: (id: string) => void;
+  onRevise: (id: string, note: string) => void;
+  onSelect: (id: string, isSelected: boolean) => void;
+  selectedDesigns: Set<string>;
+  showCheckboxes: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+}> = ({ listingName, designs, onApprove, onRevise, onSelect, selectedDesigns, showCheckboxes, isExpanded, onToggle }) => {
+  return (
+    <Card
+      title={
+        <div onClick={onToggle} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <span>{listingName}</span>
+          <RightOutlined style={{ marginLeft: 'auto', transform: isExpanded ? 'rotate(90deg)' : 'none' }} />
+        </div>
+      }
+      style={{ marginBottom: 16 }}
+    >
+      {isExpanded && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+          {designs.map((design) => (
+            <DesignCard
+              key={design.id}
+              design={design}
+              onApprove={onApprove}
+              onRevise={onRevise}
+              onSelect={onSelect}
+              isSelected={selectedDesigns.has(design.id)}
+              showCheckbox={showCheckboxes}
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+interface UserDesignHubProps {
+  customerId: string;
+}
+
+const UserDesignHub: React.FC<UserDesignHubProps> = ({ customerId }) => {
+  const [allDesigns, setAllDesigns] = useState<Record<string, Listing>>({})
+  const [listingImages, setListingImages] = useState<Record<string, ListingImage[]>>({})
+  const [currentPage, setCurrentPage] = useState(1)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('pending')
+  const [selectedDesigns, setSelectedDesigns] = useState(new Set<string>())
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [activeTab, setActiveTab] = useState('to-approve')
+  const [loading, setLoading] = useState(false)
+  const [expandedListings, setExpandedListings] = useState(new Set<string>())
+
+  useEffect(() => {
+    if (customerId) {
+      fetchCustomerListings(customerId)
+    }
+  }, [customerId])
+
+  useEffect(() => {
+    if (customerId) {
+      fetchImagesForStatus(customerId, statusFilter)
+    }
+  }, [customerId, statusFilter])
+
+  const fetchCustomerListings = async (customerId: string) => {
+    setLoading(true)
+    try {
+      const listingsRef = collection(db, 'listings')
+      const q = query(
+        listingsRef, 
+        where('customer_id', '==', customerId),
+        where('hasImage', '==', true)
+      )
+      const querySnapshot = await getDocs(q)
+      
+      const listings: Record<string, Listing> = {}
+      querySnapshot.docs.forEach(doc => {
+        listings[doc.id] = { id: doc.id, ...doc.data() } as Listing
+      })
+      setAllDesigns(listings)
+
+      await fetchImagesForStatus(customerId, statusFilter)
+    } catch (error) {
+      console.error("Error fetching customer listings:", error)
+      message.error("Failed to fetch listings")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchImagesForStatus = async (customerId: string, status: string) => {
+    setLoading(true)
+    try {
+      const imagesRef = collection(db, 'images')
+      const imagesQuery = query(
+        imagesRef, 
+        where('customer_id', '==', customerId),
+        status === 'all' ? where('status', 'in', ['pending', 'approved', 'revision']) : where('status', '==', status)
+      )
+      const imagesSnapshot = await getDocs(imagesQuery)
+      
+      const newImages: Record<string, ListingImage[]> = {}
+      imagesSnapshot.docs.forEach(doc => {
+        const image = { id: doc.id, ...doc.data() } as ListingImage
+        if (image.listing_id) {
+          if (!newImages[image.listing_id]) {
+            newImages[image.listing_id] = []
+          }
+          newImages[image.listing_id].push(image)
+        }
+      })
+
+      setListingImages(newImages)
+    } catch (error) {
+      console.error("Error fetching images:", error)
+      message.error("Failed to fetch images")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredListings = useMemo(() => {
+    return Object.entries(allDesigns)
+      .filter(([id, listing]) => {
+        const matchesSearch = 
+          listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          listing.listingID.toLowerCase().includes(searchTerm.toLowerCase())
+        
+        const listingImagesArray = listingImages[id] || []
+        
+        let matchesStatus = true
+        if (statusFilter !== 'all') {
+          matchesStatus = listingImagesArray.some(img => img.status === statusFilter)
+        }
+        
+        return matchesSearch && matchesStatus
+      })
+      .sort(([, a], [, b]) => {
+        const aImages = listingImages[a.id] || [];
+        const bImages = listingImages[b.id] || [];
+        const aDate = aImages[0]?.statusChangeDate;
+        const bDate = bImages[0]?.statusChangeDate;
+
+        if (sortOrder === 'newest') {
+          return (bDate ? new Date(bDate).getTime() : 0) - (aDate ? new Date(aDate).getTime() : 0);
+        } else {
+          return (aDate ? new Date(aDate).getTime() : 0) - (bDate ? new Date(bDate).getTime() : 0);
+        }
+      })
+  }, [allDesigns, listingImages, searchTerm, statusFilter, sortOrder])
+
+  const paginatedListings = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredListings.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [filteredListings, currentPage])
+
+  const handleApprove = async (imageId: string) => {
+    try {
+      const imageRef = doc(db, 'images', imageId)
+      await updateDoc(imageRef, { 
+        status: 'approved',
+        statusChangeDate: serverTimestamp()
+      })
+
+      setListingImages(prev => {
+        const newImages = { ...prev }
+        for (const listingId in newImages) {
+          newImages[listingId] = newImages[listingId].map(img => 
+            img.id === imageId ? { ...img, status: 'approved', statusChangeDate: new Date() } : img
+          )
+        }
+        return newImages
+      })
+
+      message.success('Image approved successfully')
+    } catch (error) {
+      console.error('Error approving image:', error)
+      message.error('Failed to approve image')
+    }
+  }
+
+  const handleRevise = async (imageId: string, revisionNote: string) => {
+    try {
+      const imageRef = doc(db, 'images', imageId)
+      await updateDoc(imageRef, { 
+        status: 'revision',
+        statusChangeDate: serverTimestamp(),
+        revisionNote: revisionNote
+      })
+
+      setListingImages(prev => {
+        const newImages = { ...prev }
+        for (const listingId in newImages) {
+          newImages[listingId] = newImages[listingId].map(img => 
+            img.id === imageId ? { ...img, status: 'revision', revisionNote: revisionNote, statusChangeDate: new Date() } : img
+          )
+        }
+        return newImages
+      })
+
+      message.success('Revision request submitted successfully')
+    } catch (error) {
+      console.error('Error submitting revision request:', error)
+      message.error('Failed to submit revision request')
+    }
+  }
+
+  const handleSelect = (id: string, isSelected: boolean) => {
+    setSelectedDesigns(prev => {
+      const newSet = new Set(prev)
+      if (isSelected) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleBatchApprove = async () => {
+    try {
+      const batch = writeBatch(db)
+      selectedDesigns.forEach(imageId => {
+        const imageRef = doc(db, 'images', imageId)
+        batch.update(imageRef, { 
+          status: 'approved',
+          statusChangeDate: serverTimestamp()
+        })
+      })
+
+      await batch.commit()
+
+      setListingImages(prev => {
+        const newImages = { ...prev }
+        for (const listingId in newImages) {
+          newImages[listingId] = newImages[listingId].map(img => 
+            selectedDesigns.has(img.id) ? { ...img, status: 'approved', statusChangeDate: new Date() } : img
+          )
+        }
+        return newImages
+      })
+
+      setSelectedDesigns(new Set())
+      message.success('Batch approval successful')
+    } catch (error) {
+      console.error('Error in batch approval:', error)
+      message.error('Failed to approve selected images')
+    }
+  }
+
+  const toggleListingExpansion = (listingId: string) => {
+    setExpandedListings(prev => {
+      const newSet = new Set(prev)
+      if  (newSet.has(listingId)) {
+        newSet.delete(listingId)
+      } else {
+        newSet.add(listingId)
+      }
+      return newSet
+    })
+  }
+
+  return (
+    <Layout>
+      <Header style={{ background: '#fff', padding: '0 16px' }}>
+        <h1>Design Hub</h1>
+      </Header>
+      <Content style={{ padding: '0 50px' }}>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ marginBottom: 16 }}>
+          <TabPane tab="To Approve" key="to-approve" />
+          <TabPane tab="For Revision" key="for-revision" />
+          <TabPane tab="Approved" key="approved" />
+        </Tabs>
+        
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Search
+              placeholder="Search listings..."
+              onSearch={value => setSearchTerm(value)}
+              style={{ width: 200, marginRight: 16 }}
+            />
+            <Select
+              defaultValue="pending"
+              style={{ width: 120, marginRight: 16 }}
+              onChange={value => setStatusFilter(value)}
+            >
+              <Option value="all">All Status</Option>
+              <Option value="pending">Pending</Option>
+              <Option value="approved">Approved</Option>
+              <Option value="revision">Revision</Option>
+            </Select>
+            <Select
+              defaultValue="newest"
+              style={{ width: 120 }}
+              onChange={(value: 'newest' | 'oldest') => setSortOrder(value)}
+            >
+              <Option value="newest">Newest First</Option>
+              <Option value="oldest">Oldest First</Option>
+            </Select>
+          </div>
+          {activeTab === 'to-approve' && (
+            <Button
+              type="primary"
+              onClick={handleBatchApprove}
+              disabled={selectedDesigns.size === 0}
+            >
+              Approve Selected ({selectedDesigns.size})
+            </Button>
+          )}
+        </div>
+        
+        {loading ? (
+          <Spin size="large" />
+        ) : (
+          <>
+            {paginatedListings.map(([listingId, listing]) => (
+              <ListingGroup
+                key={listingId}
+                listingName={listing.listingTitle}
+                designs={listingImages[listingId] || []}
+                onApprove={handleApprove}
+                onRevise={handleRevise}
+                onSelect={handleSelect}
+                selectedDesigns={selectedDesigns}
+                showCheckboxes={activeTab === 'to-approve'}
+                isExpanded={expandedListings.has(listingId)}
+                onToggle={() => toggleListingExpansion(listingId)}
+              />
+            ))}
+            <Pagination
+              current={currentPage}
+              total={filteredListings.length}
+              pageSize={ITEMS_PER_PAGE}
+              onChange={setCurrentPage}
+              style={{ marginTop: 16, textAlign: 'center' }}
+            />
+          </>
+        )}
+      </Content>
+    </Layout>
+  )
+}
 
 export default UserDesignHub;

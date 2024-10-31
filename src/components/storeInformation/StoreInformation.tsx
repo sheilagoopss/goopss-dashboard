@@ -25,8 +25,9 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
   const [currentSection, setCurrentSection] = useState(0);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: '',
-    storeName: '',
+    firstName: '',
+    lastName: '',
+    displayShopName: '',
     etsyStoreURL: '',
     email: '',
     website: '',
@@ -36,7 +37,14 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     contentTone: '',
     facebookPageLink: '',
     instagramLink: '',
-    pinterestLink: ''
+    pinterestLink: '',
+    facebookGroups: '',
+    pastFacebookPosts: '',
+    pastInstagramPosts: '',
+    instagramHashtags: '',
+    productsToPost: '',
+    competitorSocial: '',
+    contentGuideline: ''
   });
   const [error, setError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
@@ -74,13 +82,14 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         const customerDoc = await getDoc(doc(db, 'customers', customerId));
         if (customerDoc.exists()) {
           const data = customerDoc.data();
-          const firstNameOnly = data.store_owner_name?.split(' ')[0] || '';
+          const firstNameOnly = data.first_name || '';
           setFirstName(firstNameOnly);
           
           setFormData({
-            fullName: data.store_owner_name || '',
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
             email: data.email || '',
-            storeName: data.store_name || '',
+            displayShopName: data.display_shop_name || '',
             website: data.website || '',
             industry: data.industry || '',
             about: data.about || '',
@@ -90,6 +99,13 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             pinterestLink: data.pinterest_link || '',
             etsyStoreURL: data.etsy_store_url || '',
             contentTone: data.content_tone || '',
+            facebookGroups: data.facebook_groups || '',
+            pastFacebookPosts: data.past_facebook_posts || '',
+            pastInstagramPosts: data.past_instagram_posts || '',
+            instagramHashtags: data.instagram_hashtags || '',
+            productsToPost: data.products_to_post || '',
+            competitorSocial: data.competitor_social || '',
+            contentGuideline: data.content_guideline || '',
           });
         }
       } catch (error) {
@@ -147,6 +163,8 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
 
       const currentData = customerDoc.data();
       const updateData: Record<string, any> = {
+        ...(formData.firstName && { first_name: formData.firstName }),
+        ...(formData.lastName && { last_name: formData.lastName }),
         ...(formData.email && { email: formData.email }),
         ...(formData.website && { website: formData.website }),
         ...(formData.industry && { industry: formData.industry }),
@@ -156,15 +174,15 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         ...(formData.instagramLink && { instagram_link: formData.instagramLink }),
         ...(formData.pinterestLink && { pinterest_link: formData.pinterestLink }),
         ...(formData.contentTone && { content_tone: formData.contentTone }),
+        ...(formData.facebookGroups && { facebook_groups: formData.facebookGroups }),
+        ...(formData.pastFacebookPosts && { past_facebook_posts: formData.pastFacebookPosts }),
+        ...(formData.pastInstagramPosts && { past_instagram_posts: formData.pastInstagramPosts }),
+        ...(formData.instagramHashtags && { instagram_hashtags: formData.instagramHashtags }),
+        ...(formData.productsToPost && { products_to_post: formData.productsToPost }),
+        ...(formData.competitorSocial && { competitor_social: formData.competitorSocial }),
+        ...(formData.contentGuideline && { content_guideline: formData.contentGuideline }),
+        ...(formData.displayShopName && { display_shop_name: formData.displayShopName }),
       };
-
-      if (!currentData.store_owner_name && formData.fullName) {
-        updateData.store_owner_name = formData.fullName;
-      }
-
-      if (!currentData.store_name && formData.storeName) {
-        updateData.store_name = formData.storeName;
-      }
 
       await updateDoc(customerRef, updateData);
       alert('Store information updated successfully');
@@ -220,23 +238,35 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       icon: <UserOutlined />,
       content: (
         <div style={formStyles.formSection}>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Full Name</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleInputChange}
-            />
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={formStyles.formGroup}>
+              <label style={formStyles.label}>First Name</label>
+              <input
+                style={{ ...formStyles.input, width: '100%' }}
+                type="text"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div style={formStyles.formGroup}>
+              <label style={formStyles.label}>Last Name</label>
+              <input
+                style={{ ...formStyles.input, width: '100%' }}
+                type="text"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleInputChange}
+              />
+            </div>
           </div>
           <div style={formStyles.formGroup}>
             <label style={formStyles.label}>Store Name</label>
             <input
               style={formStyles.input}
               type="text"
-              name="storeName"
-              value={formData.storeName}
+              name="displayShopName"
+              value={formData.displayShopName}
               onChange={handleInputChange}
             />
           </div>
@@ -248,6 +278,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
               name="etsyStoreURL"
               value={formData.etsyStoreURL}
               onChange={handleInputChange}
+              placeholder="Add your share and save link. Ex: https://mystore.etsy.com"
             />
           </div>
           <div style={formStyles.formGroup}>
@@ -284,14 +315,6 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
               ))}
             </select>
           </div>
-        </div>
-      )
-    },
-    {
-      title: 'About',
-      icon: <FileTextOutlined />,
-      content: (
-        <div style={formStyles.formSection}>
           <div style={formStyles.formGroup}>
             <label style={formStyles.label}>About</label>
             <textarea
@@ -310,17 +333,6 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
               value={formData.targetAudience}
               onChange={handleInputChange}
               rows={4}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Content Tone</label>
-            <textarea
-              style={formStyles.textarea}
-              name="contentTone"
-              value={formData.contentTone}
-              onChange={handleInputChange}
-              rows={2}
-              placeholder="e.g., friendly, professional, casual"
             />
           </div>
         </div>
@@ -342,6 +354,28 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             />
           </div>
           <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>If you are familiar with top relevant Facebook groups for your business, please apply their links</label>
+            <textarea
+              style={formStyles.textarea}
+              name="facebookGroups"
+              value={formData.facebookGroups}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Enter Facebook group links, one per line"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Please attach 2-5 Facebook posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement</label>
+            <textarea
+              style={formStyles.textarea}
+              name="pastFacebookPosts"
+              value={formData.pastFacebookPosts}
+              onChange={handleInputChange}
+              rows={6}
+              placeholder="Paste your Facebook post links or content here"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
             <label style={formStyles.label}>Instagram Link</label>
             <input
               style={formStyles.input}
@@ -352,6 +386,28 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             />
           </div>
           <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Please attach 2-5 Instagram posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement</label>
+            <textarea
+              style={formStyles.textarea}
+              name="pastInstagramPosts"
+              value={formData.pastInstagramPosts}
+              onChange={handleInputChange}
+              rows={6}
+              placeholder="Paste your Instagram post links or content here"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>In case you have any existing instagram hashtags you would like us to use, please include them here</label>
+            <textarea
+              style={formStyles.textarea}
+              name="instagramHashtags"
+              value={formData.instagramHashtags}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Enter your Instagram hashtags, separated by spaces"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
             <label style={formStyles.label}>Pinterest Link</label>
             <input
               style={formStyles.input}
@@ -359,6 +415,58 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
               name="pinterestLink"
               value={formData.pinterestLink}
               onChange={handleInputChange}
+            />
+          </div>
+        </div>
+      )
+    },
+    {
+      title: 'Content Preferences',
+      icon: <FileTextOutlined />,
+      content: (
+        <div style={formStyles.formSection}>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Describe the tone you want for your content</label>
+            <textarea
+              style={formStyles.textarea}
+              name="contentTone"
+              value={formData.contentTone}
+              onChange={handleInputChange}
+              rows={3}
+              placeholder="e.g., friendly, professional, casual"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Are there any specific products/categories you would like us to focus on? Please add links</label>
+            <textarea
+              style={formStyles.textarea}
+              name="productsToPost"
+              value={formData.productsToPost}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Add product or category links, one per line"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Provide links to 2-5 competitors' social media profiles (on any social media platform)</label>
+            <textarea
+              style={formStyles.textarea}
+              name="competitorSocial"
+              value={formData.competitorSocial}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Add competitor social media links, one per line"
+            />
+          </div>
+          <div style={formStyles.formGroup}>
+            <label style={formStyles.label}>Any content restrictions or guidelines?</label>
+            <textarea
+              style={formStyles.textarea}
+              name="contentGuideline"
+              value={formData.contentGuideline}
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="E.g., Avoid certain topics, adhere to specific brand guidelines, etc."
             />
           </div>
         </div>
@@ -437,8 +545,9 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             onClick={() => {
               if (window.confirm('Are you sure you want to reset the form? All data will be lost.')) {
                 setFormData({
-                  fullName: '',
-                  storeName: '',
+                  firstName: '',
+                  lastName: '',
+                  displayShopName: '',
                   etsyStoreURL: '',
                   email: '',
                   website: '',
@@ -448,7 +557,14 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
                   contentTone: '',
                   facebookPageLink: '',
                   instagramLink: '',
-                  pinterestLink: ''
+                  pinterestLink: '',
+                  facebookGroups: '',
+                  pastFacebookPosts: '',
+                  pastInstagramPosts: '',
+                  instagramHashtags: '',
+                  productsToPost: '',
+                  competitorSocial: '',
+                  contentGuideline: '',
                 });
               }
             }}
