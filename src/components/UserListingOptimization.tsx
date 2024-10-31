@@ -429,12 +429,12 @@ export default function UserListingOptimization() {
   return (
     <div>
       {/* Header Section */}
-      <div style={{ width: '100%', padding: '32px 16px', backgroundColor: '#f9fafb' }}>
+      <div style={{ width: '100%', padding: '16px', backgroundColor: '#f9fafb' }}>
         <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
           <h1 style={{ 
-            fontSize: '2.5rem', 
-            fontWeight: 'bold', 
-            marginBottom: '2rem', 
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
             textAlign: 'center',
             fontFamily: 'Poppins, sans-serif'
           }}>
@@ -443,7 +443,7 @@ export default function UserListingOptimization() {
           <div style={{ 
             backgroundColor: 'white', 
             borderRadius: '0.5rem', 
-            padding: '0.5rem',
+            padding: '0.375rem',
             display: 'flex',
             justifyContent: 'between',
             alignItems: 'center',
@@ -457,8 +457,8 @@ export default function UserListingOptimization() {
                   position: 'relative',
                   flex: 1,
                   textAlign: 'center',
-                  padding: '0.75rem',
-                  fontSize: '1.5rem',
+                  padding: '0.5rem',
+                  fontSize: '0.875rem',
                   fontWeight: '600',
                   transition: 'all 0.3s',
                   color: activeTab === tab.id ? 'white' : '#4B5563',
@@ -472,22 +472,22 @@ export default function UserListingOptimization() {
             ))}
           </div>
           <div style={{ 
-            marginTop: '2rem',
+            marginTop: '1rem',
             backgroundColor: 'white',
             borderRadius: '0.5rem',
-            padding: '1.5rem'
+            padding: '1rem'
           }}>
             <div>
               <h2 style={{ 
-                fontSize: '2rem',
+                fontSize: '1.125rem',
                 fontWeight: '600',
-                marginBottom: '1rem',
+                marginBottom: '0.5rem',
                 fontFamily: 'Poppins, sans-serif'
               }}>
                 {tabs.find(tab => tab.id === activeTab)?.label}
               </h2>
               <p style={{ 
-                fontSize: '1.25rem',
+                fontSize: '0.875rem',
                 color: '#4B5563',
                 fontFamily: 'Poppins, sans-serif'
               }}>
