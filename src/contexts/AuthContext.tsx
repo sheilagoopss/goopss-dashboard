@@ -18,7 +18,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../firebase/config";
 import { IAdmin, ICustomer } from "../types/Customer";
-import { message } from "antd";
+import { message, Spin } from "antd";
 import {
   clientSetCookie,
   getClientCookie,
@@ -29,7 +29,7 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import dayjs from "dayjs";
 
 interface AuthContextType {
-  user: ICustomer | IAdmin | null;
+  user: ICustomer | IAdmin | null | undefined;
   isAdmin: boolean;
   login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -41,12 +41,23 @@ interface AuthContextType {
   customerData: ICustomer | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: undefined,
+  isAdmin: false,
+  login: async () => {},
+  logout: async () => {},
+  googleLogin: async () => {},
+  toggleAdminMode: () => {},
+  loggingIn: false,
+  googleLoggingIn: false,
+  loading: true,
+  customerData: null,
+});
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<ICustomer | IAdmin | null>(null);
+  const [user, setUser] = useState<ICustomer | IAdmin | null | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
@@ -175,29 +186,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const checkForTokenOnLoad = async () => {
-    setLoading(true);
     const token = getClientCookie(AUTH_COOKIE_KEY);
-    if (token) {
-      try {
-        const userCredential = await new Promise<UserCredential>(
-          (resolve, reject) => {
-            onAuthStateChanged(auth, (user) => {
-              if (user) {
-                resolve({ user } as UserCredential);
-              } else {
-                reject(new Error("User not found"));
-              }
-            });
-          },
-        );
-        await handleLoginUser(userCredential);
-      } catch (error) {
-        setLoading(false);
-        console.error("Failed to re-authenticate user: ", error);
-        clearCookie(AUTH_COOKIE_KEY);
-      }
-    } else {
+    if (!token) {
+      setUser(null);
       setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const userCredential = await new Promise<UserCredential>(
+        (resolve, reject) => {
+          onAuthStateChanged(auth, (user) => {
+            if (user) {
+              resolve({ user } as UserCredential);
+            } else {
+              reject(new Error("User not found"));
+            }
+          });
+        },
+      );
+      await handleLoginUser(userCredential);
+    } catch (error) {
+      setUser(null);
+      setLoading(false);
+      console.error("Failed to re-authenticate user: ", error);
+      clearCookie(AUTH_COOKIE_KEY);
     }
   };
 

@@ -26,9 +26,10 @@ import Stats from "../components/stats/Stats";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
+import { Spin } from 'antd';
 
 export default function AppRoutes() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, loading } = useAuth();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
@@ -86,21 +87,32 @@ export default function AppRoutes() {
 
   console.log("Current state:", { isAdmin, userType, isLoading });
 
-  if (!isAdmin && isLoading && user) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
-        Loading...
-      </div>
-    );
+  // Loading component
+  const LoadingScreen = () => (
+    <div style={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      height: '100vh',
+      flexDirection: 'column',
+      gap: '16px'
+    }}>
+      <Spin size="large" />
+      <span style={{ color: '#666' }}>Loading...</span>
+    </div>
+  );
+
+  // Only show loading screen if we're checking an existing auth state
+  if (loading && user === undefined) {
+    return <LoadingScreen />;
   }
 
   // Protected route wrapper
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    if (loading && user === undefined) {
+      return <LoadingScreen />;
+    }
+    
     if (!user) {
       console.log("No user found, redirecting to login");
       return <Navigate to="/login" replace />;
@@ -114,7 +126,13 @@ export default function AppRoutes() {
       <Route 
         path="/login" 
         element={
-          user ? <Navigate to="/" replace /> : <LoginPage />
+          loading && user === undefined ? (
+            <LoadingScreen />
+          ) : user ? (
+            <Navigate to="/" replace />
+          ) : (
+            <LoginPage />
+          )
         } 
       />
       <Route
