@@ -1,7 +1,7 @@
 import { Segmented } from "antd";
 import React from "react";
 
-type StatusFilterType = "revision" | "pending" | "approved" | "all";
+export type StatusFilterType = "revision" | "pending" | "approved" | "all";
 
 interface StatusFilterProps {
   statusFilter: StatusFilterType;

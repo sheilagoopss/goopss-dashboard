@@ -226,8 +226,12 @@ export default function AppRoutes() {
             />
             <Route
               path="design-hub"
-              element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
+              element={userType === "Free" ? <UpgradeNotice /> : <DesignHub />}
             />
+            {/* <Route
+              path="design-hub"
+              element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
+            /> */}
             <Route
               path="listings"
               element={userType === "Free" ? <UpgradeNotice /> : <UserListingOptimization />}

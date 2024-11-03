@@ -2,7 +2,6 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
   DownloadOutlined,
-  RightCircleFilled,
 } from "@ant-design/icons";
 import {
   Card,
@@ -14,9 +13,12 @@ import {
   Image,
   Tag,
   Button,
+  Modal,
 } from "antd";
 import { Listing, ListingImage } from "types/Listing";
 import { STATUS_COLORS } from "../constants/statusColors";
+import { useState } from "react";
+import RevisionCard from "./RevisionCard";
 
 interface ImageCardProps {
   index: number;
@@ -24,6 +26,9 @@ interface ImageCardProps {
   listingImage: ListingImage;
   selectedImages: ListingImage[];
   setSelectedImages: (selectedImages: ListingImage[]) => void;
+  handleSelect?: (id: string, isSelected: boolean) => void;
+  handleApprove?: (id: string) => void;
+  handleRevise?: (id: string, revisionNote: string) => void;
 }
 
 const ImageCard = ({
@@ -32,100 +37,141 @@ const ImageCard = ({
   listing,
   selectedImages,
   setSelectedImages,
+  handleSelect,
+  handleApprove,
+  handleRevise,
 }: ImageCardProps) => {
+  const [previewImage, setPreviewImage] = useState<ListingImage | null>(null);
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(listingImage.url, {
+        method: "GET",
+        mode: "cors",
+        headers: {
+          "Content-Type": "application/octet-stream",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = listingImage.url.split("/").pop() || "download";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+      // Handle error (e.g., show a notification to the user)
+    }
+  };
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+  };
+
   return (
-    <Card
-      actions={[
-        <Button
-          icon={<CheckCircleFilled style={{ color: "green" }} />}
-          shape="circle"
-          size="large"
-          key="approve"
-          style={{ border: "none" }}
-        />,
-        <Button
-          icon={<CloseCircleFilled style={{ color: "red" }} />}
-          shape="circle"
-          size="large"
-          key="supersede"
-          style={{ border: "none" }}
-        />,
-        <Button
-          icon={<DownloadOutlined style={{ color: "blue" }} />}
-          shape="circle"
-          size="large"
-          key="download"
-          style={{ border: "none" }}
-          onClick={async() => {
-            try {
-              // const response = await fetch(listingImage.url, { mode: 'no-cors' });
-              const response = await fetch(listingImage.url);
-              const blob = await response.blob();
-              const blobUrl = URL.createObjectURL(blob);
-        
-              const link = document.createElement("a");
-              link.href = blobUrl;
-              link.download = `${listing.listingTitle}-${new Date().toISOString()}.jpg`; // Set the downloaded file name
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(blobUrl); // Clean up blob URL
-            } catch (error) {
-              console.error("Error downloading the image:", error);
-            }
-          }}
-        />,
-      ]}
-    >
-      <Row>
-        <Col span={20}>
-          <Typography.Text>
-            {listing.listingTitle} {index}
-          </Typography.Text>
-        </Col>
-        <Col
-          span={4}
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "flex-end",
-          }}
-        >
-          <Checkbox
-            checked={selectedImages.includes(listingImage)}
-            onChange={(e) =>
-              setSelectedImages(
-                e.target.checked
-                  ? [...selectedImages, listingImage]
-                  : selectedImages.filter(
-                      (image) => image.id !== listingImage.id,
-                    ),
-              )
-            }
-          />
-        </Col>
-        <Divider />
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "1ch",
-          }}
-        >
-          <Image 
-            src={listingImage.url} 
-            style={{ width: '100%', height: 'auto' }} 
-            alt={listing.listingTitle} 
-          />
-          <Tag
-            color={STATUS_COLORS[listingImage.status]}
-            style={{ width: "fit-content" }}
+    <>
+      <Card
+        actions={
+          handleApprove &&
+          handleRevise && [
+            <Button
+              icon={<CheckCircleFilled style={{ color: "green" }} />}
+              shape="circle"
+              size="large"
+              key="approve"
+              style={{ border: "none" }}
+              onClick={() => handleApprove(listingImage.id)}
+            />,
+            <Button
+              icon={<CloseCircleFilled style={{ color: "red" }} />}
+              shape="circle"
+              size="large"
+              key="supersede"
+              style={{ border: "none" }}
+              onClick={() => handleRevise(listingImage.id, "Revision Note")}
+            />,
+            <Button
+              icon={<DownloadOutlined style={{ color: "blue" }} />}
+              shape="circle"
+              size="large"
+              key="download"
+              style={{ border: "none" }}
+              onClick={handleDownload}
+            />,
+          ]
+        }
+      >
+        <Row>
+          <Col span={20}>
+            <Typography.Text>
+              {index} {listing.listingTitle}
+            </Typography.Text>
+          </Col>
+          <Col
+            span={4}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "flex-end",
+            }}
           >
-            {listingImage.status?.toUpperCase()}
-          </Tag>
-        </div>
-      </Row>
-    </Card>
+            <Checkbox
+              checked={selectedImages.includes(listingImage)}
+              onChange={(e) =>
+                handleSelect && handleSelect(listingImage.id, e.target.checked)
+              }
+            />
+          </Col>
+          <Divider />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "1ch",
+            }}
+          >
+            <Image
+              src={listingImage.url}
+              style={{ width: "100%", minHeight: "200px" }}
+              alt={listing.listingTitle}
+            />
+            <Tag
+              color={STATUS_COLORS[listingImage.status]}
+              style={{ width: "fit-content" }}
+            >
+              {listingImage.status?.toUpperCase()}
+            </Tag>
+            {listingImage.revisionNote && (
+              <Button onClick={() => setPreviewImage(listingImage)}>
+                Detail
+              </Button>
+            )}
+          </div>
+        </Row>
+      </Card>
+      {previewImage && (
+        <Modal
+          title="Detail"
+          open={Boolean(previewImage?.url)}
+          onCancel={closeImagePreview}
+          width={"70%"}
+          footer={false}
+        >
+          <RevisionCard
+            selectedCustomerId={listingImage.customer_id}
+            previewImage={previewImage}
+            revisionNote={previewImage?.revisionNote || ""}
+          />
+        </Modal>
+      )}
+    </>
   );
 };
 
