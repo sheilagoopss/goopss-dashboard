@@ -18,6 +18,9 @@ import {
   Divider,
   message
 } from 'antd';
+import CustomersDropdown from '../CustomersDropdown';
+import { ICustomer } from '../../types/Customer';
+import { collection, getDocs } from 'firebase/firestore';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -60,13 +63,40 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     }
   };
 
-  // Fetch existing customer data
+  // Move these states to the top with other state declarations
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
+  const [customers, setCustomers] = useState<ICustomer[]>([]);
+
+  // Add this before the useEffects
+  const effectiveCustomerId = isAdmin ? selectedCustomer?.id || '' : customerId;
+
+  // Then the useEffects
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      if (!isAdmin) return;
+      
+      try {
+        const customersCollection = collection(db, "customers");
+        const customersSnapshot = await getDocs(customersCollection);
+        const customersList = customersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ICustomer[];
+        setCustomers(customersList);
+      } catch (error) {
+        console.error("Error fetching customers:", error);
+      }
+    };
+
+    fetchCustomers();
+  }, [isAdmin]);
+
   useEffect(() => {
     const fetchCustomerData = async () => {
-      if (!customerId) return;
+      if (!effectiveCustomerId) return;
 
       try {
-        const customerDoc = await getDoc(doc(db, 'customers', customerId));
+        const customerDoc = await getDoc(doc(db, 'customers', effectiveCustomerId));
         if (customerDoc.exists()) {
           const data = customerDoc.data();
           setFirstName(data.first_name || '');
@@ -74,7 +104,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
           form.setFieldsValue({
             firstName: data.first_name || '',
             lastName: data.last_name || '',
-            email: data.email || '',
+            contact_email: data.contact_email || data.email || '',
             displayShopName: data.display_shop_name || '',
             website: data.website || '',
             industry: data.industry || '',
@@ -101,7 +131,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     };
 
     fetchCustomerData();
-  }, [customerId, form]);
+  }, [effectiveCustomerId, form]);
 
   const handleNext = async () => {
     try {
@@ -110,12 +140,12 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       
       setLoading(true);
       
-      if (!customerId) {
+      if (!effectiveCustomerId) {
         setError('No customer selected');
         return;
       }
 
-      const customerRef = doc(db, 'customers', customerId);
+      const customerRef = doc(db, 'customers', effectiveCustomerId);
       
       // Check if the document exists first
       const docSnap = await getDoc(customerRef);
@@ -127,7 +157,7 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       const updateData = {
         first_name: values.firstName,
         last_name: values.lastName,
-        email: values.email,
+        contact_email: values.contact_email,
         website: values.website,
         industry: values.industry,
         about: values.about,
@@ -227,7 +257,12 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             <Input />
           </Form.Item>
 
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
+          <Form.Item 
+            name="contact_email" 
+            label="Contact Email" 
+            rules={[{ required: true, type: 'email' }]}
+            help="This email is for contact purposes only and won't affect your login credentials"
+          >
             <Input />
           </Form.Item>
 
@@ -367,93 +402,121 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
 
   return (
     <Card>
-      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
-
-      <Title level={2}>Hello {firstName}! 👋 Let's get to know you better.</Title>
-      <Paragraph style={{ marginBottom: '2rem' }}>
-        We're excited to learn about your Etsy journey. Fill out the details below to help us tailor your experience.
-      </Paragraph>
-
-      <div 
-        ref={scrollContainerRef}
-        style={{ height: 'calc(100vh - 250px)', overflow: 'auto' }}
-      >
-        <Layout style={{ background: 'transparent', minHeight: '100%' }}>
-          <Sider 
-            theme="light" 
-            width={250}
-            style={{ 
-              background: 'transparent',
-              overflow: 'hidden'
-            }}
-          >
-            <Menu
-              mode="inline"
-              selectedKeys={[currentSection.toString()]}
-              style={{ 
-                border: 'none',
-                width: '100%',
-                overflowX: 'hidden'
-              }}
-              items={sections.map((section, index) => ({
-                key: index.toString(),
-                icon: section.icon,
-                label: section.title,
-                onClick: () => setCurrentSection(index)
-              }))}
+      {isAdmin && (
+        <div style={{ 
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'flex-end'
+        }}>
+          <div style={{ width: '300px' }}>
+            <CustomersDropdown
+              customers={customers}
+              selectedCustomer={selectedCustomer}
+              setSelectedCustomer={setSelectedCustomer}
+              isAdmin={true}
             />
-          </Sider>
+          </div>
+        </div>
+      )}
 
-          <Content style={{ padding: '0 24px' }}>
-            <Form
-              form={form}
-              layout="vertical"
-              style={{ maxWidth: 800 }}
-            >
-              {sections[currentSection].content}
+      {isAdmin && !selectedCustomer ? (
+        <Alert
+          message="Please select a customer"
+          description="Use the dropdown above to select a customer and view their form."
+          type="info"
+          showIcon
+        />
+      ) : (
+        <>
+          {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
 
-              <Divider />
+          <Title level={2}>Hello {firstName}! 👋 Let's get to know you better.</Title>
+          <Paragraph style={{ marginBottom: '2rem' }}>
+            We're excited to learn about your Etsy journey. Fill out the details below to help us tailor your experience.
+          </Paragraph>
 
-              <Row justify="space-between">
-                <Col>
-                  <Button 
-                    onClick={handlePrevious}
-                    disabled={currentSection === 0}
-                  >
-                    Previous
-                  </Button>
-                </Col>
-                <Col>
-                  <Space>
-                    <Button onClick={() => form.resetFields()}>
-                      Reset
-                    </Button>
-                    {currentSection === sections.length - 1 ? (
+          <div 
+            ref={scrollContainerRef}
+            style={{ height: 'calc(100vh - 250px)', overflow: 'auto' }}
+          >
+            <Layout style={{ background: 'transparent', minHeight: '100%' }}>
+              <Sider 
+                theme="light" 
+                width={250}
+                style={{ 
+                  background: 'transparent',
+                  overflow: 'hidden'
+                }}
+              >
+                <Menu
+                  mode="inline"
+                  selectedKeys={[currentSection.toString()]}
+                  style={{ 
+                    border: 'none',
+                    width: '100%',
+                    overflowX: 'hidden'
+                  }}
+                  items={sections.map((section, index) => ({
+                    key: index.toString(),
+                    icon: section.icon,
+                    label: section.title,
+                    onClick: () => setCurrentSection(index)
+                  }))}
+                />
+              </Sider>
+
+              <Content style={{ padding: '0 24px' }}>
+                <Form
+                  form={form}
+                  layout="vertical"
+                  style={{ maxWidth: 800 }}
+                >
+                  {sections[currentSection].content}
+
+                  <Divider />
+
+                  <Row justify="space-between">
+                    <Col>
                       <Button 
-                        type="primary" 
-                        onClick={handleNext} 
-                        loading={loading}
-                        style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                        onClick={handlePrevious}
+                        disabled={currentSection === 0}
                       >
-                        Save
+                        Previous
                       </Button>
-                    ) : (
-                      <Button 
-                        type="primary" 
-                        onClick={handleNext} 
-                        loading={loading}
-                        style={{ backgroundColor: '#000000', borderColor: '#000000' }}
-                      >
-                        Next
-                      </Button>
-                    )}
-                  </Space>
-                </Col>
-              </Row>
-            </Form>
-          </Content>
-        </Layout>
-      </div>
+                    </Col>
+                    <Col>
+                      <Space>
+                        <Button onClick={() => form.resetFields()}>
+                          Reset
+                        </Button>
+                        {currentSection === sections.length - 1 ? (
+                          <Button 
+                            type="primary" 
+                            onClick={handleNext} 
+                            loading={loading}
+                            style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                          >
+                            Save
+                          </Button>
+                        ) : (
+                          <Button 
+                            type="primary" 
+                            onClick={handleNext} 
+                            loading={loading}
+                            style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                          >
+                            Next
+                          </Button>
+                        )}
+                      </Space>
+                    </Col>
+                  </Row>
+                </Form>
+              </Content>
+            </Layout>
+          </div>
+        </>
+      )}
     </Card>
   );
 };
