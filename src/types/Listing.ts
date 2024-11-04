@@ -17,6 +17,7 @@ export interface Listing {
   createdAt?: string;
   uploadedImages?: ListingImage[];
   hasImage?: boolean;
+  contact_email?: string;
 }
 
 export interface ListingImage {
