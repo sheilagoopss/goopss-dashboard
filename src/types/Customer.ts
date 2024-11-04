@@ -16,7 +16,7 @@ export interface ICustomer {
   current_sales?: number;
   phone?: string;
   
-  // Existing store information fields
+  // Store information and social form
   website?: string;
   industry?: string;
   about?: string;
@@ -25,8 +25,6 @@ export interface ICustomer {
   instagram_link?: string;
   pinterest_link?: string;
   content_tone?: string;
-
-  // Adding missing fields
   first_name?: string;
   last_name?: string;
   display_shop_name?: string;
@@ -38,6 +36,11 @@ export interface ICustomer {
   products_to_post?: string;
   competitor_social?: string;
   content_guideline?: string;
+
+  // Social Report
+  pinterest_shared_boards_goopss?: string;
+  facebook_groups_goopss?: string;
+  instagram_hashtags_goopss?: string;
 }
 
 export interface IAdmin {
