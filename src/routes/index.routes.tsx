@@ -27,6 +27,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import { Spin } from 'antd';
+import SocialInsights from "../components/social/SocialInsights";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -183,6 +184,10 @@ export default function AppRoutes() {
               } 
             />
             <Route path="social" element={<Social />} />
+            <Route 
+              path="social-insights" 
+              element={<SocialInsights customerId="" isAdmin={true} />} 
+            />
             <Route path="pinterest" element={<PinterestAutomation />} />
             <Route 
               path="ads-recommendation" 
@@ -234,6 +239,14 @@ export default function AppRoutes() {
             <Route 
               path="social" 
               element={userType === "Free" ? <UpgradeNotice /> : <Social />} 
+            />
+            <Route 
+              path="social-insights" 
+              element={
+                userType === "Free" ? 
+                <UpgradeNotice /> : 
+                <SocialInsights customerId={user?.id || ''} isAdmin={false} />
+              }
             />
             <Route path="tagify" element={<Tagify />} />
             <Route

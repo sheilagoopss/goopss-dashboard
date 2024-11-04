@@ -18,9 +18,9 @@ function DashboardLayout() {
         <Sidebar isAdmin={isAdmin} />
       )}
       <Layout style={{ 
-        marginLeft: isAdmin ? 200 : 280,
+        marginLeft: 280,
         background: '#fff',
-        width: `calc(100% - ${isAdmin ? 200 : 280}px)`,
+        width: 'calc(100% - 280px)',
       }}>
         <Content 
           className={isAdmin ? 'admin-content' : ''}
