@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useCallback } from "react";
-import { Listing } from "../types/Listing";
+import { Listing, ListingImage } from "../types/Listing";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { ITask } from "../types/Task";
 import { useAuth } from "../contexts/AuthContext";
@@ -12,6 +12,7 @@ import {
   where,
   getDocs,
   writeBatch,
+  orderBy,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 
@@ -46,6 +47,16 @@ interface UseListingFetchAllReturn {
 
 interface UseListingDeleteAllReturn {
   deleteAllListings: (customerId: string) => Promise<boolean>;
+  isLoading: boolean;
+}
+
+interface UseCustomerFetchListingsReturn {
+  fetchCustomerListings: (customerId: string) => Promise<Listing[]>;
+  isLoading: boolean;
+}
+
+interface UseListingFetchImagesReturn {
+  fetchListingImages: (listingId: string) => Promise<ListingImage[]>;
   isLoading: boolean;
 }
 
@@ -203,3 +214,83 @@ export function useListingDeleteAll(): UseListingDeleteAllReturn {
 
   return { deleteAllListings, isLoading };
 }
+
+export function useCustomerFetchListings(): UseCustomerFetchListingsReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchCustomerListings = useCallback(
+    async (customerId: string): Promise<Listing[]> => {
+      setIsLoading(true);
+      try {
+        const listingsCollection = collection(db, "listings");
+        const q = query(
+          listingsCollection,
+          where("customer_id", "==", customerId),
+          orderBy("listingTitle"),
+        );
+        const listingsSnapshot = await getDocs(q);
+        const listingsData = await Promise.all(
+          listingsSnapshot.docs.map(async (doc) => {
+            const listingData = doc.data() as Listing;
+            const imagesQuery = query(
+              collection(db, "images"),
+              where("listing_id", "==", doc.id),
+            );
+            const imagesSnapshot = await getDocs(imagesQuery);
+            const uploadedImages = imagesSnapshot.docs.map((imgDoc) => ({
+              ...imgDoc.data() as ListingImage,
+              id: imgDoc.id,
+              status: imgDoc.data().status as "pending" | "approved" | "revision",
+            }));
+            return {
+              ...listingData,
+              id: doc.id,
+              uploadedImages,
+              createdAt: listingData.createdAt || new Date().toISOString(),
+            };
+          }),
+        );
+        return listingsData;
+      } catch (error) {
+        console.error("Error fetching customer listings:", error);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchCustomerListings, isLoading };
+}
+
+export function useListingFetchImages(): UseListingFetchImagesReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchListingImages = useCallback(
+    async (listingId: string): Promise<ListingImage[]> => {
+      setIsLoading(true);
+      try {
+        const imagesQuery = query(
+          collection(db, "images"),
+          where("listing_id", "==", listingId),
+        );
+        const imagesSnapshot = await getDocs(imagesQuery);
+        const imagesData = imagesSnapshot.docs.map((imgDoc) => ({
+          ...imgDoc.data() as ListingImage,
+          id: imgDoc.id,
+        }));
+        return imagesData;
+      } catch (error) {
+        console.error("Error fetching listing images:", error);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchListingImages, isLoading };
+}
+

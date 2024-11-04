@@ -2,6 +2,9 @@ import { useState, useCallback } from "react";
 import { ICustomer } from "../types/Customer";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import { filterUndefined } from "../utils/filterUndefined";
+import { ListingImage } from "types/Listing";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../firebase/config";
 
 interface UseCustomerFetchReturn {
   fetchCustomer: (customerId: string) => Promise<ICustomer | null>;
@@ -28,6 +31,11 @@ interface UseCustomerDeleteReturn {
 
 interface UseCustomerFetchAllReturn {
   fetchAllCustomers: () => Promise<ICustomer[]>;
+  isLoading: boolean;
+}
+
+interface UseCustomerListingImagesFetchReturn {
+  fetchCustomerListingImages: (customerId: string) => Promise<ListingImage[]>;
   isLoading: boolean;
 }
 
@@ -147,4 +155,34 @@ export function useCustomerFetchAll(): UseCustomerFetchAllReturn {
   }, []);
 
   return { fetchAllCustomers, isLoading };
+}
+
+export function useCustomerListingImagesFetch(): UseCustomerListingImagesFetchReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchCustomerListingImages = useCallback(
+    async (customerId: string): Promise<ListingImage[]> => {
+      setIsLoading(true);
+      try {
+        const imagesQuery = query(
+          collection(db, "images"),
+          where("customer_id", "==", customerId),
+        );
+        const imagesSnapshot = await getDocs(imagesQuery);
+        const imagesData = imagesSnapshot.docs.map((imgDoc) => ({
+          ...(imgDoc.data() as ListingImage),
+          id: imgDoc.id,
+        }));
+        return imagesData;
+      } catch (error) {
+        console.error("Error fetching listing images:", error);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchCustomerListingImages, isLoading };
 }

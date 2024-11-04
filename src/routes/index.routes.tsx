@@ -1,15 +1,11 @@
-import {
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
 import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
-import { DesignHub } from "../components/DesignHub";
+// import { DesignHub } from "../components/DesignHub";
 import UserDesignHub from "../components/UserDesignHub";
 import Plan from "../components/Plan";
 import Social from "../components/Social";
@@ -26,12 +22,16 @@ import Stats from "../components/stats/Stats";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
+import DesignHubV2 from "components/designHub/DesignHub";
+import { DesignHub } from "components/DesignHub";
 import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
-  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
+    null,
+  );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,9 +41,9 @@ export default function AppRoutes() {
     try {
       const customersCollection = collection(db, "customers");
       const customersSnapshot = await getDocs(customersCollection);
-      const customersList = customersSnapshot.docs.map(doc => ({
+      const customersList = customersSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       })) as ICustomer[];
       setCustomers(customersList);
     } catch (error) {
@@ -58,9 +58,12 @@ export default function AppRoutes() {
     try {
       console.log("Fetching user type for ID:", user.id);
       const userDoc = await getDocs(
-        query(collection(db, "customers"), where("customer_id", "==", user.id))
+        query(collection(db, "customers"), where("customer_id", "==", user.id)),
       );
-      console.log("Query result:", userDoc.docs.map(doc => doc.data()));
+      console.log(
+        "Query result:",
+        userDoc.docs.map((doc) => doc.data()),
+      );
       if (!userDoc.empty) {
         const userData = userDoc.docs[0].data() as ICustomer;
         console.log("Found user data:", userData);
@@ -90,16 +93,18 @@ export default function AppRoutes() {
 
   // Loading component
   const LoadingScreen = () => (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      flexDirection: 'column',
-      gap: '16px'
-    }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
       <Spin size="large" />
-      <span style={{ color: '#666' }}>Loading...</span>
+      <span style={{ color: "#666" }}>Loading...</span>
     </div>
   );
 
@@ -113,7 +118,7 @@ export default function AppRoutes() {
     if (loading && user === undefined) {
       return <LoadingScreen />;
     }
-    
+
     if (!user) {
       console.log("No user found, redirecting to login");
       return <Navigate to="/login" replace />;
@@ -124,8 +129,8 @@ export default function AppRoutes() {
 
   return (
     <Routes>
-      <Route 
-        path="/login" 
+      <Route
+        path="/login"
         element={
           loading && user === undefined ? (
             <LoadingScreen />
@@ -134,7 +139,7 @@ export default function AppRoutes() {
           ) : (
             <LoginPage />
           )
-        } 
+        }
       />
       <Route
         path="/"
@@ -147,22 +152,28 @@ export default function AppRoutes() {
         {isAdmin ? (
           <>
             <Route index element={<CustomerManagement />} />
-            <Route path="customer-form" element={<StoreInformation customerId="" isAdmin={true} />} />
-            <Route 
+            <Route
+              path="customer-form"
+              element={<StoreInformation customerId="" isAdmin={true} />}
+            />
+            <Route path="design-hub" element={<DesignHubV2 />} />
+            {/* <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            />
-            <Route 
-              path="listings" 
+            />  */}
+            <Route
+              path="listings"
               element={
-                <div style={{ paddingTop: '16px' }}>
-                  <div style={{ 
-                    marginBottom: '24px',
-                    display: 'flex',
-                    justifyContent: 'flex-end'
-                  }}>
-                    <div style={{ width: '300px' }}>
-                      <CustomersDropdown 
+                <div style={{ paddingTop: "16px" }}>
+                  <div
+                    style={{
+                      marginBottom: "24px",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div style={{ width: "300px" }}>
+                      <CustomersDropdown
                         customers={customers}
                         selectedCustomer={selectedCustomer}
                         setSelectedCustomer={setSelectedCustomer}
@@ -171,17 +182,17 @@ export default function AppRoutes() {
                     </div>
                   </div>
                   {selectedCustomer ? (
-                    <SEOListings 
-                      customerId={selectedCustomer.id} 
-                      storeName={selectedCustomer.store_name} 
+                    <SEOListings
+                      customerId={selectedCustomer.id}
+                      storeName={selectedCustomer.store_name}
                     />
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <div style={{ textAlign: "center", padding: "20px" }}>
                       Please select a customer to view their listings
                     </div>
                   )}
                 </div>
-              } 
+              }
             />
             <Route path="social" element={<Social />} />
             <Route 
@@ -189,56 +200,82 @@ export default function AppRoutes() {
               element={<SocialInsights customerId="" isAdmin={true} />} 
             />
             <Route path="pinterest" element={<PinterestAutomation />} />
-            <Route 
-              path="ads-recommendation" 
-              element={<AdsRecommendation customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
+            <Route
+              path="ads-recommendation"
+              element={
+                <AdsRecommendation
+                  customerId={selectedCustomer?.id || ""}
+                  isAdmin={true}
+                />
+              }
             />
             <Route path="store-analysis" element={<StoreAnalysis />} />
             <Route path="stats" element={<Stats />} />
             <Route path="tasks" element={<TaskManagement />} />
-            <Route 
-              path="plan" 
+            <Route
+              path="plan"
               element={
-                <div style={{ paddingTop: '16px' }}>
-                  <Plan 
-                    customers={customers} 
-                    selectedCustomer={selectedCustomer} 
-                    setSelectedCustomer={setSelectedCustomer} 
+                <div style={{ paddingTop: "16px" }}>
+                  <Plan
+                    customers={customers}
+                    selectedCustomer={selectedCustomer}
+                    setSelectedCustomer={setSelectedCustomer}
                   />
                 </div>
-              } 
+              }
             />
           </>
         ) : (
           <>
             <Route index element={<Navigate to="/home" replace />} />
-            <Route path="home" element={
-              userType === "Free" ? <UpgradeNotice /> : (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px',
-                  fontSize: '18px',
-                  color: '#666'
-                }}>
-                  Welcome to Goopss Dashboard
-                </div>
-              )
-            } />
+            <Route
+              path="home"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "40px",
+                      fontSize: "18px",
+                      color: "#666",
+                    }}
+                  >
+                    Welcome to Goopss Dashboard
+                  </div>
+                )
+              }
+            />
             <Route
               path="my-info"
-              element={<StoreInformation customerId={user?.id || ''} isAdmin={false} />}
+              element={
+                <StoreInformation customerId={user?.id || ""} isAdmin={false} />
+              }
             />
             <Route
               path="design-hub"
-              element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
+              element={
+                userType === "Free" ? <UpgradeNotice /> : <DesignHubV2 />
+              }
             />
+            {/* <Route
+              path="design-hub"
+              element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
+            /> */}
             <Route
               path="listings"
-              element={userType === "Free" ? <UpgradeNotice /> : <UserListingOptimization />}
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <UserListingOptimization />
+                )
+              }
             />
-            <Route 
-              path="social" 
-              element={userType === "Free" ? <UpgradeNotice /> : <Social />} 
+            <Route
+              path="social"
+              element={userType === "Free" ? <UpgradeNotice /> : <Social />}
             />
             <Route 
               path="social-insights" 
@@ -252,12 +289,14 @@ export default function AppRoutes() {
             <Route
               path="description-hero"
               element={
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px',
-                  fontSize: '18px',
-                  color: '#666'
-                }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "40px",
+                    fontSize: "18px",
+                    color: "#666",
+                  }}
+                >
                   Coming Soon
                 </div>
               }
@@ -265,12 +304,14 @@ export default function AppRoutes() {
             <Route
               path="ads-recommendation"
               element={
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '40px',
-                  fontSize: '18px',
-                  color: '#666'
-                }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "40px",
+                    fontSize: "18px",
+                    color: "#666",
+                  }}
+                >
                   Coming Soon
                 </div>
               }
