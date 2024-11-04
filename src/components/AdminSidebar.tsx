@@ -14,6 +14,7 @@ import {
   LineChartOutlined,
   PieChartOutlined,
   InstagramOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import logo from '../assets/images/logo.png';
 
@@ -33,6 +34,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       key: 'customers',
       icon: <UserOutlined />,
       label: <Link to="/">Customers</Link>,
+    },
+    {
+      key: 'customer-form',
+      icon: <FormOutlined />,
+      label: <Link to="/customer-form">Customer Form</Link>,
     },
     {
       key: 'design-hub',
@@ -97,7 +103,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
         top: 0,
         bottom: 0,
         height: '100vh',
-        overflowY: 'auto'
       }}
     >
       <div style={{ 
@@ -112,11 +117,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
           mode="inline"
           selectedKeys={[currentPath]}
           style={{ 
-            height: '100%', 
             borderRight: 0,
-            flex: 1
+            flex: 1,
           }}
           items={items}
+          className="admin-sidebar-menu"
         />
       </div>
     </Sider>
