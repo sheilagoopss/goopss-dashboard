@@ -10,7 +10,7 @@ import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import { DesignHub } from "../components/DesignHub";
-import { UserDesignHub } from "../components/UserDesignHub";
+import UserDesignHub from "../components/UserDesignHub";
 import Plan from "../components/Plan";
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";

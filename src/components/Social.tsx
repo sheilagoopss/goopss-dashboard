@@ -548,16 +548,14 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {/* {!isAdmin && selectedCustomer && (
-        <div style={{ marginBottom: '20px' }}>
-          <FacebookLoginPopup 
-            onLoginSuccess={handleFacebookLoginSuccess}
-            customerId={selectedCustomer.customer_id}
-          />
-        </div>
-      )} */}
-      <FacebookButton />
-      <PinterestButton />
+      {/* Only show social buttons for admin */}
+      {isAdmin && (
+        <>
+          <FacebookButton />
+          <PinterestButton />
+        </>
+      )}
+
       {isAdmin && (
         <>
           <Card style={{ marginBottom: '20px' }}>
