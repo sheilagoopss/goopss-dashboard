@@ -19,6 +19,8 @@ import { Listing, ListingImage } from "types/Listing";
 import { STATUS_COLORS } from "../constants/statusColors";
 import { useState } from "react";
 import RevisionCard from "./RevisionCard";
+import { useAuth } from "contexts/AuthContext";
+import { useDownloadImage } from "hooks/useListingImage";
 
 interface ImageCardProps {
   index: number;
@@ -26,9 +28,10 @@ interface ImageCardProps {
   listingImage: ListingImage;
   selectedImages: ListingImage[];
   setSelectedImages: (selectedImages: ListingImage[]) => void;
-  handleSelect?: (id: string, isSelected: boolean) => void;
+  handleSelect?: (id: ListingImage, isSelected: boolean) => void;
   handleApprove?: (id: string) => void;
-  handleRevise?: (id: string, revisionNote: string) => void;
+  handleSupersede?: (id: string) => void;
+  refetch: () => void;
 }
 
 const ImageCard = ({
@@ -36,38 +39,38 @@ const ImageCard = ({
   listingImage,
   listing,
   selectedImages,
-  setSelectedImages,
   handleSelect,
   handleApprove,
-  handleRevise,
+  handleSupersede,
+  refetch,
 }: ImageCardProps) => {
+  const { isAdmin } = useAuth();
+  const { downloadImage, isDownloading } = useDownloadImage();
   const [previewImage, setPreviewImage] = useState<ListingImage | null>(null);
+
   const handleDownload = async () => {
     try {
-      const response = await fetch(listingImage.url, {
-        method: "GET",
-        mode: "cors",
-        headers: {
-          "Content-Type": "application/octet-stream",
-        },
-      });
+      const imageData = await downloadImage(listingImage.id);
 
-      if (!response.ok) {
+      if (!imageData?.data) {
         throw new Error("Network response was not ok");
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = listingImage.url.split("/").pop() || "download";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const base64Data = imageData.data;
+      const blob = await (
+        await fetch(`data:image/jpeg;base64,${base64Data}`)
+      ).blob();
+      const url = URL.createObjectURL(blob);
+      const anchorElement = document.createElement("a");
+      anchorElement.href = url;
+      anchorElement.download =
+        listingImage.url.split("/").pop()?.split("?alt=")?.at(0) || "download";
+      document.body.appendChild(anchorElement);
+      anchorElement.click();
+      anchorElement.remove();
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed:", error);
-      // Handle error (e.g., show a notification to the user)
     }
   };
 
@@ -80,22 +83,35 @@ const ImageCard = ({
       <Card
         actions={
           handleApprove &&
-          handleRevise && [
+          handleSupersede && [
             <Button
-              icon={<CheckCircleFilled style={{ color: "green" }} />}
+              icon={
+                <CheckCircleFilled
+                  style={{
+                    color: ["approved", "revision"].includes(
+                      listingImage?.status,
+                    )
+                      ? "gray"
+                      : "green",
+                  }}
+                />
+              }
               shape="circle"
               size="large"
               key="approve"
               style={{ border: "none" }}
-              onClick={() => handleApprove(listingImage.id)}
+              disabled={["approved", "revision"].includes(listingImage?.status)}
+              onClick={() => handleApprove(listingImage?.id)}
             />,
             <Button
-              icon={<CloseCircleFilled style={{ color: "red" }} />}
+              icon={<CloseCircleFilled />}
+              danger
               shape="circle"
               size="large"
               key="supersede"
               style={{ border: "none" }}
-              onClick={() => handleRevise(listingImage.id, "Revision Note")}
+              disabled={["approved", "revision"].includes(listingImage?.status)}
+              onClick={() => handleSupersede(listingImage?.id)}
             />,
             <Button
               icon={<DownloadOutlined style={{ color: "blue" }} />}
@@ -104,6 +120,7 @@ const ImageCard = ({
               key="download"
               style={{ border: "none" }}
               onClick={handleDownload}
+              loading={isDownloading}
             />,
           ]
         }
@@ -111,7 +128,7 @@ const ImageCard = ({
         <Row>
           <Col span={20}>
             <Typography.Text>
-              {index} {listing.listingTitle}
+              {index} {listing?.listingTitle}
             </Typography.Text>
           </Col>
           <Col
@@ -125,7 +142,7 @@ const ImageCard = ({
             <Checkbox
               checked={selectedImages.includes(listingImage)}
               onChange={(e) =>
-                handleSelect && handleSelect(listingImage.id, e.target.checked)
+                handleSelect && handleSelect(listingImage, e.target.checked)
               }
             />
           </Col>
@@ -148,9 +165,9 @@ const ImageCard = ({
             >
               {listingImage.status?.toUpperCase()}
             </Tag>
-            {listingImage.revisionNote && (
+            {(!isAdmin || listingImage.revisionNote) && (
               <Button onClick={() => setPreviewImage(listingImage)}>
-                Detail
+                Revision Note
               </Button>
             )}
           </div>
@@ -167,7 +184,7 @@ const ImageCard = ({
           <RevisionCard
             selectedCustomerId={listingImage.customer_id}
             previewImage={previewImage}
-            revisionNote={previewImage?.revisionNote || ""}
+            refetch={refetch}
           />
         </Modal>
       )}

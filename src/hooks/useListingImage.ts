@@ -12,6 +12,9 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { useTaskCreate } from "./useTask";
 import { useAuth } from "contexts/AuthContext";
 import { IAdmin } from "types/Customer";
+import { endpoints } from "constants/endpoints";
+import HttpHelper from "helpers/HttpHelper";
+import { IServiceReturn } from "types/apiResponse";
 
 interface UseListingImageStatusUpdate {
   approveImage: (imageId: string) => Promise<boolean>;
@@ -28,6 +31,11 @@ interface UseUploadRevision {
     base64Image: string,
   ) => Promise<boolean>;
   isLoading: boolean;
+}
+
+interface UseDownloadImage {
+  downloadImage: (imageId: string) => Promise<IServiceReturn | null>;
+  isDownloading: boolean;
 }
 
 export const useListingImageStatusUpdate = (): UseListingImageStatusUpdate => {
@@ -193,4 +201,28 @@ export const useUploadRevision = (): UseUploadRevision => {
   );
 
   return { uploadRevision, isLoading };
+};
+
+export const useDownloadImage = (): UseDownloadImage => {
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+
+  const downloadImage = useCallback(
+    async (imageId: string): Promise<IServiceReturn | null> => {
+      setIsDownloading(true);
+      try {
+        const response = await HttpHelper.get(
+          endpoints.listingImage.download(imageId),
+        );
+        return response?.data;
+      } catch (error) {
+        console.error("Error downloading image:", error);
+        return null;
+      } finally {
+        setIsDownloading(false);
+      }
+    },
+    [],
+  );
+
+  return { downloadImage, isDownloading };
 };

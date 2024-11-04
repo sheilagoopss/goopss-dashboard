@@ -8,6 +8,7 @@ import {
   Button,
   Popconfirm,
   Input,
+  message,
 } from "antd";
 import { useState } from "react";
 import { ListingImage } from "types/Listing";
@@ -22,16 +23,37 @@ import {
 const RevisionCard: React.FC<{
   selectedCustomerId: string;
   previewImage: ListingImage;
-  revisionNote: string;
-}> = ({ selectedCustomerId, previewImage, revisionNote }) => {
+  refetch: () => void;
+}> = ({ selectedCustomerId, previewImage, refetch }) => {
   const { isAdmin } = useAuth();
   const { uploadRevision, isLoading } = useUploadRevision();
+  const { reviseImage, isLoading: isRevising } = useListingImageStatusUpdate();
+
   const { supersedeImage, isLoading: isSuperseding } =
     useListingImageStatusUpdate();
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [revisionImage, setRevisionImage] = useState<string | undefined>(
     undefined,
   );
+  const [revisionNote, setRevisionNote] = useState(
+    previewImage?.revisionNote || "",
+  );
+
+  const handleRevise = async (imageId: string, revisionNote: string) => {
+    try {
+      const success = await reviseImage(imageId, revisionNote);
+
+      if (success) {
+        message.success("Revision request submitted successfully");
+        refetch();
+      } else {
+        message.error("Failed to submit revision request");
+      }
+    } catch (error) {
+      console.error("Error submitting revision request:", error);
+      message.error("Failed to submit revision request");
+    }
+  };
 
   return (
     <Card>
@@ -43,7 +65,7 @@ const RevisionCard: React.FC<{
               src={previewImage?.url}
               alt="Preview"
               style={{ borderRadius: 8 }}
-              height={"20vh"}
+              height={"40vh"}
             />
             {uploadingRevision && (
               <>
@@ -81,7 +103,9 @@ const RevisionCard: React.FC<{
                 placeholder="Write a note here..."
                 rows={4}
                 style={{ width: "100%" }}
-                value={previewImage?.revisionNote}
+                defaultValue={previewImage?.revisionNote}
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
                 disabled={isAdmin}
               />
             )}
@@ -154,6 +178,17 @@ const RevisionCard: React.FC<{
                     }}
                   />
                 )}
+              </div>
+            )}
+            {!isAdmin && !previewImage?.revisionNote && (
+              <div style={{ marginTop: "1ch" }}>
+                <Button
+                  type="primary"
+                  onClick={() => handleRevise(previewImage.id, revisionNote)}
+                  loading={isRevising}
+                >
+                  Save
+                </Button>
               </div>
             )}
           </div>

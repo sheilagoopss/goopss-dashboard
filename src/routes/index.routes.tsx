@@ -27,7 +27,8 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import { Spin } from 'antd';
-import DesignHub from "components/designHub/DesignHub";
+import DesignHubV2 from "components/designHub/DesignHub";
+import { DesignHub } from "components/DesignHub";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -151,8 +152,7 @@ export default function AppRoutes() {
             <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            /> */}
-            <Route path="design-hub" element={<DesignHub />} />
+            /> 
             <Route 
               path="listings" 
               element={
@@ -227,7 +227,7 @@ export default function AppRoutes() {
             />
             <Route
               path="design-hub"
-              element={userType === "Free" ? <UpgradeNotice /> : <DesignHub />}
+              element={userType === "Free" ? <UpgradeNotice /> : <DesignHubV2 />}
             />
             {/* <Route
               path="design-hub"

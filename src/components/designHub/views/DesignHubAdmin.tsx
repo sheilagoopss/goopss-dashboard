@@ -1,5 +1,14 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Card, Col, Input, message, Row, Select, Spin, Typography } from "antd";
+import {
+  Alert,
+  Col,
+  Input,
+  message,
+  Row,
+  Select,
+  Spin,
+  Typography,
+} from "antd";
 import CustomersDropdown from "components/CustomersDropdown";
 import {
   useCustomerFetchAll,
@@ -143,32 +152,12 @@ const DesignHubAdmin = () => {
           </Col>
         </>
       ) : (
-        <div
-          style={{
-            marginTop: "5ch",
-            display: "flex",
-            justifyContent: "center",
-            width: "100%",
-          }}
-        >
-          <Card
-            style={{ width: 300, textAlign: "center" }}
-            cover={
-              <div style={{ background: "gray", padding: "20px 0" }}>
-                <Typography.Title
-                  level={3}
-                  style={{ color: "white", margin: 0 }}
-                >
-                  Select a customer
-                </Typography.Title>
-              </div>
-            }
-          >
-            <Typography.Paragraph>
-              Please Select a customer to view their listings.
-            </Typography.Paragraph>
-          </Card>
-        </div>
+        <Alert
+          message="Please select a customer to view designs"
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
       )}
     </Row>
   );

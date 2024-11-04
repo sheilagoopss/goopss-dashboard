@@ -5,7 +5,7 @@ import ListingsTable from "../components/ListingsTable";
 import { Listing } from "types/Listing";
 import { ListingImage } from "types/Listing";
 import { useEffect, useState } from "react";
-import { SearchOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useCustomerListingImagesFetch } from "hooks/useCustomer";
 import { useCustomerFetchListings } from "hooks/useListing";
 import { useAuth } from "contexts/AuthContext";
@@ -22,11 +22,12 @@ const DesignHubCustomer = () => {
     useState<StatusFilterType>("revision");
   const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [listingImages, setListingImages] = useState<ListingImage[]>([]);
   const {
     approveImage,
-    reviseImage,
     batchApproveImages,
+    supersedeImage,
     isLoading: isChangingStatus,
   } = useListingImageStatusUpdate();
 
@@ -34,6 +35,7 @@ const DesignHubCustomer = () => {
     if (user) {
       fetchCustomerListings(user.id).then((listings) => {
         setListings(listings);
+        setFilteredListings(listings);
       });
       fetchCustomerListingImages(user.id).then((images) => {
         setListingImages(images);
@@ -61,27 +63,32 @@ const DesignHubCustomer = () => {
     }
   };
 
-  const handleRevise = async (imageId: string, revisionNote: string) => {
+  const handleSupersede = async (imageId: string) => {
     try {
-      const success = await reviseImage(imageId, revisionNote);
+      const success = await supersedeImage(imageId);
 
       if (success) {
-        message.success("Revision request submitted successfully");
+        message.success("Image superseded successfully");
         refetch();
       } else {
-        message.error("Failed to submit revision request");
+        message.error("Failed to supersede image");
       }
     } catch (error) {
-      console.error("Error submitting revision request:", error);
-      message.error("Failed to submit revision request");
+      console.error("Error approving image:", error);
+      message.error("Failed to supersede image");
     }
   };
 
-  const handleSelect = (imageId: string, isSelected: boolean) => {
-    const updatedDesigns = new Set(selectedImages.map((img) => img.id));
-    isSelected ? updatedDesigns.add(imageId) : updatedDesigns.delete(imageId);
+  const handleSelect = (listingImage: ListingImage, isSelected: boolean) => {
+    const selectedImagesIds = selectedImages.map((img) => img?.id);
+    const updatedDesigns = new Set(selectedImagesIds);
+
+    isSelected
+      ? updatedDesigns.add(listingImage.id)
+      : updatedDesigns.delete(listingImage.id);
+
     const updatedImages = Array.from(updatedDesigns).map(
-      (id) => selectedImages.find((img) => img.id === id) as ListingImage,
+      (id) => listingImages.find((img) => img?.id === id) as ListingImage,
     );
     setSelectedImages(updatedImages);
   };
@@ -133,6 +140,14 @@ const DesignHubCustomer = () => {
             allowClear
             prefix={<SearchOutlined />}
             style={{ width: "30ch" }}
+            onChange={(e) => {
+              const filteredListings = listings.filter((listing) =>
+                listing.listingTitle
+                  .toLowerCase()
+                  .includes(e.target.value.toLowerCase()),
+              );
+              setFilteredListings(filteredListings);
+            }}
           />
           <Select
             placeholder="Sort by"
@@ -140,20 +155,49 @@ const DesignHubCustomer = () => {
               { label: "Newest", value: "newest" },
               { label: "Oldest", value: "oldest" },
             ]}
+            onChange={(value) => {
+              const sortedListings = [...filteredListings].sort(
+                (a: Listing, b: Listing) => {
+                  const getTimeOrDefault = (dateString?: string) =>
+                    dateString ? new Date(dateString).getTime() : 0;
+
+                  if (value === "newest") {
+                    return (
+                      getTimeOrDefault(b.createdAt) -
+                      getTimeOrDefault(a.createdAt)
+                    );
+                  } else if (value === "oldest") {
+                    return (
+                      getTimeOrDefault(a.createdAt) -
+                      getTimeOrDefault(b.createdAt)
+                    );
+                  }
+                  return 0;
+                },
+              );
+              setFilteredListings(sortedListings);
+            }}
           />
         </div>
-        <Button
-          type="primary"
-          disabled={selectedImages.length === 0}
-          onClick={handleBatchApprove}
-          loading={isChangingStatus}
-        >
-          Approve Selected ({selectedImages.length})
-        </Button>
+        <div style={{ display: "flex", gap: "1ch" }}>
+          <Button
+            type="primary"
+            disabled={selectedImages.length === 0}
+            onClick={handleBatchApprove}
+            loading={isChangingStatus}
+          >
+            Approve Selected ({selectedImages.length})
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={isFetchingListings || isFetchingImages}
+            onClick={refetch}
+          />
+        </div>
       </Col>
       <Col span={24}>
         <ListingsTable
-          listings={listings}
+          listings={filteredListings}
           listingImages={listingImages.filter((image) =>
             statusFilter ? image.status === statusFilter : true,
           )}
@@ -163,7 +207,7 @@ const DesignHubCustomer = () => {
           setSelectedImages={setSelectedImages}
           handleSelect={handleSelect}
           handleApprove={handleApprove}
-          handleRevise={handleRevise}
+          handleSupersede={handleSupersede}
         />
       </Col>
     </Row>

@@ -1,6 +1,14 @@
-import { Col, Collapse, CollapseProps, Row, Pagination, Spin } from "antd";
+import {
+  Col,
+  Collapse,
+  CollapseProps,
+  Row,
+  Pagination,
+  Spin,
+  Card,
+} from "antd";
 import { Listing, ListingImage } from "types/Listing";
-import ImageUploadCard from "./ImageCard";
+import ImageCard from "./ImageCard";
 import { CSSProperties, useState } from "react";
 import { LeftOutlined } from "@ant-design/icons";
 
@@ -11,9 +19,9 @@ interface ListingsTableProps {
   refresh: () => void;
   selectedImages: ListingImage[];
   setSelectedImages: (selectedImages: ListingImage[]) => void;
-  handleSelect?: (id: string, isSelected: boolean) => void;
+  handleSelect?: (id: ListingImage, isSelected: boolean) => void;
   handleApprove?: (id: string) => void;
-  handleRevise?: (id: string, revisionNote: string) => void;
+  handleSupersede?: (id: string) => void;
 }
 
 const ListingsTable = ({
@@ -25,7 +33,7 @@ const ListingsTable = ({
   setSelectedImages,
   handleSelect,
   handleApprove,
-  handleRevise,
+  handleSupersede,
 }: ListingsTableProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -55,20 +63,35 @@ const ListingsTable = ({
             borderRadius: "5px",
           }}
         >
-          {listingImages.map((listingImage, index) => (
-            <Col span={6} key={index}>
-              <ImageUploadCard
-                index={index + 1}
-                listing={listing}
-                listingImage={listingImage}
-                selectedImages={selectedImages}
-                setSelectedImages={setSelectedImages}
-                handleSelect={handleSelect}
-                handleApprove={handleApprove}
-                handleRevise={handleRevise}
-              />
-            </Col>
-          ))}
+          {listingImages
+            .filter((v) => v.listing_id === listing.listingID)
+            .map((listingImage, index) => (
+              <Col span={6} key={index}>
+                <ImageCard
+                  index={index + 1}
+                  listing={listing}
+                  listingImage={listingImage}
+                  selectedImages={selectedImages}
+                  setSelectedImages={setSelectedImages}
+                  handleSelect={handleSelect}
+                  handleApprove={handleApprove}
+                  handleSupersede={handleSupersede}
+                  refetch={refresh}
+                />
+              </Col>
+            ))}
+          {listingImages.filter((v) => v.listing_id === listing.listingID)
+            .length === 0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                width: "100%",
+              }}
+            >
+              <Card>No Listing Image with this status</Card>
+            </div>
+          )}
         </Row>
       ),
       style: panelStyle,
