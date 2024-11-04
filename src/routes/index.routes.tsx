@@ -146,6 +146,7 @@ export default function AppRoutes() {
         {isAdmin ? (
           <>
             <Route index element={<CustomerManagement />} />
+            <Route path="customer-form" element={<StoreInformation customerId="" isAdmin={true} />} />
             <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
