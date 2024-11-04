@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu } from "antd";
@@ -16,6 +16,7 @@ import {
   InstagramOutlined,
   FormOutlined,
 } from '@ant-design/icons';
+import { ChevronDown } from 'lucide-react';
 import logo from '../assets/images/logo.png';
 
 const { Sider } = Layout;
@@ -28,6 +29,21 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   const { logout } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname.split('/')[1] || 'customers';
+
+  const [socialExpanded, setSocialExpanded] = useState(() => {
+    const saved = localStorage.getItem('adminSocialExpanded');
+    return saved ? JSON.parse(saved) : currentPath === 'social' || currentPath === 'social-insights';
+  });
+
+  useEffect(() => {
+    if (currentPath === 'social' || currentPath === 'social-insights') {
+      setSocialExpanded(true);
+    }
+  }, [currentPath]);
+
+  React.useEffect(() => {
+    localStorage.setItem('adminSocialExpanded', JSON.stringify(socialExpanded));
+  }, [socialExpanded]);
 
   const items = [
     {
@@ -53,8 +69,38 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     {
       key: 'social',
       icon: <MessageOutlined />,
-      label: <Link to="/social">Social</Link>,
+      label: (
+        <div 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSocialExpanded(!socialExpanded);
+          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+        >
+          <span>Social</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${socialExpanded ? 'rotate-180' : ''}`} />
+        </div>
+      ),
     },
+    ...(socialExpanded ? [
+      {
+        key: 'social-main',
+        label: (
+          <Link to="/social" style={{ paddingLeft: '32px' }}>
+            Social Calendar
+          </Link>
+        )
+      },
+      {
+        key: 'social-insights',
+        label: (
+          <Link to="/social-insights" style={{ paddingLeft: '32px' }}>
+            Social Media Insights
+          </Link>
+        )
+      }
+    ] : []),
     {
       key: 'pinterest',
       icon: <InstagramOutlined />,
@@ -95,7 +141,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
 
   return (
     <Sider 
-      width={200} 
+      width={280}
       style={{ 
         background: '#fff',
         position: 'fixed',

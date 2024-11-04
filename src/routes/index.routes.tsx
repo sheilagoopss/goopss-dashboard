@@ -183,6 +183,19 @@ export default function AppRoutes() {
               } 
             />
             <Route path="social" element={<Social />} />
+            <Route 
+              path="social-insights" 
+              element={
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px',
+                  fontSize: '18px',
+                  color: '#666'
+                }}>
+                  Social Media Insights - Coming Soon
+                </div>
+              } 
+            />
             <Route path="pinterest" element={<PinterestAutomation />} />
             <Route 
               path="ads-recommendation" 
@@ -234,6 +247,21 @@ export default function AppRoutes() {
             <Route 
               path="social" 
               element={userType === "Free" ? <UpgradeNotice /> : <Social />} 
+            />
+            <Route 
+              path="social-insights" 
+              element={
+                userType === "Free" ? 
+                <UpgradeNotice /> : 
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '40px',
+                  fontSize: '18px',
+                  color: '#666'
+                }}>
+                  Social Media Insights - Coming Soon
+                </div>
+              }
             />
             <Route path="tagify" element={<Tagify />} />
             <Route

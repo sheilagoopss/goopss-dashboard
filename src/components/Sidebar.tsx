@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu, Button, Card, Dropdown } from "antd";
 import { 
@@ -11,8 +11,9 @@ import {
   FileEdit,
   Sparkles,
   MoreVertical,
-  ChevronDown
+  ChevronDown,
 } from "lucide-react";
+import { MessageOutlined } from '@ant-design/icons';
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import logo from '../assets/images/logo.png';
@@ -32,12 +33,21 @@ interface CustomerData {
 
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const currentPath = location.pathname.split('/')[1] || 'home';
+  const navigate = useNavigate();
+
   const [homeExpanded, setHomeExpanded] = useState(() => {
     const saved = localStorage.getItem('homeExpanded');
     return saved ? JSON.parse(saved) : false;
   });
+
+  const [socialExpanded, setSocialExpanded] = useState(() => {
+    const saved = localStorage.getItem('socialExpanded');
+    return saved ? JSON.parse(saved) : false;
+  });
+
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -63,6 +73,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   useEffect(() => {
     localStorage.setItem('homeExpanded', JSON.stringify(homeExpanded));
   }, [homeExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem('socialExpanded', JSON.stringify(socialExpanded));
+  }, [socialExpanded]);
+
+  useEffect(() => {
+    if (currentPath === 'social' || currentPath === 'social-insights') {
+      setSocialExpanded(true);
+    }
+  }, [currentPath]);
 
   const menuItems = [
     {
@@ -109,8 +129,50 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     {
       key: 'social',
       icon: <MessageSquare className="h-6 w-6" />,
-      label: <Link to="/social">Social</Link>
+      label: (
+        <div 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSocialExpanded(!socialExpanded);
+          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+        >
+          <span>Social</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${socialExpanded ? 'rotate-180' : ''}`} />
+        </div>
+      ),
     },
+    ...(socialExpanded ? [
+      {
+        key: 'social-main',
+        label: (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/social');
+            }}
+            style={{ cursor: 'pointer', paddingLeft: '32px' }}
+          >
+            Social Calendar
+          </div>
+        )
+      },
+      {
+        key: 'social-insights',
+        label: (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/social-insights');
+            }}
+            style={{ cursor: 'pointer', paddingLeft: '32px' }}
+          >
+            Social Media Insights
+          </div>
+        )
+      }
+    ] : []),
     {
       key: 'ai-tools',
       type: 'group' as const,
