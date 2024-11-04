@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu, Button, Card, Dropdown } from "antd";
 import { 
@@ -11,8 +11,9 @@ import {
   FileEdit,
   Sparkles,
   MoreVertical,
-  ChevronDown
+  ChevronDown,
 } from "lucide-react";
+import { MessageOutlined } from '@ant-design/icons';
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import logo from '../assets/images/logo.png';
@@ -32,16 +33,27 @@ interface CustomerData {
 
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const { user, logout } = useAuth();
-  const [homeExpanded, setHomeExpanded] = useState(() => {
-    const saved = localStorage.getItem('homeExpanded');
-    return saved ? JSON.parse(saved) : false;
-  });
-  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const location = useLocation();
+  const currentPath = location.pathname.split('/')[1] || 'home';
   const navigate = useNavigate();
+
+  const [homeExpanded, setHomeExpanded] = useState(() => {
+    return currentPath === 'my-info';
+  });
+
+  const [socialExpanded, setSocialExpanded] = useState(() => {
+    return currentPath === 'social' || currentPath === 'social-insights';
+  });
+
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+
+  // Add loading state for customer data
+  const [isCustomerDataLoading, setIsCustomerDataLoading] = useState(true);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
       if (!user?.id) return;
+      setIsCustomerDataLoading(true);
       try {
         const q = query(
           collection(db, "customers"),
@@ -54,6 +66,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         }
       } catch (error) {
         console.error("Error fetching customer data:", error);
+      } finally {
+        setIsCustomerDataLoading(false);
       }
     };
 
@@ -61,8 +75,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('homeExpanded', JSON.stringify(homeExpanded));
+    if (homeExpanded) {
+      localStorage.setItem('homeExpanded', JSON.stringify(homeExpanded));
+    }
   }, [homeExpanded]);
+
+  useEffect(() => {
+    if (socialExpanded) {
+      localStorage.setItem('socialExpanded', JSON.stringify(socialExpanded));
+    }
+  }, [socialExpanded]);
+
+  useEffect(() => {
+    if (currentPath === 'social' || currentPath === 'social-insights') {
+      setSocialExpanded(true);
+    }
+  }, [currentPath]);
 
   const menuItems = [
     {
@@ -109,8 +137,50 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     {
       key: 'social',
       icon: <MessageSquare className="h-6 w-6" />,
-      label: <Link to="/social">Social</Link>
+      label: (
+        <div 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSocialExpanded(!socialExpanded);
+          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+        >
+          <span>Social</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${socialExpanded ? 'rotate-180' : ''}`} />
+        </div>
+      ),
     },
+    ...(socialExpanded ? [
+      {
+        key: 'social-main',
+        label: (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/social');
+            }}
+            style={{ cursor: 'pointer', paddingLeft: '32px' }}
+          >
+            Social Calendar
+          </div>
+        )
+      },
+      {
+        key: 'social-insights',
+        label: (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/social-insights');
+            }}
+            style={{ cursor: 'pointer', paddingLeft: '32px' }}
+          >
+            Social Media Insights
+          </div>
+        )
+      }
+    ] : []),
     {
       key: 'ai-tools',
       type: 'group' as const,
@@ -192,20 +262,27 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               background: '#f5f5f5',
               borderRadius: 12,
               position: 'relative',
-              marginBottom: 8
+              marginBottom: 8,
+              marginTop: '32px',
+              paddingTop: '8px'
             }}
           >
             <div style={{ 
               position: 'absolute',
-              top: -32,
+              top: -40,
               left: '50%',
-              transform: 'translateX(-50%)'
+              transform: 'translateX(-50%)',
+              zIndex: 1
             }}>
-              <img src={rocket} alt="Rocket" style={{ width: 64, height: 64 }} />
+              <img src={rocket} alt="Rocket" style={{ 
+                width: 64,
+                height: 64,
+                display: 'block'
+              }} />
             </div>
             <div style={{ 
               textAlign: 'center',
-              marginTop: 24
+              marginTop: 32
             }}>
               <p style={{ 
                 fontWeight: 500, 
@@ -236,64 +313,70 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           padding: '8px',
           marginTop: 'auto'
         }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <img
-              src={customerData?.logo || logo}
-              alt="Store logo"
-              style={{
-                height: '48px',
-                width: '48px',
-                borderRadius: '50%',
-                padding: '8px'
-              }}
-            />
-            <div style={{ flex: 1 }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ 
-                    fontSize: '16px',
-                    fontWeight: 500,
-                    color: '#000'
-                  }}>
-                    {customerData?.store_name || 'Goopss Store'}
-                  </span>
-                  <span style={{ 
-                    fontSize: '14px',
-                    color: '#666'
-                  }}>
-                    {customerData?.store_owner_name || 'Frankie Sullivan'}
-                  </span>
+          {isCustomerDataLoading ? (
+            <div style={{ padding: '12px', textAlign: 'center' }}>
+              Loading...
+            </div>
+          ) : customerData ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <img
+                src={customerData.logo || logo}
+                alt="Store logo"
+                style={{
+                  height: '48px',
+                  width: '48px',
+                  borderRadius: '50%',
+                  padding: '8px'
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ 
+                      fontSize: '16px',
+                      fontWeight: 500,
+                      color: '#000'
+                    }}>
+                      {customerData.store_name}
+                    </span>
+                    <span style={{ 
+                      fontSize: '14px',
+                      color: '#666'
+                    }}>
+                      {customerData.store_owner_name}
+                    </span>
+                  </div>
+                  <Dropdown
+                    menu={{ items: dropdownItems }}
+                    placement="topRight"
+                    trigger={['click']}
+                  >
+                    <Button
+                      type="text"
+                      icon={<MoreVertical size={20} />}
+                      style={{ 
+                        border: 'none',
+                        width: '36px',
+                        height: '36px',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </Dropdown>
                 </div>
-                <Dropdown
-                  menu={{ items: dropdownItems }}
-                  placement="topRight"
-                  trigger={['click']}
-                >
-                  <Button
-                    type="text"
-                    icon={<MoreVertical size={20} />}
-                    style={{ 
-                      border: 'none',
-                      width: '36px',
-                      height: '36px',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  />
-                </Dropdown>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </Sider>
