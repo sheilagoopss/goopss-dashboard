@@ -154,9 +154,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       <div style={{ 
         height: '100%',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'auto',
       }}>
-        <div style={{ padding: '16px', textAlign: 'center' }}>
+        <div style={{ 
+          padding: '16px', 
+          textAlign: 'center',
+          flexShrink: 0
+        }}>
           <img src={logo} alt="goopss logo" style={{ height: 40 }} />
         </div>
         <Menu
@@ -164,7 +169,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
           selectedKeys={[currentPath]}
           style={{ 
             borderRight: 0,
-            flex: 1,
+            padding: '8px',
+            height: 'auto',
+            minHeight: 0,
+            flexGrow: 1,
+            overflow: 'visible'
           }}
           items={items}
           className="admin-sidebar-menu"

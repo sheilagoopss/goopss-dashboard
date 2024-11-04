@@ -200,7 +200,7 @@ body {
   display: flex !important;
   flex-direction: column !important;
   height: 100vh !important;
-  overflow: hidden !important;
+  overflow: auto !important;
 }
 
 /* Ensure badge stays black and on top during hover */
@@ -222,7 +222,7 @@ body {
   font-size: 12px !important;
   white-space: nowrap !important;
   color: #18181B !important;
-  z-index: 9999 !important;
+  z-index: 1 !important;
   display: inline-block !important;
   pointer-events: none !important;
   height: 18px !important;
@@ -279,4 +279,63 @@ body {
 .ant-menu-root {
   max-height: calc(100vh - 250px) !important;
   overflow-y: auto !important;
+}
+
+/* Ensure menu container has higher z-index */
+.ant-menu {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Ensure scrollable container has highest z-index */
+.ant-layout-sider-children {
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+/* Ensure menu items are above badges */
+.ant-menu-item {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Remove these conflicting styles */
+.ant-menu-root {
+  max-height: calc(100vh - 250px) !important;
+  overflow-y: auto !important;
+}
+
+/* Update these styles */
+.admin-sidebar-menu {
+  border-right: none !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.admin-sidebar-menu .ant-menu-inline {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Update Sider children styles */
+.ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  overflow: auto !important;
+}
+
+/* Add these new styles */
+.admin-sidebar-menu.ant-menu {
+  flex: 1 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* Remove any fixed heights from menu items */
+.admin-sidebar-menu .ant-menu-item {
+  height: 44px !important;
+  line-height: 44px !important;
+  margin: 4px 0 !important;
 }
