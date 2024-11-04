@@ -1,16 +1,20 @@
+import { CloseCircleFilled, LeftOutlined } from "@ant-design/icons";
 import {
+  Button,
+  Card,
   Col,
   Collapse,
   CollapseProps,
-  Row,
+  Image,
   Pagination,
+  Row,
   Spin,
-  Card,
 } from "antd";
+import DragDropUpload from "components/common/DragDropUpload";
+import { useAuth } from "contexts/AuthContext";
+import { CSSProperties, useState } from "react";
 import { Listing, ListingImage } from "types/Listing";
 import ImageCard from "./ImageCard";
-import { CSSProperties, useState } from "react";
-import { LeftOutlined } from "@ant-design/icons";
 
 interface ListingsTableProps {
   listings: Listing[];
@@ -22,6 +26,11 @@ interface ListingsTableProps {
   handleSelect?: (id: ListingImage, isSelected: boolean) => void;
   handleApprove?: (id: string) => void;
   handleSupersede?: (id: string) => void;
+  handleUploadListingImages?: (
+    listing: Listing,
+    data: string[],
+  ) => Promise<boolean>;
+  isUploading?: boolean;
 }
 
 const ListingsTable = ({
@@ -29,14 +38,18 @@ const ListingsTable = ({
   listingImages,
   loading,
   refresh,
+  isUploading,
   selectedImages,
   setSelectedImages,
   handleSelect,
   handleApprove,
   handleSupersede,
+  handleUploadListingImages,
 }: ListingsTableProps) => {
+  const { isAdmin } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [newListingImages, setNewListingImages] = useState<string[]>([]);
 
   const handlePageChange = (page: number, pageSize?: number) => {
     setCurrentPage(page);
@@ -63,6 +76,16 @@ const ListingsTable = ({
             borderRadius: "5px",
           }}
         >
+          {isAdmin && (
+            <DragDropUpload
+              handleUpload={(data) => {
+                const newImage = data?.at(0);
+                if (newImage) {
+                  setNewListingImages([...newListingImages, newImage]);
+                }
+              }}
+            />
+          )}
           {listingImages
             .filter((v) => v.listing_id === listing.listingID)
             .map((listingImage, index) => (
@@ -80,6 +103,41 @@ const ListingsTable = ({
                 />
               </Col>
             ))}
+          {newListingImages.map((newImage) => (
+            <Col span={6} key={Math.random() * 999}>
+              <Card
+                style={{
+                  position: "relative",
+                  borderRadius: "5px",
+                  overflow: "hidden",
+                }}
+                title={
+                  <Button
+                    type="text"
+                    icon={<CloseCircleFilled />}
+                    onClick={() => {
+                      setNewListingImages(
+                        newListingImages.filter((image) => image !== newImage),
+                      );
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 1,
+                      color: "red",
+                    }}
+                  />
+                }
+              >
+                <Image
+                  src={newImage}
+                  alt="New Listing"
+                  style={{ width: "100%", minHeight: "200px" }}
+                />
+              </Card>
+            </Col>
+          ))}
           {listingImages.filter((v) => v.listing_id === listing.listingID)
             .length === 0 && (
             <div
@@ -92,6 +150,28 @@ const ListingsTable = ({
               <Card>No Listing Image with this status</Card>
             </div>
           )}
+          <Col
+            span={24}
+            style={{ display: "flex", justifyContent: "flex-end" }}
+          >
+            {handleUploadListingImages && newListingImages.length > 0 && (
+              <Button
+                type="primary"
+                loading={isUploading}
+                onClick={() =>
+                  handleUploadListingImages(listing, newListingImages).then(
+                    (resp) => {
+                      if (resp) {
+                        setNewListingImages([]);
+                      }
+                    },
+                  )
+                }
+              >
+                Save Image Uploads
+              </Button>
+            )}
+          </Col>
         </Row>
       ),
       style: panelStyle,

@@ -1,14 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import {
-  Alert,
-  Col,
-  Input,
-  message,
-  Row,
-  Select,
-  Spin,
-  Typography,
-} from "antd";
+import { Alert, Col, Input, Row, Select, Spin, Typography } from "antd";
 import CustomersDropdown from "components/CustomersDropdown";
 import {
   useCustomerFetchAll,
@@ -21,7 +12,7 @@ import { SearchOutlined } from "@ant-design/icons";
 import { Listing, ListingImage } from "types/Listing";
 import ListingsTable from "../components/ListingsTable";
 import { useCustomerFetchListings } from "hooks/useListing";
-import { useUploadRevision } from "hooks/useListingImage";
+import { useUploadListingImages } from "hooks/useListingImage";
 
 const DesignHubAdmin = () => {
   const { fetchAllCustomers, isLoading } = useCustomerFetchAll();
@@ -29,8 +20,7 @@ const DesignHubAdmin = () => {
     useCustomerFetchListings();
   const { fetchCustomerListingImages, isLoading: isFetchingImages } =
     useCustomerListingImagesFetch();
-  const { uploadRevision, isLoading: isUploadingRevision } =
-    useUploadRevision();
+  const { uploadListingImages, isUploading } = useUploadListingImages();
 
   const [statusFilter, setStatusFilter] = useState<
     "revision" | "pending" | "approved" | "all"
@@ -42,15 +32,13 @@ const DesignHubAdmin = () => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [listingImages, setListingImages] = useState<ListingImage[]>([]);
   const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
-
-  useEffect(() => {
-    fetchAllCustomers().then((customers) => setCustomers(customers));
-  }, []);
+  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
 
   const refetch = () => {
     if (selectedCustomer) {
       fetchCustomerListings(selectedCustomer.id).then((listings) => {
         setListings(listings);
+        setFilteredListings(listings);
       });
       fetchCustomerListingImages(selectedCustomer.id).then((images) => {
         setListingImages(images);
@@ -58,22 +46,22 @@ const DesignHubAdmin = () => {
     }
   };
 
-  const handleUploadRevision = async (
-    listingImage: ListingImage,
-    base64Image: string,
+  const handleUploadListingImages = async (
+    listing: Listing,
+    data: string[],
   ) => {
-    const success = await uploadRevision(
-      selectedCustomer?.id || "",
-      listingImage,
-      base64Image,
-    );
-    if (success) {
+    if (!selectedCustomer?.id) return false;
+    const resp = await uploadListingImages(selectedCustomer?.id, listing, data);
+    if (resp) {
       refetch();
-      message.success("Revision uploaded successfully");
-    } else {
-      message.error("Failed to upload revision");
+      return true;
     }
+    return false;
   };
+
+  useEffect(() => {
+    fetchAllCustomers().then((customers) => setCustomers(customers));
+  }, []);
 
   useEffect(() => {
     refetch();
@@ -128,6 +116,14 @@ const DesignHubAdmin = () => {
                 allowClear
                 prefix={<SearchOutlined />}
                 style={{ width: "30ch" }}
+                onChange={(e) => {
+                  const filteredListings = listings.filter((listing) =>
+                    listing.listingTitle
+                      .toLowerCase()
+                      .includes(e.target.value.toLowerCase()),
+                  );
+                  setFilteredListings(filteredListings);
+                }}
               />
               <Select
                 placeholder="Sort by"
@@ -135,12 +131,34 @@ const DesignHubAdmin = () => {
                   { label: "Newest", value: "newest" },
                   { label: "Oldest", value: "oldest" },
                 ]}
+                onChange={(value) => {
+                  const sortedListings = [...filteredListings].sort(
+                    (a: Listing, b: Listing) => {
+                      const getTimeOrDefault = (dateString?: string) =>
+                        dateString ? new Date(dateString).getTime() : 0;
+
+                      if (value === "newest") {
+                        return (
+                          getTimeOrDefault(b.createdAt) -
+                          getTimeOrDefault(a.createdAt)
+                        );
+                      } else if (value === "oldest") {
+                        return (
+                          getTimeOrDefault(a.createdAt) -
+                          getTimeOrDefault(b.createdAt)
+                        );
+                      }
+                      return 0;
+                    },
+                  );
+                  setFilteredListings(sortedListings);
+                }}
               />
             </div>
           </Col>
           <Col span={24}>
             <ListingsTable
-              listings={listings}
+              listings={filteredListings}
               listingImages={listingImages.filter((image) =>
                 statusFilter ? image.status === statusFilter : true,
               )}
@@ -148,6 +166,8 @@ const DesignHubAdmin = () => {
               refresh={refetch}
               selectedImages={selectedImages}
               setSelectedImages={setSelectedImages}
+              handleUploadListingImages={handleUploadListingImages}
+              isUploading={isUploading}
             />
           </Col>
         </>
@@ -156,7 +176,7 @@ const DesignHubAdmin = () => {
           message="Please select a customer to view designs"
           type="error"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ padding: "4ch", width: "100%" }}
         />
       )}
     </Row>

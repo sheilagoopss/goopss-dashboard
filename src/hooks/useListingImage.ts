@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useCallback, useState } from "react";
 import {
   collection,
@@ -6,7 +7,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import FirebaseHelper from "helpers/FirebaseHelper";
-import { ListingImage } from "types/Listing";
+import { Listing, ListingImage } from "types/Listing";
 import { db, storage } from "../firebase/config";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { useTaskCreate } from "./useTask";
@@ -22,6 +23,24 @@ interface UseListingImageStatusUpdate {
   batchApproveImages: (imageIds: string[]) => Promise<boolean>;
   supersedeImage: (imageId: string) => Promise<boolean>;
   isLoading: boolean;
+}
+
+interface UseUploadRevision {
+  uploadRevision: (
+    customerId: string,
+    listing: ListingImage,
+    base64Image: string,
+  ) => Promise<boolean>;
+  isLoading: boolean;
+}
+
+interface UseUploadListingImages {
+  uploadListingImages: (
+    customerId: string,
+    listing: Listing,
+    base64Images: string[],
+  ) => Promise<boolean>;
+  isUploading: boolean;
 }
 
 interface UseUploadRevision {
@@ -225,4 +244,92 @@ export const useDownloadImage = (): UseDownloadImage => {
   );
 
   return { downloadImage, isDownloading };
+};
+
+export const useUploadListingImages = (): UseUploadListingImages => {
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const { createTask } = useTaskCreate();
+  const { user } = useAuth();
+
+  const uploadListingImages = useCallback(
+    async (customerId: string, listing: Listing, base64Images: string[]) => {
+      setIsUploading(true);
+      try {
+        if (!listing.id || !base64Images.length) {
+          return false;
+        }
+
+        const batch = writeBatch(db);
+
+        const uploadPromises = base64Images.map(async (base64Image) => {
+          const matches = base64Image.match(/^data:(image\/\w+);base64,/);
+          const fileExtension = matches ? matches[1].split("/")[1] : "png";
+          const base64Data = base64Image.replace(
+            /^data:image\/\w+;base64,/,
+            "",
+          );
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length)
+            .fill(0)
+            .map((_, i) => byteCharacters.charCodeAt(i));
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], {
+            type: `image/${fileExtension}`,
+          });
+
+          const uniqueFileName = `${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(2, 9)}.${fileExtension}`;
+          const storageRef = ref(storage, `designs/${uniqueFileName}`);
+          await uploadBytes(storageRef, blob);
+          const downloadURL = await getDownloadURL(storageRef);
+
+          const newImageDoc: ListingImage = {
+            id: doc(collection(db, "images")).id,
+            url: downloadURL,
+            status: "pending",
+            listing_id: listing.listingID,
+            customer_id: customerId,
+          };
+
+          const fullImageDoc = {
+            ...newImageDoc,
+            title: `${Math.round(Math.random() * 999)} - ${listing.listingTitle?.substring(0, 10)}${new Date().toISOString()}`,
+            date: new Date().toISOString(),
+          };
+
+          batch.set(doc(db, "images", newImageDoc.id), fullImageDoc);
+          return newImageDoc;
+        });
+
+        const newImages = await Promise.all(uploadPromises);
+
+        const listingRef = doc(db, "listings", listing.id);
+        batch.update(listingRef, { hasImage: true });
+
+        await createTask({
+          customerId: customerId,
+          taskName: `Added ${newImages.length} image${
+            newImages.length > 1 ? "s" : ""
+          }`,
+          teamMemberName: (user as IAdmin)?.name || user?.email || "",
+          dateCompleted: serverTimestamp(),
+          listingId: listing.id,
+          isDone: true,
+          category: "Design",
+        });
+
+        await batch.commit();
+        return true;
+      } catch (error) {
+        console.error("Error uploading images:", error);
+        return false;
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [],
+  );
+
+  return { uploadListingImages, isUploading };
 };
