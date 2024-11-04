@@ -16,7 +16,7 @@ export interface ICustomer {
   current_sales?: number;
   phone?: string;
   
-  // New fields for store information
+  // Existing store information fields
   website?: string;
   industry?: string;
   about?: string;
@@ -25,6 +25,19 @@ export interface ICustomer {
   instagram_link?: string;
   pinterest_link?: string;
   content_tone?: string;
+
+  // Adding missing fields
+  first_name?: string;
+  last_name?: string;
+  display_shop_name?: string;
+  etsy_store_url?: string;
+  facebook_groups?: string;
+  past_facebook_posts?: string;
+  past_instagram_posts?: string;
+  instagram_hashtags?: string;
+  products_to_post?: string;
+  competitor_social?: string;
+  content_guideline?: string;
 }
 
 export interface IAdmin {

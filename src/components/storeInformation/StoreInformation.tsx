@@ -1,8 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { useNavigate } from 'react-router-dom';
 import { UserOutlined, FileTextOutlined, GlobalOutlined } from '@ant-design/icons';
+import { 
+  Form,
+  Input,
+  Select,
+  Button,
+  Layout,
+  Menu,
+  Typography,
+  Space,
+  Row,
+  Col,
+  Card,
+  Alert,
+  Divider,
+  message
+} from 'antd';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+const { Content, Sider } = Layout;
 
 const etsyCategories = [
   "Art & Collectibles",
@@ -22,55 +41,23 @@ interface StoreInformationProps {
 }
 
 const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin }) => {
+  const [form] = Form.useForm();
   const [currentSection, setCurrentSection] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    displayShopName: '',
-    etsyStoreURL: '',
-    email: '',
-    website: '',
-    industry: '',
-    about: '',
-    targetAudience: '',
-    contentTone: '',
-    facebookPageLink: '',
-    instagramLink: '',
-    pinterestLink: '',
-    facebookGroups: '',
-    pastFacebookPosts: '',
-    pastInstagramPosts: '',
-    instagramHashtags: '',
-    productsToPost: '',
-    competitorSocial: '',
-    contentGuideline: ''
-  });
   const [error, setError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
 
-  // Add styles for the error notification
-  const notificationStyles = {
-    error: {
-      position: 'fixed' as const,
-      top: '20px',
-      right: '20px',
-      backgroundColor: '#ff4d4f',
-      color: 'white',
-      padding: '12px 24px',
-      borderRadius: '4px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      zIndex: 1000,
-      animation: 'slideIn 0.3s ease-out',
-      transform: 'translateX(0)',
-      opacity: 1,
-      transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
-    }
-  };
+  // Add ref for the scroll container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const showError = (message: string) => {
-    setError(message);
-    setTimeout(() => setError(null), 3000); // Hide after 3 seconds
+  // Add function to scroll to top
+  const scrollToTop = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
   };
 
   // Fetch existing customer data
@@ -82,10 +69,9 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         const customerDoc = await getDoc(doc(db, 'customers', customerId));
         if (customerDoc.exists()) {
           const data = customerDoc.data();
-          const firstNameOnly = data.first_name || '';
-          setFirstName(firstNameOnly);
+          setFirstName(data.first_name || '');
           
-          setFormData({
+          form.setFieldsValue({
             firstName: data.first_name || '',
             lastName: data.last_name || '',
             email: data.email || '',
@@ -110,126 +96,99 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         }
       } catch (error) {
         console.error('Error fetching customer data:', error);
-        alert('Failed to load customer data');
+        setError('Failed to load customer data');
       }
     };
 
     fetchCustomerData();
-  }, [customerId]);
+  }, [customerId, form]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const validateCurrentSection = () => {
-    // Remove all validations, always return true
-    return true;
-  };
-
-  const handleNext = () => {
-    if (validateCurrentSection()) {
-      setCurrentSection(prev => prev + 1);
-    }
-  };
-
-  const handleSave = async () => {
-    // Validate all sections before saving
-    for (let i = 0; i <= currentSection; i++) {
-      setCurrentSection(i);
-      if (!validateCurrentSection()) {
-        return;
-      }
-    }
-
+  const handleNext = async () => {
     try {
+      // Get current form values
+      const values = await form.validateFields();
+      
       setLoading(true);
       
       if (!customerId) {
-        alert('No customer selected');
+        setError('No customer selected');
         return;
       }
 
       const customerRef = doc(db, 'customers', customerId);
-      const customerDoc = await getDoc(customerRef);
-
-      if (!customerDoc.exists()) {
-        alert('Customer not found');
+      
+      // Check if the document exists first
+      const docSnap = await getDoc(customerRef);
+      if (!docSnap.exists()) {
+        setError('Customer document not found');
         return;
       }
 
-      const currentData = customerDoc.data();
-      const updateData: Record<string, any> = {
-        ...(formData.firstName && { first_name: formData.firstName }),
-        ...(formData.lastName && { last_name: formData.lastName }),
-        ...(formData.email && { email: formData.email }),
-        ...(formData.website && { website: formData.website }),
-        ...(formData.industry && { industry: formData.industry }),
-        ...(formData.about && { about: formData.about }),
-        ...(formData.targetAudience && { target_audience: formData.targetAudience }),
-        ...(formData.facebookPageLink && { facebook_link: formData.facebookPageLink }),
-        ...(formData.instagramLink && { instagram_link: formData.instagramLink }),
-        ...(formData.pinterestLink && { pinterest_link: formData.pinterestLink }),
-        ...(formData.contentTone && { content_tone: formData.contentTone }),
-        ...(formData.facebookGroups && { facebook_groups: formData.facebookGroups }),
-        ...(formData.pastFacebookPosts && { past_facebook_posts: formData.pastFacebookPosts }),
-        ...(formData.pastInstagramPosts && { past_instagram_posts: formData.pastInstagramPosts }),
-        ...(formData.instagramHashtags && { instagram_hashtags: formData.instagramHashtags }),
-        ...(formData.productsToPost && { products_to_post: formData.productsToPost }),
-        ...(formData.competitorSocial && { competitor_social: formData.competitorSocial }),
-        ...(formData.contentGuideline && { content_guideline: formData.contentGuideline }),
-        ...(formData.displayShopName && { display_shop_name: formData.displayShopName }),
+      const updateData = {
+        first_name: values.firstName,
+        last_name: values.lastName,
+        email: values.email,
+        website: values.website,
+        industry: values.industry,
+        about: values.about,
+        target_audience: values.targetAudience,
+        facebook_link: values.facebookPageLink,
+        instagram_link: values.instagramLink,
+        pinterest_link: values.pinterestLink,
+        content_tone: values.contentTone,
+        facebook_groups: values.facebookGroups,
+        past_facebook_posts: values.pastFacebookPosts,
+        past_instagram_posts: values.pastInstagramPosts,
+        instagram_hashtags: values.instagramHashtags,
+        products_to_post: values.productsToPost,
+        competitor_social: values.competitorSocial,
+        content_guideline: values.contentGuideline,
+        display_shop_name: values.displayShopName,
+        etsy_store_url: values.etsyStoreURL,
       };
 
-      await updateDoc(customerRef, updateData);
-      alert('Store information updated successfully');
-      setCurrentSection(0);
+      // Only include fields that have values
+      const cleanedUpdateData = Object.entries(updateData).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== '') {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
 
-    } catch (error) {
+      await updateDoc(customerRef, cleanedUpdateData);
+      setError(null);
+      
+      // Show success message
+      message.success('Information saved successfully');
+      
+      // After successful save, scroll to top before changing section
+      scrollToTop();
+      
+      // If we're on the last section, go back to first section after saving
+      if (currentSection === sections.length - 1) {
+        setCurrentSection(0);
+      } else {
+        // Otherwise, move to next section
+        setCurrentSection(prev => prev + 1);
+      }
+    } catch (error: any) {
       console.error('Error saving data:', error);
-      alert('Failed to save store information');
+      if (error.name === 'FirebaseError') {
+        message.error(`Firebase Error: ${error.message}`);
+      } else if (error.errorFields) {
+        // Form validation error
+        message.error('Please fill in all required fields');
+      } else {
+        message.error('Failed to save store information: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const formStyles = {
-    formSection: {
-      maxWidth: '800px'
-    },
-    formGroup: {
-      marginBottom: '1rem'
-    },
-    label: {
-      display: 'block',
-      marginBottom: '0.5rem',
-      fontWeight: 500
-    },
-    input: {
-      width: '100%',
-      padding: '8px',
-      border: '1px solid #d9d9d9',
-      borderRadius: '4px',
-      fontSize: '14px'
-    },
-    textarea: {
-      width: '100%',
-      padding: '8px',
-      border: '1px solid #d9d9d9',
-      borderRadius: '4px',
-      fontSize: '14px',
-      resize: 'vertical' as const
-    },
-    select: {
-      width: '100%',
-      padding: '8px',
-      border: '1px solid #d9d9d9',
-      borderRadius: '4px',
-      fontSize: '14px'
-    }
+  const handlePrevious = () => {
+    scrollToTop();
+    setCurrentSection(prev => prev - 1);
   };
 
   const sections = [
@@ -237,386 +196,265 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       title: 'Seller Info',
       icon: <UserOutlined />,
       content: (
-        <div style={formStyles.formSection}>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <div style={formStyles.formGroup}>
-              <label style={formStyles.label}>First Name</label>
-              <input
-                style={{ ...formStyles.input, width: '100%' }}
-                type="text"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleInputChange}
-              />
-            </div>
-            <div style={formStyles.formGroup}>
-              <label style={formStyles.label}>Last Name</label>
-              <input
-                style={{ ...formStyles.input, width: '100%' }}
-                type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleInputChange}
-              />
-            </div>
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Store Name</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="displayShopName"
-              value={formData.displayShopName}
-              onChange={handleInputChange}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Etsy Store URL</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="etsyStoreURL"
-              value={formData.etsyStoreURL}
-              onChange={handleInputChange}
-              placeholder="Add your share and save link. Ex: https://mystore.etsy.com"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Email</label>
-            <input
-              style={formStyles.input}
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Website (if applicable)</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="website"
-              value={formData.website}
-              onChange={handleInputChange}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Industry</label>
-            <select
-              style={formStyles.select}
-              name="industry"
-              value={formData.industry}
-              onChange={handleInputChange}
-            >
-              <option value="">Select an industry</option>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="firstName" label="First Name" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="lastName" label="Last Name" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item 
+            name="displayShopName" 
+            label="Store Name" 
+            rules={[{ required: true, message: 'Store Name is required' }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item 
+            name="etsyStoreURL" 
+            label="Etsy Store URL" 
+            rules={[{ required: true }]}
+            help="Add your share and save link. Ex: https://mystore.etsy.com"
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="website" label="Website (if applicable)">
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="industry" label="Industry" rules={[{ required: true }]}>
+            <Select>
               {etsyCategories.map(category => (
-                <option key={category} value={category}>{category}</option>
+                <Select.Option key={category} value={category}>{category}</Select.Option>
               ))}
-            </select>
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>About</label>
-            <textarea
-              style={formStyles.textarea}
-              name="about"
-              value={formData.about}
-              onChange={handleInputChange}
-              rows={6}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Target Audience</label>
-            <textarea
-              style={formStyles.textarea}
-              name="targetAudience"
-              value={formData.targetAudience}
-              onChange={handleInputChange}
-              rows={4}
-            />
-          </div>
-        </div>
+            </Select>
+          </Form.Item>
+
+          <Form.Item 
+            name="about" 
+            label="About"
+            help="Tell us about your store and what makes it unique"
+          >
+            <TextArea rows={6} />
+          </Form.Item>
+
+          <Form.Item 
+            name="targetAudience" 
+            label="Target Audience"
+            help="Describe your ideal customer and their interests"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+        </Space>
       )
     },
     {
       title: 'Social Media',
       icon: <GlobalOutlined />,
       content: (
-        <div style={formStyles.formSection}>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Facebook Page Link</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="facebookPageLink"
-              value={formData.facebookPageLink}
-              onChange={handleInputChange}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>If you are familiar with top relevant Facebook groups for your business, please apply their links</label>
-            <textarea
-              style={formStyles.textarea}
-              name="facebookGroups"
-              value={formData.facebookGroups}
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="Enter Facebook group links, one per line"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Please attach 2-5 Facebook posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement</label>
-            <textarea
-              style={formStyles.textarea}
-              name="pastFacebookPosts"
-              value={formData.pastFacebookPosts}
-              onChange={handleInputChange}
-              rows={6}
-              placeholder="Paste your Facebook post links or content here"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Instagram Link</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="instagramLink"
-              value={formData.instagramLink}
-              onChange={handleInputChange}
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Please attach 2-5 Instagram posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement</label>
-            <textarea
-              style={formStyles.textarea}
-              name="pastInstagramPosts"
-              value={formData.pastInstagramPosts}
-              onChange={handleInputChange}
-              rows={6}
-              placeholder="Paste your Instagram post links or content here"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>In case you have any existing instagram hashtags you would like us to use, please include them here</label>
-            <textarea
-              style={formStyles.textarea}
-              name="instagramHashtags"
-              value={formData.instagramHashtags}
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="Enter your Instagram hashtags, separated by spaces"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Pinterest Link</label>
-            <input
-              style={formStyles.input}
-              type="text"
-              name="pinterestLink"
-              value={formData.pinterestLink}
-              onChange={handleInputChange}
-            />
-          </div>
-        </div>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Form.Item 
+            name="facebookPageLink" 
+            label="Facebook Page Link"
+            help="Enter the full URL of your Facebook business page"
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item 
+            name="facebookGroups" 
+            label="If you are familiar with top relevant Facebook groups for your business, please apply their links"
+            help="Enter Facebook group links, one per line"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item 
+            name="pastFacebookPosts" 
+            label="Please attach 2-5 Facebook posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement"
+            help="Paste your Facebook post links or content here"
+          >
+            <TextArea rows={6} />
+          </Form.Item>
+
+          <Form.Item 
+            name="instagramLink" 
+            label="Instagram Link"
+            help="Enter the full URL of your Instagram profile"
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item 
+            name="pastInstagramPosts" 
+            label="Please attach 2-5 Instagram posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement"
+            help="Paste your Instagram post links or content here"
+          >
+            <TextArea rows={6} />
+          </Form.Item>
+
+          <Form.Item 
+            name="instagramHashtags" 
+            label="In case you have any existing instagram hashtags you would like us to use, please include them here"
+            help="Enter your Instagram hashtags, separated by spaces"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item 
+            name="pinterestLink" 
+            label="Pinterest Link"
+            help="Enter the full URL of your Pinterest profile"
+          >
+            <Input />
+          </Form.Item>
+        </Space>
       )
     },
     {
       title: 'Content Preferences',
       icon: <FileTextOutlined />,
       content: (
-        <div style={formStyles.formSection}>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Describe the tone you want for your content</label>
-            <textarea
-              style={formStyles.textarea}
-              name="contentTone"
-              value={formData.contentTone}
-              onChange={handleInputChange}
-              rows={3}
-              placeholder="e.g., friendly, professional, casual"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Are there any specific products/categories you would like us to focus on? Please add links</label>
-            <textarea
-              style={formStyles.textarea}
-              name="productsToPost"
-              value={formData.productsToPost}
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="Add product or category links, one per line"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Provide links to 2-5 competitors' social media profiles (on any social media platform)</label>
-            <textarea
-              style={formStyles.textarea}
-              name="competitorSocial"
-              value={formData.competitorSocial}
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="Add competitor social media links, one per line"
-            />
-          </div>
-          <div style={formStyles.formGroup}>
-            <label style={formStyles.label}>Any content restrictions or guidelines?</label>
-            <textarea
-              style={formStyles.textarea}
-              name="contentGuideline"
-              value={formData.contentGuideline}
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="E.g., Avoid certain topics, adhere to specific brand guidelines, etc."
-            />
-          </div>
-        </div>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Form.Item 
+            name="contentTone" 
+            label="Describe the tone you want for your content"
+            help="E.g., friendly, professional, casual"
+          >
+            <TextArea rows={3} />
+          </Form.Item>
+
+          <Form.Item 
+            name="productsToPost" 
+            label="Are there any specific products/categories you would like us to focus on? Please add links"
+            help="Add product or category links, one per line"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item 
+            name="competitorSocial" 
+            label="Competitor Social Media Profiles"
+            help="Add competitor social media links, one per line (2-5 profiles)"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item 
+            name="contentGuideline" 
+            label="Content Restrictions or Guidelines"
+            help="E.g., Avoid certain topics, adhere to specific brand guidelines, etc."
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+        </Space>
       )
     }
   ];
 
   return (
-    <div className="store-information" style={{ 
-      backgroundColor: 'white', 
-      padding: '2rem', 
-      borderRadius: '8px', 
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-      fontFamily: 'Poppins, sans-serif'
-    }}>
-      {/* Add error notification */}
-      {error && (
-        <div 
-          style={{
-            ...notificationStyles.error,
-            animation: 'none',
-            transform: error ? 'translateX(0)' : 'translateX(100%)',
-            opacity: error ? 1 : 0
-          }}
-        >
-          {error}
-        </div>
-      )}
+    <Card>
+      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
 
-      <h2 style={{ marginBottom: '1rem' }}>Hello {firstName}! 👋 Let's get to know you better.</h2>
-      <p style={{ marginBottom: '2rem' }}>
+      <Title level={2}>Hello {firstName}! 👋 Let's get to know you better.</Title>
+      <Paragraph style={{ marginBottom: '2rem' }}>
         We're excited to learn about your Etsy journey. Fill out the details below to help us tailor your experience.
-      </p>
+      </Paragraph>
 
-      <div style={{ display: 'flex', gap: '2rem' }}>
-        <div style={{ width: '200px', borderRight: '1px solid #f0f0f0' }}>
-          {sections.map((section, index) => (
-            <div
-              key={section.title}
-              onClick={() => setCurrentSection(index)}
-              style={{
-                padding: '12px 16px',
-                marginBottom: '8px',
-                cursor: 'pointer',
-                backgroundColor: currentSection === index ? '#e6f7ff' : 'transparent',
-                borderLeft: `3px solid ${currentSection === index ? '#1890ff' : 'transparent'}`,
-                color: currentSection === index ? '#1890ff' : 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.3s'
-              }}
-            >
-              {section.icon}
-              <span>{section.title}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ flex: 1 }}>
-          {sections[currentSection].content}
-        </div>
-      </div>
-
-      <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'space-between' }}>
-        <button 
-          onClick={() => setCurrentSection(prev => prev - 1)}
-          disabled={currentSection === 0}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #d9d9d9',
-            borderRadius: '4px',
-            backgroundColor: 'white',
-            cursor: currentSection === 0 ? 'not-allowed' : 'pointer',
-            opacity: currentSection === 0 ? 0.5 : 1
-          }}
-        >
-          Previous
-        </button>
-        <div>
-          <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to reset the form? All data will be lost.')) {
-                setFormData({
-                  firstName: '',
-                  lastName: '',
-                  displayShopName: '',
-                  etsyStoreURL: '',
-                  email: '',
-                  website: '',
-                  industry: '',
-                  about: '',
-                  targetAudience: '',
-                  contentTone: '',
-                  facebookPageLink: '',
-                  instagramLink: '',
-                  pinterestLink: '',
-                  facebookGroups: '',
-                  pastFacebookPosts: '',
-                  pastInstagramPosts: '',
-                  instagramHashtags: '',
-                  productsToPost: '',
-                  competitorSocial: '',
-                  contentGuideline: '',
-                });
-              }
-            }}
-            style={{
-              padding: '8px 16px',
-              border: '1px solid #d9d9d9',
-              borderRadius: '4px',
-              backgroundColor: 'white',
-              marginRight: '8px'
+      <div 
+        ref={scrollContainerRef}
+        style={{ height: 'calc(100vh - 250px)', overflow: 'auto' }}
+      >
+        <Layout style={{ background: 'transparent', minHeight: '100%' }}>
+          <Sider 
+            theme="light" 
+            width={250}
+            style={{ 
+              background: 'transparent',
+              overflow: 'hidden'
             }}
           >
-            Reset
-          </button>
-          {currentSection === sections.length - 1 ? (
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              style={{
-                padding: '8px 16px',
+            <Menu
+              mode="inline"
+              selectedKeys={[currentSection.toString()]}
+              style={{ 
                 border: 'none',
-                borderRadius: '4px',
-                backgroundColor: '#1890ff',
-                color: 'white',
-                cursor: loading ? 'not-allowed' : 'pointer'
+                width: '100%',
+                overflowX: 'hidden'
               }}
+              items={sections.map((section, index) => ({
+                key: index.toString(),
+                icon: section.icon,
+                label: section.title,
+                onClick: () => setCurrentSection(index)
+              }))}
+            />
+          </Sider>
+
+          <Content style={{ padding: '0 24px' }}>
+            <Form
+              form={form}
+              layout="vertical"
+              style={{ maxWidth: 800 }}
             >
-              {loading ? 'Saving...' : 'Save'}
-            </button>
-          ) : (
-            <button
-              onClick={handleNext}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                backgroundColor: '#1890ff',
-                color: 'white',
-                cursor: 'pointer'
-              }}
-            >
-              Next
-            </button>
-          )}
-        </div>
+              {sections[currentSection].content}
+
+              <Divider />
+
+              <Row justify="space-between">
+                <Col>
+                  <Button 
+                    onClick={handlePrevious}
+                    disabled={currentSection === 0}
+                  >
+                    Previous
+                  </Button>
+                </Col>
+                <Col>
+                  <Space>
+                    <Button onClick={() => form.resetFields()}>
+                      Reset
+                    </Button>
+                    {currentSection === sections.length - 1 ? (
+                      <Button 
+                        type="primary" 
+                        onClick={handleNext} 
+                        loading={loading}
+                        style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                      >
+                        Save
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="primary" 
+                        onClick={handleNext} 
+                        loading={loading}
+                        style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                      >
+                        Next
+                      </Button>
+                    )}
+                  </Space>
+                </Col>
+              </Row>
+            </Form>
+          </Content>
+        </Layout>
       </div>
-    </div>
+    </Card>
   );
 };
 
