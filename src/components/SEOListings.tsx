@@ -411,11 +411,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       .map((listing) => ({
         "Listing ID": listing.listingID || "-",
         "Listing Title": listing.listingTitle || "-",
-        "Listing Description": listing.listingDescription || "-",
+        "Listing Description": (listing.listingDescription || "-")
+          .replace(/<br\s*\/?>/gi, '\n')  // Case insensitive match
+          .replace(/&nbsp;/g, ' ')        // Replace &nbsp; with spaces
+          .replace(/<[^>]*>/g, ''),       // Remove any other HTML tags
         "Listing Tags": listing.listingTags || "-",
         "Optimized At": listing.optimizedAt || "-",
         "Optimized Title": listing.optimizedTitle || "-",
-        "Optimized Description": listing.optimizedDescription || "-",
+        "Optimized Description": (listing.optimizedDescription || "-")
+          .replace(/<br\s*\/?>/gi, '\n')  // Case insensitive match
+          .replace(/&nbsp;/g, ' ')        // Replace &nbsp; with spaces
+          .replace(/<[^>]*>/g, ''),       // Remove any other HTML tags
         "Optimized Tags": listing.optimizedTags || "-",
       }));
     const csv = Papa.unparse(csvData);
@@ -489,7 +495,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
               checked={showNonBestsellers}
               onChange={(e) => setShowNonBestsellers(e.target.checked)}
             />
-            Show Non-Bestsellers Only
+            Show Non-bestsellers Only
           </label>
           <label>
             <input
