@@ -98,7 +98,7 @@ export default function CustomerManagement() {
   };
 
   return (
-    <Layout style={{ backgroundColor: "white" }}>
+    <Layout style={{ backgroundColor: "none" }}>
       <Content style={{ padding: "24px" }}>
         <div
           style={{

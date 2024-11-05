@@ -13,4 +13,8 @@ export const endpoints = {
   pinterest: {
     login: `${API_URL}/api/v1/auth/pinterest`,
   },
+  listingImage: {
+    download: (imageId: string) =>
+      `${API_URL}/api/v1/listingImage/${imageId}/download`,
+  },
 };
