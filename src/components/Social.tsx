@@ -833,15 +833,13 @@ const Social: React.FC = () => {
         </div>
       </div>
 
-      {isAdmin && (
-        <PostCreationModal
-          isOpen={isPostCreationModalOpen}
-          listing={currentListing}
-          customerId={selectedCustomer?.id || ""}
-          onSave={handleSavePost}
-          onCancel={() => setIsPostCreationModalOpen(false)}
-        />
-      )}
+      <PostCreationModal
+        isOpen={isPostCreationModalOpen}
+        listing={currentListing}
+        customerId={selectedCustomer?.id || ""}
+        onSave={handleSavePost}
+        onCancel={() => setIsPostCreationModalOpen(false)}
+      />
     </div>
   );
 };
