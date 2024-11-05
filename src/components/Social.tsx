@@ -78,9 +78,17 @@ const PostCreationModal: React.FC<{
         throw new Error("Customer not found");
       }
 
-      // Fetch listing data
+      // Fetch only specific listing fields
       const listingDoc = await getDoc(doc(db, 'listings', listing?.id || ''));
       const listingData = listingDoc.exists() ? listingDoc.data() : null;
+
+      // Structure listing data with only the fields we need
+      const listingInfo = {
+        title: listingData?.optimizedTitle || listingData?.listingTitle || '',
+        description: listingData?.optimizedDescription || listingData?.listingDescription || '',
+        primaryImage: listingData?.primaryImage || '',
+        etsyLink: listingData?.etsyLink || ''
+      };
 
       const customerData = customerDoc.data();
       
@@ -99,14 +107,14 @@ const PostCreationModal: React.FC<{
         competitor_social: customerData.competitor_social || ''
       };
 
-      // Change the endpoint to generate-content
+      // Replace the endpoint with the new one
       const response = await fetch("api/generate-content", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          listing: listingData,  // Send the entire listing data
+          listing: listingInfo,  // Send only the specific listing fields we need
           platform,
           customerInfo
         }),
