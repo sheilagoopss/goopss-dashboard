@@ -5,7 +5,6 @@ import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
-// import { DesignHub } from "../components/DesignHub";
 import UserDesignHub from "../components/UserDesignHub";
 import Plan from "../components/Plan";
 import Social from "../components/Social";
@@ -156,11 +155,11 @@ export default function AppRoutes() {
               path="customer-form"
               element={<StoreInformation customerId="" isAdmin={true} />}
             />
-            <Route path="design-hub" element={<DesignHubV2 />} />
-            {/* <Route 
+            {/* <Route path="design-hub" element={<DesignHubV2 />} /> */}
+            <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            />  */}
+            /> 
             <Route
               path="listings"
               element={
@@ -253,16 +252,16 @@ export default function AppRoutes() {
                 <StoreInformation customerId={user?.id || ""} isAdmin={false} />
               }
             />
-            <Route
+            {/* <Route
               path="design-hub"
               element={
                 userType === "Free" ? <UpgradeNotice /> : <DesignHubV2 />
               }
-            />
-            {/* <Route
+            /> */}
+            <Route
               path="design-hub"
               element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
-            /> */}
+            />
             <Route
               path="listings"
               element={
