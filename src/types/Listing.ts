@@ -18,6 +18,7 @@ export interface Listing {
   uploadedImages?: ListingImage[];
   hasImage?: boolean;
   contact_email?: string;
+  etsyLink?: string;
 }
 
 export interface ListingImage {

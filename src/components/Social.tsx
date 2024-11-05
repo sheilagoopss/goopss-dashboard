@@ -10,6 +10,7 @@ import {
   limit,
   startAfter,
   orderBy,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
@@ -71,15 +72,43 @@ const PostCreationModal: React.FC<{
 
   const generateContentWithAI = async (platform: "facebook" | "instagram") => {
     try {
-      const response = await fetch("/api/generate-content", {
+      // First fetch customer data
+      const customerDoc = await getDoc(doc(db, 'customers', customerId));
+      if (!customerDoc.exists()) {
+        throw new Error("Customer not found");
+      }
+
+      // Fetch listing data
+      const listingDoc = await getDoc(doc(db, 'listings', listing?.id || ''));
+      const listingData = listingDoc.exists() ? listingDoc.data() : null;
+
+      const customerData = customerDoc.data();
+      
+      // Get all the required customer fields
+      const customerInfo = {
+        website: customerData.website || '',
+        industry: customerData.industry || '',
+        about: customerData.about || '',
+        target_audience: customerData.target_audience || '',
+        content_tone: customerData.content_tone || '',
+        etsy_store_url: customerData.etsy_store_url || '',
+        past_facebook_posts: customerData.past_facebook_posts || '',
+        past_instagram_posts: customerData.past_instagram_posts || '',
+        content_guideline: customerData.content_guideline || '',
+        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || '',
+        competitor_social: customerData.competitor_social || ''
+      };
+
+      // Change the endpoint to generate-content
+      const response = await fetch("api/generate-content", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          listing,
+          listing: listingData,  // Send the entire listing data
           platform,
-          imageUrl: listing?.primaryImage,
+          customerInfo
         }),
       });
 
@@ -87,6 +116,7 @@ const PostCreationModal: React.FC<{
         throw new Error("Failed to generate content");
       }
 
+      // Fallback content if the AI fails
       const data = await response.json();
       return data.content;
     } catch (error) {
