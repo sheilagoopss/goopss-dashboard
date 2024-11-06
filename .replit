@@ -1,21 +1,5 @@
-build = "npm run build"
-run = "npm run serve"
-modules = ["nix", "nodejs-20", "web"]
+run = "npm start"
+language = "nodejs"
+entrypoint = "index.html"
+onstart = "serve -s build"
 
-[nix]
-channel = "stable-24_05"
-
-[env]
-PATH = "/root/.local/share/fnm:$PATH"
-
-[deployment]
-deploymentTarget = "static"
-publicDir = "build"
-
-[[ports]]
-localPort = 3000
-externalPort = 80
-
-[[ports]]
-localPort = 3001
-externalPort = 3001
