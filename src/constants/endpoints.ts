@@ -17,4 +17,7 @@ export const endpoints = {
     download: (imageId: string) =>
       `${API_URL}/api/v1/listingImage/${imageId}/download`,
   },
+  tagify: {
+    generateTags: `${API_URL}/api/v1/tagify/generate-tags`,
+  },
 };
