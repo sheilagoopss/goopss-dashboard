@@ -15,6 +15,7 @@ export interface ICustomer {
   sales_when_joined?: number;
   current_sales?: number;
   phone?: string;
+  contact_email: string;
   
   // Store information and social form
   website?: string;

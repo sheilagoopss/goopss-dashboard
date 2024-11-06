@@ -33,24 +33,53 @@ import { useListingUpdate } from "../hooks/useListing";
 import { Listing } from "../types/Listing";
 import Papa from "papaparse";
 import dayjs from "dayjs";
-import { Button } from "antd";
+import { Button, Input, Table, Tag, Space, Card, Divider, Typography, Checkbox, message, Image, Row, Col } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { useTaskCreate } from "../hooks/useTask";
 import { useAuth } from "../contexts/AuthContext";
 import { IAdmin } from "../types/Customer";
+
+const { Title, Text } = Typography;
 
 interface SEOListingsProps {
   customerId: string;
   storeName: string;
 }
 
-const formatDate = (date: Date | null): string => {
+const formatDate = (date: Date | null | undefined | any): string => {
   if (!date) return "";
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  
+  // Handle Firestore Timestamp
+  if (date.toDate && typeof date.toDate === "function") {
+    return date.toDate().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+  
+  // Handle regular Date object
+  if (date instanceof Date) {
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  // If it's a timestamp number
+  if (typeof date.seconds === "number") {
+    return new Date(date.seconds * 1000).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  return "";
 };
 
 const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
@@ -140,7 +169,6 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       const q = query(
         listingsCollection,
         where("customer_id", "==", customerId),
-        // Removed the where clause for optimizationStatus
       );
       const listingsSnapshot = await getDocs(q);
       const listingsList = listingsSnapshot.docs.map((doc) => {
@@ -148,10 +176,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         let optimizedAt: Date | null = null;
 
         if (data.optimizedAt) {
-          if (
-            data.optimizedAt.toDate &&
-            typeof data.optimizedAt.toDate === "function"
-          ) {
+          if (data.optimizedAt.toDate && typeof data.optimizedAt.toDate === "function") {
             optimizedAt = data.optimizedAt.toDate();
           } else if (data.optimizedAt instanceof Date) {
             optimizedAt = data.optimizedAt;
@@ -159,8 +184,6 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
             optimizedAt = new Date(data.optimizedAt);
           } else if (typeof data.optimizedAt.seconds === "number") {
             optimizedAt = new Date(data.optimizedAt.seconds * 1000);
-          } else if (data.optimizedAt._methodName === "serverTimestamp") {
-            optimizedAt = new Date();
           }
         }
 
@@ -170,8 +193,10 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           optimizedAt: optimizedAt,
         } as Listing;
       });
+
       setAllListings(listingsList);
-      applyFiltersAndSort(listingsList);
+      setFilteredListings(listingsList);
+      setDisplayedListings(listingsList.slice(0, LISTINGS_PER_PAGE));
     } catch (error) {
       console.error("Error fetching listings:", error);
     } finally {
@@ -294,6 +319,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         tags: listing.listingTags,
       });
       setEditedTags(listing.listingTags);
+
+      if (!expandedRows.includes(listing.id)) {
+        setExpandedRows([...expandedRows, listing.id]);
+      }
+
     } catch (error) {
       console.error("Error optimizing listing:", error);
     } finally {
@@ -312,12 +342,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         optimizedDescription: newlineToBr(optimizedContent.description),
         optimizedTags: editedTags,
         optimizationStatus: true,
-        optimizedAt: currentDate, // Use a JavaScript Date object
+        optimizedAt: currentDate,
       };
-
-      console.log("Data being sent to updateListing:", updateData);
-      console.log("Selected listing ID:", selectedListing.id);
-      console.log("Customer ID:", customerId);
 
       const listingRef = doc(db, "listings", selectedListing.id);
       await updateDoc(listingRef, updateData);
@@ -332,24 +358,40 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
         category: "Optimization",
       });
 
-      setAllListings((prevListings) =>
-        prevListings.map((l) =>
+      // Update local states
+      setAllListings(prevListings =>
+        prevListings.map(l =>
           l.id === selectedListing.id
-            ? {
-                ...l,
-                ...updateData,
-                optimizedAt: currentDate, // Ensure it's updated in local state as well
-              }
-            : l,
-        ),
+            ? { ...l, ...updateData, optimizedAt: currentDate }
+            : l
+        )
       );
 
-      // Clear the optimized content and selected listing
+      setDisplayedListings(prevListings =>
+        prevListings.map(l =>
+          l.id === selectedListing.id
+            ? { ...l, ...updateData, optimizedAt: currentDate }
+            : l
+        )
+      );
+
+      setFilteredListings(prevListings =>
+        prevListings.map(l =>
+          l.id === selectedListing.id
+            ? { ...l, ...updateData, optimizedAt: currentDate }
+            : l
+        )
+      );
+
+      // Clear the optimization form
       setOptimizedContent(null);
       setSelectedListing(null);
       setEditedTags("");
+
+      message.success('Listing optimized successfully');
     } catch (error) {
       console.error("Error saving optimized listing:", error);
+      message.error('Failed to optimize listing');
     } finally {
       setIsPublishing(false);
     }
@@ -359,38 +401,6 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setOptimizedContent(null);
     setSelectedListing(null);
     setEditedTags("");
-  };
-
-  // Replace the optimizeListing function with this simplified version
-  const optimizeListing = async (listing: Listing) => {
-    // Simple function to generate a mock optimized title
-    const generateOptimizedTitle = (originalTitle: string) => {
-      return `Improved ${originalTitle} - Best Seller!`;
-    };
-
-    // Simple function to generate a mock optimized description
-    const generateOptimizedDescription = (originalDescription: string) => {
-      return `${originalDescription}\n\nEnhanced product features for better customer satisfaction. Limited time offer!`;
-    };
-
-    // Simple function to generate mock optimized tags
-    const generateOptimizedTags = (originalTags: string) => {
-      const tagArray = originalTags.split(",").map((tag) => tag.trim());
-      const newTags = ["bestseller", "top-rated", "premium"];
-      return [...new Set([...tagArray, ...newTags])].join(", ");
-    };
-
-    const optimizedTitle = generateOptimizedTitle(listing.listingTitle);
-    const optimizedDescription = generateOptimizedDescription(
-      listing.listingDescription,
-    );
-    const optimizedTags = generateOptimizedTags(listing.listingTags);
-
-    return {
-      title: optimizedTitle,
-      description: optimizedDescription,
-      tags: optimizedTags,
-    };
   };
 
   // Add this helper function to sanitize HTML
@@ -411,11 +421,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       .map((listing) => ({
         "Listing ID": listing.listingID || "-",
         "Listing Title": listing.listingTitle || "-",
-        "Listing Description": listing.listingDescription || "-",
+        "Listing Description": (listing.listingDescription || "-")
+          .replace(/<br\s*\/?>/gi, '\n')  // Case insensitive match
+          .replace(/&nbsp;/g, ' ')        // Replace &nbsp; with spaces
+          .replace(/<[^>]*>/g, ''),       // Remove any other HTML tags
         "Listing Tags": listing.listingTags || "-",
         "Optimized At": listing.optimizedAt || "-",
         "Optimized Title": listing.optimizedTitle || "-",
-        "Optimized Description": listing.optimizedDescription || "-",
+        "Optimized Description": (listing.optimizedDescription || "-")
+          .replace(/<br\s*\/?>/gi, '\n')  // Case insensitive match
+          .replace(/&nbsp;/g, ' ')        // Replace &nbsp; with spaces
+          .replace(/<[^>]*>/g, ''),       // Remove any other HTML tags
         "Optimized Tags": listing.optimizedTags || "-",
       }));
     const csv = Papa.unparse(csvData);
@@ -435,777 +451,450 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     }
   };
 
+  // Define table columns
+  const columns = [
+    {
+      title: 'Image',
+      key: 'image',
+      width: 80,
+      render: (record: Listing) => (
+        <Image
+          src={record.primaryImage}
+          alt={record.listingTitle}
+          width={50}
+          height={50}
+        />
+      ),
+    },
+    {
+      title: 'Listing ID',
+      dataIndex: 'listingID',
+      key: 'listingID',
+    },
+    {
+      title: 'Title',
+      dataIndex: 'listingTitle',
+      key: 'title',
+      render: (text: string, record: Listing) => (
+        <a
+          href={getEtsyUrl(record.listingID)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center text-blue-600 hover:text-blue-800"
+        >
+          {text}
+          <ExternalLink size={14} className="ml-1" />
+        </a>
+      ),
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      render: (record: Listing) => (
+        <Tag color={record.optimizationStatus ? 'success' : 'warning'}>
+          {record.optimizationStatus ? 'Optimized' : 'Pending'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Bestseller',
+      key: 'bestseller',
+      render: (record: Listing) => (
+        <Tag color={record.bestseller ? 'gold' : 'default'}>
+          {record.bestseller ? 'Yes' : 'No'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Total Sales',
+      dataIndex: 'totalSales',
+      key: 'totalSales',
+      sorter: (a: Listing, b: Listing) => (a.totalSales || 0) - (b.totalSales || 0),
+    },
+    {
+      title: 'Daily Views',
+      dataIndex: 'dailyViews',
+      key: 'dailyViews',
+      sorter: (a: Listing, b: Listing) => (a.dailyViews || 0) - (b.dailyViews || 0),
+    },
+    {
+      title: 'Optimized Date',
+      key: 'optimizedAt',
+      dataIndex: 'optimizedAt',
+      render: (_: any, record: Listing) => formatDate(record.optimizedAt),
+      sorter: {
+        compare: (a: Listing, b: Listing) => {
+          if (!a.optimizedAt && !b.optimizedAt) return 0;
+          if (!a.optimizedAt) return -1;
+          if (!b.optimizedAt) return 1;
+          return a.optimizedAt.getTime() - b.optimizedAt.getTime();
+        },
+        multiple: 1
+      },
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (record: Listing) => (
+        <Button
+          onClick={() => handleOptimize(record)}
+          disabled={isOptimizing || record.optimizationStatus}
+          type="primary"
+        >
+          {isOptimizing ? 'Optimizing...' : 'Optimize'}
+        </Button>
+      ),
+    },
+  ];
+
+  // Add this useEffect to handle search and filters
   useEffect(() => {
-    let sorted = [...filteredListings];
-    if (sortColumn) {
-      sorted.sort((a, b) => {
-        if (sortColumn === "optimizedAt") {
-          const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
-          const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
-          return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
-        } else {
-          return sortDirection === "asc"
-            ? a[sortColumn] - b[sortColumn]
-            : b[sortColumn] - a[sortColumn];
-        }
-      });
+    let filtered = [...allListings];
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(listing =>
+        listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        listing.listingID.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
-    setDisplayedListings(sorted.slice(0, LISTINGS_PER_PAGE));
-  }, [filteredListings, sortColumn, sortDirection]);
+
+    // Apply non-bestsellers filter
+    if (showNonBestsellers) {
+      filtered = filtered.filter(listing => !listing.bestseller);
+    }
+
+    // Apply hide optimized filter
+    if (hideOptimized) {
+      filtered = filtered.filter(listing => !listing.optimizationStatus);
+    }
+
+    setFilteredListings(filtered);
+    setDisplayedListings(filtered.slice(0, LISTINGS_PER_PAGE));
+    setCurrentPage(1);  // Reset to first page when filters change
+  }, [searchTerm, showNonBestsellers, hideOptimized, allListings]);
 
   return (
     <div>
-      <h2>SEO Listings for {storeName}</h2>
-      <div
-        style={{
-          marginBottom: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", width: "300px" }}>
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: "100%", padding: "10px", paddingLeft: "30px" }}
-          />
-          <Search
-            style={{
-              position: "absolute",
-              left: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-            }}
-          />
-        </div>
-        <div>
-          <Button onClick={handleCSVExport}>Export CSV</Button>
-          <label style={{ marginRight: "20px" }}>
-            <input
-              type="checkbox"
-              checked={showNonBestsellers}
-              onChange={(e) => setShowNonBestsellers(e.target.checked)}
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Card>
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Input
+              placeholder="Search listings..."
+              prefix={<SearchOutlined />}
+              style={{ width: 300 }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-            Show Non-Bestsellers Only
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={hideOptimized}
-              onChange={(e) => setHideOptimized(e.target.checked)}
-            />
-            Hide Optimized Listings
-          </label>
-        </div>
-      </div>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "separate",
-          borderSpacing: "0 8px",
-        }}
-      >
-        <thead>
-          <tr>
-            <th style={{ padding: "10px", textAlign: "left" }}></th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Image</th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Listing ID</th>
-            <th
-              style={{
-                padding: "10px",
-                textAlign: "left",
-                maxWidth: "200px",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Title
-            </th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Status</th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Bestseller</th>
-            <th
-              onClick={() => handleSort("totalSales")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Total Sales{" "}
-              {sortColumn === "totalSales" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("dailyViews")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Daily Views{" "}
-              {sortColumn === "dailyViews" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("optimizedAt")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Optimized Date{" "}
-              {sortColumn === "optimizedAt" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading ? (
-            <tr>
-              <td colSpan={10} style={{ textAlign: "center", padding: "20px" }}>
-                <Loader2 style={{ animation: "spin 1s linear infinite" }} />{" "}
-                Loading...
-              </td>
-            </tr>
-          ) : (
-            displayedListings.map((listing) => (
-              <React.Fragment key={listing.id}>
-                <tr style={{ backgroundColor: "#f9f9f9" }}>
-                  <td style={{ padding: "10px" }}>
-                    <button onClick={() => toggleRowExpansion(listing.id)}>
-                      {expandedRows.includes(listing.id) ? (
-                        <ChevronUp />
-                      ) : (
-                        <ChevronDown />
-                      )}
-                    </button>
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    <img
-                      src={listing.primaryImage}
-                      alt={listing.listingTitle}
-                      style={{ width: "50px", height: "50px" }}
-                    />
-                  </td>
-                  <td style={{ padding: "10px" }}>{listing.listingID}</td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      maxWidth: "200px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <a
-                      href={getEtsyUrl(listing.listingID)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: "#0066c0",
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                      onClick={(e) => e.stopPropagation()} // Prevent row expansion when clicking the link
-                    >
-                      {listing.listingTitle}
-                      <ExternalLink size={14} style={{ marginLeft: "5px" }} />
-                    </a>
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    {listing.optimizationStatus ? "Optimized" : "Pending"}
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    {listing.bestseller ? "Yes" : "No"}
-                  </td>
-                  <td style={{ padding: "10px" }}>{listing.totalSales}</td>
-                  <td style={{ padding: "10px" }}>{listing.dailyViews}</td>
-                  <td style={{ padding: "10px" }}>
-                    {formatDate(listing.optimizedAt)}
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    <button
-                      onClick={() => handleOptimize(listing)}
-                      disabled={isOptimizing || listing.optimizationStatus}
-                    >
-                      {isOptimizing ? "Optimizing..." : "Optimize"}
-                    </button>
-                  </td>
-                </tr>
-                {expandedRows.includes(listing.id) && (
-                  <tr>
-                    <td colSpan={10}>
-                      <div
-                        style={{ padding: "20px", backgroundColor: "#f0f0f0" }}
-                      >
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "24px",
-                          }}
-                        >
+            <Space>
+              <Button onClick={handleCSVExport}>Export CSV</Button>
+              <Checkbox
+                checked={showNonBestsellers}
+                onChange={(e) => setShowNonBestsellers(e.target.checked)}
+              >
+                Show Non-Bestsellers Only
+              </Checkbox>
+              <Checkbox
+                checked={hideOptimized}
+                onChange={(e) => setHideOptimized(e.target.checked)}
+              >
+                Hide Optimized Listings
+              </Checkbox>
+            </Space>
+          </Space>
+        </Card>
+
+        <Table
+          columns={columns}
+          dataSource={displayedListings}
+          rowKey="id"
+          loading={isLoading}
+          onChange={(pagination, filters, sorter) => {
+            // Handle pagination
+            const page = pagination.current || 1;
+            const startIndex = (page - 1) * LISTINGS_PER_PAGE;
+            const endIndex = startIndex + LISTINGS_PER_PAGE;
+
+            // If sorting is happening
+            if (!Array.isArray(sorter) && 'field' in sorter && sorter.order) {
+              const field = sorter.field as "totalSales" | "dailyViews" | "optimizedAt";
+              const order = sorter.order === 'ascend' ? 'asc' : 'desc';
+              
+              // Sort all listings
+              const sortedListings = [...allListings].sort((a, b) => {
+                if (field === "optimizedAt") {
+                  if (!a.optimizedAt && !b.optimizedAt) return 0;
+                  if (!a.optimizedAt) return order === 'asc' ? -1 : 1;
+                  if (!b.optimizedAt) return order === 'asc' ? 1 : -1;
+                  return order === 'asc'
+                    ? a.optimizedAt.getTime() - b.optimizedAt.getTime()
+                    : b.optimizedAt.getTime() - a.optimizedAt.getTime();
+                }
+                
+                const valueA = a[field] || 0;
+                const valueB = b[field] || 0;
+                return order === 'asc' ? valueA - valueB : valueB - valueA;
+              });
+
+              // Apply filters
+              let filtered = sortedListings;
+              if (searchTerm) {
+                filtered = filtered.filter(listing =>
+                  listing.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  listing.listingID.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+              }
+              if (showNonBestsellers) {
+                filtered = filtered.filter(listing => !listing.bestseller);
+              }
+              if (hideOptimized) {
+                filtered = filtered.filter(listing => !listing.optimizationStatus);
+              }
+
+              setFilteredListings(filtered);
+              setDisplayedListings(filtered.slice(startIndex, endIndex));
+              setCurrentPage(page);
+              setSortColumn(field);
+              setSortDirection(order);
+            } else {
+              // Just handle pagination without sorting
+              setDisplayedListings(filteredListings.slice(startIndex, endIndex));
+              setCurrentPage(page);
+            }
+          }}
+          pagination={{
+            current: currentPage,
+            pageSize: LISTINGS_PER_PAGE,
+            total: filteredListings.length,
+            showSizeChanger: false  // Add this to fix page size
+          }}
+          expandable={{
+            expandedRowRender: (record) => (
+              <Card>
+                {selectedListing?.id === record.id && optimizedContent ? (
+                  // Optimization form layout
+                  <Row gutter={24}>
+                    {/* Original Listing - Left Side */}
+                    <Col span={12}>
+                      <Card title="Original Listing" style={{ height: '100%' }}>
+                        <Space direction="vertical" style={{ width: '100%' }}>
                           <div>
-                            <h4
-                              style={{
-                                fontWeight: "bold",
-                                marginBottom: "8px",
-                              }}
-                            >
-                              Original Listing
-                            </h4>
-                            <p>
-                              <strong>Title:</strong>
-                            </p>
-                            <p
-                              style={{ marginLeft: "8px", marginBottom: "8px" }}
-                            >
-                              {listing.listingTitle}
-                            </p>
-                            <p>
-                              <strong>Description:</strong>
-                            </p>
-                            <div style={{ marginLeft: "8px" }}>
-                              <span
-                                dangerouslySetInnerHTML={sanitizeHtml(
-                                  listing.listingDescription,
-                                )}
-                              />
-                            </div>
-                            <div style={{ marginTop: "8px" }}>
-                              <strong>Tags:</strong>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: "4px",
-                                  marginTop: "4px",
-                                }}
-                              >
-                                {listing.listingTags
-                                  .split(",")
-                                  .map((tag, index) => (
-                                    <span
-                                      key={index}
-                                      style={{
-                                        backgroundColor: "#e2e8f0",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        fontSize: "12px",
-                                      }}
-                                    >
-                                      {tag.trim()}
-                                    </span>
-                                  ))}
-                              </div>
+                            <Text strong>Title:</Text>
+                            <div style={{ marginLeft: 8 }}>{record.listingTitle}</div>
+                          </div>
+                          <div>
+                            <Text strong>Description:</Text>
+                            <div style={{ marginLeft: 8 }} dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
+                          </div>
+                          <div>
+                            <Text strong>Tags:</Text>
+                            <div style={{ marginLeft: 8 }}>
+                              <Space wrap>
+                                {record.listingTags.split(',').map((tag, index) => (
+                                  <Tag key={index}>{tag.trim()}</Tag>
+                                ))}
+                              </Space>
                             </div>
                           </div>
-                          {listing.optimizationStatus && (
-                            <div>
-                              <h4
-                                style={{
-                                  fontWeight: "bold",
-                                  marginBottom: "8px",
-                                }}
-                              >
-                                Optimized Listing
-                              </h4>
-                              <div style={{ marginBottom: "8px" }}>
-                                <strong>Title:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedTitle || "",
-                                      `title-${listing.id}`,
-                                    )
-                                  }
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
-                                  }}
-                                >
-                                  {copiedField === `title-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <p
-                                  style={{
-                                    marginLeft: "8px",
-                                    marginTop: "4px",
-                                  }}
-                                >
-                                  {listing.optimizedTitle}
-                                </p>
-                              </div>
-                              <div style={{ marginBottom: "8px" }}>
-                                <strong>Description:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedDescription || "",
-                                      `description-${listing.id}`,
-                                    )
-                                  }
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
-                                  }}
-                                >
-                                  {copiedField ===
-                                  `description-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <div
-                                  style={{
-                                    marginLeft: "8px",
-                                    marginTop: "4px",
-                                  }}
-                                >
-                                  <span
-                                    dangerouslySetInnerHTML={sanitizeHtml(
-                                      listing.optimizedDescription || "",
-                                    )}
-                                  />
-                                </div>
-                              </div>
-                              <div style={{ marginTop: "8px" }}>
-                                <strong>Tags:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedTags || "",
-                                      `tags-${listing.id}`,
-                                    )
-                                  }
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
-                                  }}
-                                >
-                                  {copiedField === `tags-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: "4px",
-                                    marginTop: "4px",
-                                  }}
-                                >
-                                  {listing.optimizedTags
-                                    ?.split(",")
-                                    .map((tag, index) => (
-                                      <span
-                                        key={index}
-                                        style={{
-                                          backgroundColor: "#e2e8f0",
-                                          padding: "2px 6px",
-                                          borderRadius: "4px",
-                                          fontSize: "12px",
-                                        }}
-                                      >
-                                        {tag.trim()}
-                                      </span>
-                                    ))}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))
-          )}
-        </tbody>
-      </table>
-      <div
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <button onClick={handlePreviousPage} disabled={currentPage === 1}>
-          <ChevronLeft /> Previous
-        </button>
-        <span>
-          Page {currentPage} of {totalPages}
-        </span>
-        <button onClick={handleNextPage} disabled={currentPage === totalPages}>
-          Next <ChevronRight />
-        </button>
-      </div>
+                        </Space>
+                      </Card>
+                    </Col>
 
-      {/* Optimized Content Area */}
-      {selectedListing && optimizedContent && (
-        <div
-          style={{
-            marginTop: "40px",
-            padding: "20px",
-            backgroundColor: "#f0f0f0",
-            borderRadius: "8px",
-          }}
-        >
-          <h2 className="text-xl font-semibold mb-4">
-            Listing Optimization Results
-          </h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "24px",
-            }}
-          >
-            <div>
-              <h3 className="font-medium text-lg mb-2">Original Listing</h3>
-              <div
-                style={{
-                  backgroundColor: "#ffffff",
-                  padding: "16px",
-                  borderRadius: "4px",
-                }}
-              >
-                <h4 className="font-medium">Title:</h4>
-                <p className="mb-2">{selectedListing.listingTitle}</p>
-                <h4 className="font-medium">Description:</h4>
-                <p
-                  dangerouslySetInnerHTML={sanitizeHtml(
-                    selectedListing.listingDescription,
-                  )}
-                />
-                <h4 className="font-medium mt-2">Tags:</h4>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {selectedListing.listingTags.split(",").map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        backgroundColor: "#e2e8f0",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                      }}
-                    >
-                      {tag.trim()}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
-              <div
-                style={{
-                  backgroundColor: "#f0fff4",
-                  padding: "16px",
-                  borderRadius: "4px",
-                }}
-              >
-                <h4 className="font-medium">Title:</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <input
-                    value={optimizedContent.title}
-                    onChange={(e) =>
-                      setOptimizedContent({
-                        ...optimizedContent,
-                        title: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  <button
-                    onClick={() =>
-                      copyToClipboard(optimizedContent.title, "title")
-                    }
-                    style={{
-                      padding: "4px",
-                      backgroundColor:
-                        recentlyCopied === "title" ? "#4CAF50" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "background-color 0.3s ease",
-                    }}
-                  >
-                    <Copy
-                      size={16}
-                      color={recentlyCopied === "title" ? "white" : "black"}
-                    />
-                  </button>
-                  <button
-                    style={{
-                      padding: "4px",
-                      backgroundColor: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Edit size={16} />
-                  </button>
-                </div>
-                <h4 className="font-medium">Description:</h4>
-                <div
-                  style={{ display: "flex", alignItems: "start", gap: "8px" }}
-                >
-                  <textarea
-                    value={optimizedContent.description}
-                    onChange={(e) =>
-                      setOptimizedContent({
-                        ...optimizedContent,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={20} // Increased from 10 to 20
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                      minHeight: "400px", // Increased from 200px to 400px
-                      resize: "vertical", // Allows vertical resizing
-                    }}
-                  />
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                    }}
-                  >
-                    <button
-                      onClick={() =>
-                        copyToClipboard(
-                          optimizedContent.description,
-                          "description",
-                        )
-                      }
-                      style={{
-                        padding: "4px",
-                        backgroundColor:
-                          recentlyCopied === "description"
-                            ? "#4CAF50"
-                            : "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        transition: "background-color 0.3s ease",
-                      }}
-                    >
-                      <Copy
-                        size={16}
-                        color={
-                          recentlyCopied === "description" ? "white" : "black"
+                    {/* Optimized Listing - Right Side */}
+                    <Col span={12}>
+                      <Card 
+                        title="Optimized Listing"
+                        extra={
+                          <Space>
+                            <Button onClick={handleCancel}>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="primary"
+                              onClick={handleSave}
+                              loading={isPublishing}
+                            >
+                              Save
+                            </Button>
+                          </Space>
                         }
-                      />
-                    </button>
-                    <button
-                      style={{
-                        padding: "4px",
-                        backgroundColor: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                  </div>
-                </div>
-                <h4 className="font-medium mt-2">Tags:</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "8px",
-                    marginBottom: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  {editedTags.split(",").map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        backgroundColor: "#e2e8f0",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      {tag.trim()}
-                      <button
-                        onClick={() => handleRemoveTag(tag.trim())}
-                        style={{
-                          fontSize: "12px",
-                          marginLeft: "4px",
-                          cursor: "pointer",
-                          border: "none",
-                          background: "none",
-                        }}
+                        style={{ height: '100%' }}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    onClick={() => copyToClipboard(editedTags, "tags")}
-                    style={{
-                      padding: "4px",
-                      backgroundColor:
-                        recentlyCopied === "tags" ? "#4CAF50" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      marginLeft: "8px",
-                      transition: "background-color 0.3s ease",
-                    }}
-                    title="Copy all tags"
-                  >
-                    <Copy
-                      size={16}
-                      color={recentlyCopied === "tags" ? "white" : "black"}
-                    />
-                  </button>
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <input
-                    placeholder="Add new tag(s)"
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        const newTags = e.currentTarget.value.trim();
-                        if (newTags) {
-                          handleAddTag(newTags);
-                          e.currentTarget.value = "";
-                        }
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                    }}
-                    disabled={
-                      editedTags.split(",").filter((tag) => tag.trim() !== "")
-                        .length >= MAX_TAGS
-                    }
-                  />
-                  <button
-                    onClick={() => {
-                      const input = document.querySelector(
-                        'input[placeholder="Add new tag(s)"]',
-                      ) as HTMLInputElement;
-                      const newTags = input.value.trim();
-                      if (newTags) {
-                        handleAddTag(newTags);
-                        input.value = "";
-                      }
-                    }}
-                    style={{
-                      padding: "8px 16px",
-                      backgroundColor: "#e2e8f0",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                    disabled={
-                      editedTags.split(",").filter((tag) => tag.trim() !== "")
-                        .length >= MAX_TAGS
-                    }
-                  >
-                    Add Tag(s)
-                  </button>
-                </div>
-                {editedTags.split(",").filter((tag) => tag.trim() !== "")
-                  .length >= MAX_TAGS && (
-                  <p style={{ color: "red", marginTop: "8px" }}>
-                    Maximum number of tags (13) reached.
-                  </p>
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                          <div>
+                            <Space align="center">
+                              <Text strong>Title:</Text>
+                              <Button 
+                                type="text" 
+                                icon={copiedField === `title-${record.id}` ? <Check /> : <Copy />}
+                                onClick={() => copyToClipboard(optimizedContent.title, `title-${record.id}`)}
+                              />
+                            </Space>
+                            <Input
+                              value={optimizedContent.title}
+                              onChange={(e) => setOptimizedContent({
+                                ...optimizedContent,
+                                title: e.target.value,
+                              })}
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                          <div>
+                            <Space align="center">
+                              <Text strong>Description:</Text>
+                              <Button 
+                                type="text" 
+                                icon={copiedField === `description-${record.id}` ? <Check /> : <Copy />}
+                                onClick={() => copyToClipboard(optimizedContent.description, `description-${record.id}`)}
+                              />
+                            </Space>
+                            <Input.TextArea
+                              value={optimizedContent.description}
+                              onChange={(e) => setOptimizedContent({
+                                ...optimizedContent,
+                                description: e.target.value,
+                              })}
+                              rows={10}
+                            />
+                          </div>
+                          <div>
+                            <Space align="center">
+                              <Text strong>Tags:</Text>
+                              <Button 
+                                type="text" 
+                                icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
+                                onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
+                              />
+                            </Space>
+                            <div>
+                              <Space wrap style={{ marginBottom: 8 }}>
+                                {editedTags.split(',').map((tag, index) => (
+                                  <Tag 
+                                    key={index}
+                                    closable
+                                    onClose={() => handleRemoveTag(tag.trim())}
+                                  >
+                                    {tag.trim()}
+                                  </Tag>
+                                ))}
+                              </Space>
+                            </div>
+                            <Space>
+                              <Input
+                                placeholder="Add new tag(s)"
+                                onPressEnter={(e) => {
+                                  const newTags = e.currentTarget.value.trim();
+                                  if (newTags) {
+                                    handleAddTag(newTags);
+                                    e.currentTarget.value = '';
+                                  }
+                                }}
+                                disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                              />
+                              <Button
+                                onClick={() => {
+                                  const input = document.querySelector('input[placeholder="Add new tag(s)"]') as HTMLInputElement;
+                                  const newTags = input.value.trim();
+                                  if (newTags) {
+                                    handleAddTag(newTags);
+                                    input.value = '';
+                                  }
+                                }}
+                                disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                              >
+                                Add Tag(s)
+                              </Button>
+                            </Space>
+                            {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
+                              <Text type="danger" style={{ marginTop: 8, display: 'block' }}>
+                                Maximum number of tags (13) reached.
+                              </Text>
+                            )}
+                          </div>
+                        </Space>
+                      </Card>
+                    </Col>
+                  </Row>
+                ) : (
+                  // Regular view layout (when not optimizing)
+                  <Row gutter={24}>
+                    <Col span={12}>
+                      <Card title="Original Listing" style={{ height: '100%' }}>
+                        <Space direction="vertical">
+                          <Text strong>Title:</Text>
+                          <Text>{record.listingTitle}</Text>
+                          <Text strong>Description:</Text>
+                          <div dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
+                          <Text strong>Tags:</Text>
+                          <Space wrap>
+                            {record.listingTags.split(',').map((tag, index) => (
+                              <Tag key={index}>{tag.trim()}</Tag>
+                            ))}
+                          </Space>
+                        </Space>
+                      </Card>
+                    </Col>
+
+                    {record.optimizationStatus && (
+                      <Col span={12}>
+                        <Card title="Optimized Listing" style={{ height: '100%' }}>
+                          <Space direction="vertical">
+                            <div>
+                              <Space align="center">
+                                <Text strong>Title:</Text>
+                                <Button 
+                                  type="text" 
+                                  icon={copiedField === `title-${record.id}` ? <Check /> : <Copy />}
+                                  onClick={() => copyToClipboard(record.optimizedTitle || '', `title-${record.id}`)}
+                                />
+                              </Space>
+                              <Text>{record.optimizedTitle}</Text>
+                            </div>
+                            <div>
+                              <Space align="center">
+                                <Text strong>Description:</Text>
+                                <Button 
+                                  type="text" 
+                                  icon={copiedField === `description-${record.id}` ? <Check /> : <Copy />}
+                                  onClick={() => copyToClipboard(record.optimizedDescription || '', `description-${record.id}`)}
+                                />
+                              </Space>
+                              <div dangerouslySetInnerHTML={sanitizeHtml(record.optimizedDescription || '')} />
+                            </div>
+                            <div>
+                              <Space align="center">
+                                <Text strong>Tags:</Text>
+                                <Button 
+                                  type="text" 
+                                  icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
+                                  onClick={() => copyToClipboard(record.optimizedTags || '', `tags-${record.id}`)}
+                                />
+                              </Space>
+                              <Space wrap>
+                                {record.optimizedTags?.split(',').map((tag: string, index: number) => (
+                                  <Tag key={index}>{tag.trim()}</Tag>
+                                ))}
+                              </Space>
+                            </div>
+                          </Space>
+                        </Card>
+                      </Col>
+                    )}
+                  </Row>
                 )}
-              </div>
-              <div
-                style={{
-                  marginTop: "20px",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: "10px",
-                }}
-              >
-                <button
-                  onClick={handleCancel}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#f44336",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isPublishing}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#4CAF50",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  {isPublishing ? (
-                    <>
-                      <Loader2
-                        size={16}
-                        style={{ animation: "spin 1s linear infinite" }}
-                      />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Save
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              </Card>
+            ),
+            expandedRowKeys: expandedRows,
+            onExpand: (expanded, record) => {
+              if (expanded) {
+                setExpandedRows([...expandedRows, record.id]);
+              } else {
+                setExpandedRows(expandedRows.filter(id => id !== record.id));
+              }
+            },
+          }}
+        />
+      </Space>
     </div>
   );
 };

@@ -25,6 +25,7 @@ import DesignHubV2 from "components/designHub/DesignHub";
 import { DesignHub } from "components/DesignHub";
 import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
+import ListingDuplication from "../components/ListingDuplication";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -182,6 +183,39 @@ export default function AppRoutes() {
                   </div>
                   {selectedCustomer ? (
                     <SEOListings
+                      customerId={selectedCustomer.id}
+                      storeName={selectedCustomer.store_name}
+                    />
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "20px" }}>
+                      Please select a customer to view their listings
+                    </div>
+                  )}
+                </div>
+              }
+            />
+            <Route
+              path="listings/duplicate"
+              element={
+                <div style={{ paddingTop: "16px" }}>
+                  <div
+                    style={{
+                      marginBottom: "24px",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div style={{ width: "300px" }}>
+                      <CustomersDropdown
+                        customers={customers}
+                        selectedCustomer={selectedCustomer}
+                        setSelectedCustomer={setSelectedCustomer}
+                        isAdmin={true}
+                      />
+                    </div>
+                  </div>
+                  {selectedCustomer ? (
+                    <ListingDuplication
                       customerId={selectedCustomer.id}
                       storeName={selectedCustomer.store_name}
                     />

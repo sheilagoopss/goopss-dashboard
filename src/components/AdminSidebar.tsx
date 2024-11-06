@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu } from "antd";
+import type { MenuProps } from 'antd';
 import { 
   UserOutlined,
   LogoutOutlined,
@@ -25,10 +26,12 @@ interface AdminSidebarProps {
   isAdmin: boolean;
 }
 
+type MenuItem = Required<MenuProps>['items'][number];
+
 const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   const { logout } = useAuth();
   const location = useLocation();
-  const currentPath = location.pathname.split('/')[1] || 'customers';
+  const currentPath = location.pathname;
 
   const [socialExpanded, setSocialExpanded] = useState(() => {
     const saved = localStorage.getItem('adminSocialExpanded');
@@ -45,7 +48,16 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     localStorage.setItem('adminSocialExpanded', JSON.stringify(socialExpanded));
   }, [socialExpanded]);
 
-  const items = [
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const saved = localStorage.getItem('adminOpenKeys');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminOpenKeys', JSON.stringify(openKeys));
+  }, [openKeys]);
+
+  const adminMenuItems: MenuItem[] = [
     {
       key: 'customers',
       icon: <UserOutlined />,
@@ -64,43 +76,49 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     {
       key: 'listings',
       icon: <FileTextOutlined />,
-      label: <Link to="/listings">Listings</Link>,
+      label: 'Listings',
+      children: [
+        {
+          key: 'listings-optimization',
+          label: (
+            <Link to="/listings" style={{ paddingLeft: '32px' }}>
+              Optimization
+            </Link>
+          )
+        },
+        {
+          key: 'listings-duplication',
+          label: (
+            <Link to="/listings/duplicate" style={{ paddingLeft: '32px' }}>
+              Duplication
+            </Link>
+          )
+        }
+      ]
     },
     {
       key: 'social',
       icon: <MessageOutlined />,
-      label: (
-        <div 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setSocialExpanded(!socialExpanded);
-          }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
-        >
-          <span>Social</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${socialExpanded ? 'rotate-180' : ''}`} />
-        </div>
-      ),
+      label: 'Social',
+      children: [
+        {
+          key: 'social-main',
+          label: (
+            <Link to="/social" style={{ paddingLeft: '32px' }}>
+              Social Calendar
+            </Link>
+          )
+        },
+        {
+          key: 'social-insights',
+          label: (
+            <Link to="/social-insights" style={{ paddingLeft: '32px' }}>
+              Social Media Insights
+            </Link>
+          )
+        }
+      ]
     },
-    ...(socialExpanded ? [
-      {
-        key: 'social-main',
-        label: (
-          <Link to="/social" style={{ paddingLeft: '32px' }}>
-            Social Calendar
-          </Link>
-        )
-      },
-      {
-        key: 'social-insights',
-        label: (
-          <Link to="/social-insights" style={{ paddingLeft: '32px' }}>
-            Social Media Insights
-          </Link>
-        )
-      }
-    ] : []),
     {
       key: 'pinterest',
       icon: <InstagramOutlined />,
@@ -139,6 +157,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     },
   ];
 
+  const getSelectedKey = (path: string) => {
+    if (path.startsWith('/listings/duplicate')) return 'listings-duplication';
+    if (path.startsWith('/listings')) return 'listings-optimization';
+    if (path === '/social') return 'social-main';
+    if (path === '/social-insights') return 'social-insights';
+    return path.split('/')[1] || 'customers';
+  };
+
   return (
     <Sider 
       width={280}
@@ -166,7 +192,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
         </div>
         <Menu
           mode="inline"
-          selectedKeys={[currentPath]}
+          selectedKeys={[getSelectedKey(currentPath)]}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
           style={{ 
             borderRight: 0,
             padding: '8px',
@@ -175,7 +203,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
             flexGrow: 1,
             overflow: 'visible'
           }}
-          items={items}
+          items={adminMenuItems}
           className="admin-sidebar-menu"
         />
       </div>
