@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Input, Space, Button, Tag, message, Typography, Row, Col, Checkbox } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, Timestamp, setDoc, FieldValue, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Listing } from '../types/Listing';
 import { useAuth } from '../contexts/AuthContext';
@@ -99,6 +99,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
   const [newListingId, setNewListingId] = useState('');
   const { createTask } = useTaskCreate();
   const { user } = useAuth();
+  const [duplicatedListings, setDuplicatedListings] = useState<Record<string, Listing[]>>({});
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -191,25 +192,50 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     setIsPublishing(true);
     try {
       const currentDate = new Date();
-      const updateData: any = {
+
+      // First, update the original listing with duplication info
+      const originalListingRef = doc(db, "listings", selectedListing.id);
+      await updateDoc(originalListingRef, {
+        duplicationStatus: true,
+        duplicatedAt: currentDate,
+        duplicates: arrayUnion({  // Add this array to track duplicates
+          listingId: newListingId.trim(),
+          createdAt: currentDate
+        })
+      });
+
+      // Create new listing document
+      const newListingData = {
+        id: newListingId.trim(),
         listingTitle: optimizedContent.title,
         listingDescription: newlineToBr(optimizedContent.description),
         listingTags: editedTags,
-        duplicationStatus: true,
-        duplicatedAt: currentDate,
+        listingID: newListingId.trim(),
+        bestseller: false,
+        totalSales: 0,
+        dailyViews: 0,
+        duplicatedFrom: selectedListing.listingID,
+        section: section.trim() || selectedListing.section || '',
+        etsyLink: `https://${storeName}.etsy.com/listing/${newListingId.trim()}`,
+        customer_id: selectedListing.customer_id,
+        store_name: storeName,
+        optimizationStatus: true,
+        primaryImage: selectedListing.primaryImage,
+        createdAt: new Date().toISOString(),
+      } as Listing;
+
+      const newListingRef = doc(db, "listings", newListingId.trim());
+      const firestoreData = {
+        ...newListingData,
+        createdAt: serverTimestamp(),
       };
 
-      // Only add section if it has a value
-      if (section.trim()) {
-        updateData.section = section.trim();
-      }
+      await setDoc(newListingRef, firestoreData);
 
-      const listingRef = doc(db, "listings", selectedListing.id);
-      await updateDoc(listingRef, updateData);
-
+      // Create task
       await createTask({
-        customerId: customerId,
-        taskName: `Duplicated Listing`,
+        customerId: selectedListing.customer_id,
+        taskName: `Duplicated Listing ${selectedListing.listingID} to ${newListingId.trim()}`,
         teamMemberName: (user as IAdmin)?.name || user?.email || "",
         dateCompleted: serverTimestamp(),
         listingId: selectedListing.listingID,
@@ -218,27 +244,35 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       });
 
       // Update local states
-      setAllListings(prevListings =>
-        prevListings.map(l =>
-          l.id === selectedListing.id
-            ? { ...l, ...updateData, duplicatedAt: currentDate }
-            : l
+      const newDuplicate = {
+        listingId: newListingId.trim(),
+        createdAt: currentDate
+      };
+
+      setAllListings(prev => 
+        prev.map(listing => 
+          listing.id === selectedListing.id 
+            ? { 
+                ...listing, 
+                duplicationStatus: true, 
+                duplicatedAt: currentDate,
+                duplicates: [...(listing.duplicates || []), newDuplicate]
+              }
+            : listing
         )
       );
-
-      setDisplayedListings(prevListings =>
-        prevListings.map(l =>
-          l.id === selectedListing.id
-            ? { ...l, ...updateData, duplicatedAt: currentDate }
-            : l
+      setFilteredListings(prev => 
+        prev.map(listing => 
+          listing.id === selectedListing.id 
+            ? { ...listing, duplicationStatus: true, duplicatedAt: currentDate, duplicates: [...(listing.duplicates || []), newDuplicate] }
+            : listing
         )
       );
-
-      setFilteredListings(prevListings =>
-        prevListings.map(l =>
-          l.id === selectedListing.id
-            ? { ...l, ...updateData, duplicatedAt: currentDate }
-            : l
+      setDisplayedListings(prev => 
+        prev.map(listing => 
+          listing.id === selectedListing.id 
+            ? { ...listing, duplicationStatus: true, duplicatedAt: currentDate, duplicates: [...(listing.duplicates || []), newDuplicate] }
+            : listing
         )
       );
 
@@ -247,6 +281,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       setSelectedListing(null);
       setEditedTags("");
       setSection("");
+      setNewListingId("");
 
       message.success('Listing duplicated successfully');
     } catch (error) {
@@ -328,6 +363,25 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const fetchDuplicatedListings = async (originalListingId: string) => {
+    try {
+      const listingsRef = collection(db, 'listings');
+      const q = query(listingsRef, where('duplicatedFrom', '==', originalListingId));
+      const querySnapshot = await getDocs(q);
+      const duplicates = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Listing[];
+      
+      setDuplicatedListings(prev => ({
+        ...prev,
+        [originalListingId]: duplicates
+      }));
+    } catch (error) {
+      console.error('Error fetching duplicated listings:', error);
     }
   };
 
@@ -661,24 +715,19 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
 
                     {record.duplicationStatus && (
                       <Col span={12}>
-                        <Card title="Duplicated Listing" style={{ height: '100%' }}>
-                          <Space direction="vertical">
-                            <div>
-                              <Text strong>Title:</Text>
-                              <Text>{record.listingTitle}</Text>
-                            </div>
-                            <div>
-                              <Text strong>Description:</Text>
-                              <div dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
-                            </div>
-                            <div>
-                              <Text strong>Tags:</Text>
-                              <Space wrap>
-                                {record.listingTags.split(',').map((tag, index) => (
-                                  <Tag key={index}>{tag.trim()}</Tag>
-                                ))}
-                              </Space>
-                            </div>
+                        <Card title="Duplicated Listings" style={{ height: '100%' }}>
+                          <Space direction="vertical" style={{ width: '100%' }}>
+                            {record.duplicates?.map((duplicate: { listingId: string, createdAt: Date }, index: number) => (
+                              <div key={index}>
+                                <Space>
+                                  <Text strong>Listing ID:</Text>
+                                  <Text>{duplicate.listingId}</Text>
+                                  <Text type="secondary">
+                                    ({formatDate(duplicate.createdAt)})
+                                  </Text>
+                                </Space>
+                              </div>
+                            ))}
                           </Space>
                         </Card>
                       </Col>
