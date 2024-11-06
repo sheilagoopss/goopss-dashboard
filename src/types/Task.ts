@@ -9,7 +9,7 @@ export interface ITask {
   dateCompleted?: string | FieldValue;
   listingId?: string;
   isDone?: boolean;
-  category: "Design" | "Optimization" | "Plan";
+  category: "Design" | "Optimization" | "Plan" | "Duplication";
 }
 
 export interface ITasklist extends ITask {

@@ -18,6 +18,13 @@ export interface Listing {
   uploadedImages?: ListingImage[];
   hasImage?: boolean;
   contact_email?: string;
+  duplicationStatus?: boolean;
+  duplicatedAt?: Date | null;
+  duplicatedFromId?: string;
+  duplicatedTitle?: string;
+  duplicatedDescription?: string;
+  duplicatedTags?: string;
+  newListingId?: string;
 }
 
 export interface ListingImage {
