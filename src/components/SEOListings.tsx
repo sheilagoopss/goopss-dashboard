@@ -464,18 +464,6 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   // Define table columns
   const columns = [
     {
-      title: '',
-      key: 'expand',
-      width: 50,
-      render: (_: unknown, record: Listing) => (
-        <Button
-          type="text"
-          icon={expandedRows.includes(record.id) ? <ChevronUp /> : <ChevronDown />}
-          onClick={() => toggleRowExpansion(record.id)}
-        />
-      ),
-    },
-    {
       title: 'Image',
       key: 'image',
       width: 80,
@@ -914,6 +902,13 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                   </Card>
                 ),
                 expandedRowKeys: expandedRows,
+                onExpand: (expanded, record) => {
+                  if (expanded) {
+                    setExpandedRows([...expandedRows, record.id]);
+                  } else {
+                    setExpandedRows(expandedRows.filter(id => id !== record.id));
+                  }
+                },
               }}
             />
           </Space>
