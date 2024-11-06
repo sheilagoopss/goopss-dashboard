@@ -1,4 +1,5 @@
 export interface Listing {
+  // Base fields
   id: string;
   title: string;
   listingID: string;
@@ -6,18 +7,25 @@ export interface Listing {
   listingDescription: string;
   primaryImage: string;
   listingTags: string;
-  optimizationStatus: boolean;
-  optimizedAt: Date | null;
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
-  optimizedTitle?: string;
-  optimizedDescription?: string;
-  optimizedTags?: string;
   createdAt?: string;
   uploadedImages?: ListingImage[];
   hasImage?: boolean;
-  contact_email?: string;
+  section?: string;
+  
+
+  // Optimization fields
+  optimizationStatus: boolean;
+  optimizedAt: Date | null;
+  optimizedTitle?: string;
+  optimizedDescription?: string;
+  optimizedTags?: string;
+
+  // Duplication fields
+  duplicationStatus?: boolean;
+  duplicatedAt?: Date | null;
 }
 
 export interface ListingImage {
