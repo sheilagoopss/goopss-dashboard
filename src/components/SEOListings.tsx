@@ -459,757 +459,805 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setDisplayedListings(sorted.slice(0, LISTINGS_PER_PAGE));
   }, [filteredListings, sortColumn, sortDirection]);
 
+  // Add state for segment
+  const [selectedSegment, setSelectedSegment] = useState<'optimization' | 'duplication'>('optimization');
+
   return (
     <div>
       <h2>SEO Listings for {storeName}</h2>
-      <div
-        style={{
-          marginBottom: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", width: "300px" }}>
-          <input
-            type="text"
-            placeholder="Search listings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: "100%", padding: "10px", paddingLeft: "30px" }}
-          />
-          <Search
+      
+      {/* Add Segments UI */}
+      <div style={{ 
+        marginBottom: '20px',
+        borderBottom: '1px solid #e5e7eb'
+      }}>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            onClick={() => setSelectedSegment('optimization')}
             style={{
-              position: "absolute",
-              left: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
+              padding: '8px 16px',
+              border: 'none',
+              borderBottom: selectedSegment === 'optimization' ? '2px solid black' : '2px solid transparent',
+              background: 'none',
+              cursor: 'pointer',
+              fontWeight: selectedSegment === 'optimization' ? 'bold' : 'normal'
             }}
-          />
-        </div>
-        <div>
-          <Button onClick={handleCSVExport}>Export CSV</Button>
-          <label style={{ marginRight: "20px" }}>
-            <input
-              type="checkbox"
-              checked={showNonBestsellers}
-              onChange={(e) => setShowNonBestsellers(e.target.checked)}
-            />
-            Show Non-bestsellers Only
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={hideOptimized}
-              onChange={(e) => setHideOptimized(e.target.checked)}
-            />
-            Hide Optimized Listings
-          </label>
+          >
+            Optimization
+          </button>
+          <button
+            onClick={() => setSelectedSegment('duplication')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderBottom: selectedSegment === 'duplication' ? '2px solid black' : '2px solid transparent',
+              background: 'none',
+              cursor: 'pointer',
+              fontWeight: selectedSegment === 'duplication' ? 'bold' : 'normal'
+            }}
+          >
+            Duplication
+          </button>
         </div>
       </div>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "separate",
-          borderSpacing: "0 8px",
-        }}
-      >
-        <thead>
-          <tr>
-            <th style={{ padding: "10px", textAlign: "left" }}></th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Image</th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Listing ID</th>
-            <th
-              style={{
-                padding: "10px",
-                textAlign: "left",
-                maxWidth: "200px",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Title
-            </th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Status</th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Bestseller</th>
-            <th
-              onClick={() => handleSort("totalSales")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Total Sales{" "}
-              {sortColumn === "totalSales" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("dailyViews")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Daily Views{" "}
-              {sortColumn === "dailyViews" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th
-              onClick={() => handleSort("optimizedAt")}
-              style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
-            >
-              Optimized Date{" "}
-              {sortColumn === "optimizedAt" &&
-                (sortDirection === "asc" ? "↑" : "↓")}
-            </th>
-            <th style={{ padding: "10px", textAlign: "left" }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading ? (
-            <tr>
-              <td colSpan={10} style={{ textAlign: "center", padding: "20px" }}>
-                <Loader2 style={{ animation: "spin 1s linear infinite" }} />{" "}
-                Loading...
-              </td>
-            </tr>
-          ) : (
-            displayedListings.map((listing) => (
-              <React.Fragment key={listing.id}>
-                <tr style={{ backgroundColor: "#f9f9f9" }}>
-                  <td style={{ padding: "10px" }}>
-                    <button onClick={() => toggleRowExpansion(listing.id)}>
-                      {expandedRows.includes(listing.id) ? (
-                        <ChevronUp />
-                      ) : (
-                        <ChevronDown />
-                      )}
-                    </button>
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    <img
-                      src={listing.primaryImage}
-                      alt={listing.listingTitle}
-                      style={{ width: "50px", height: "50px" }}
-                    />
-                  </td>
-                  <td style={{ padding: "10px" }}>{listing.listingID}</td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      maxWidth: "200px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <a
-                      href={getEtsyUrl(listing.listingID)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: "#0066c0",
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                      onClick={(e) => e.stopPropagation()} // Prevent row expansion when clicking the link
-                    >
-                      {listing.listingTitle}
-                      <ExternalLink size={14} style={{ marginLeft: "5px" }} />
-                    </a>
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    {listing.optimizationStatus ? "Optimized" : "Pending"}
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    {listing.bestseller ? "Yes" : "No"}
-                  </td>
-                  <td style={{ padding: "10px" }}>{listing.totalSales}</td>
-                  <td style={{ padding: "10px" }}>{listing.dailyViews}</td>
-                  <td style={{ padding: "10px" }}>
-                    {formatDate(listing.optimizedAt)}
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    <button
-                      onClick={() => handleOptimize(listing)}
-                      disabled={isOptimizing || listing.optimizationStatus}
-                    >
-                      {isOptimizing ? "Optimizing..." : "Optimize"}
-                    </button>
+
+      {/* Conditional rendering based on segment */}
+      {selectedSegment === 'optimization' ? (
+        // Existing optimization content
+        <>
+          <div style={{
+            marginBottom: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <div style={{ position: "relative", width: "300px" }}>
+              <input
+                type="text"
+                placeholder="Search listings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ width: "100%", padding: "10px", paddingLeft: "30px" }}
+              />
+              <Search
+                style={{
+                  position: "absolute",
+                  left: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                }}
+              />
+            </div>
+            <div>
+              <Button onClick={handleCSVExport}>Export CSV</Button>
+              <label style={{ marginRight: "20px" }}>
+                <input
+                  type="checkbox"
+                  checked={showNonBestsellers}
+                  onChange={(e) => setShowNonBestsellers(e.target.checked)}
+                />
+                Show Non-bestsellers Only
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={hideOptimized}
+                  onChange={(e) => setHideOptimized(e.target.checked)}
+                />
+                Hide Optimized Listings
+              </label>
+            </div>
+          </div>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "separate",
+              borderSpacing: "0 8px",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={{ padding: "10px", textAlign: "left" }}></th>
+                <th style={{ padding: "10px", textAlign: "left" }}>Image</th>
+                <th style={{ padding: "10px", textAlign: "left" }}>Listing ID</th>
+                <th
+                  style={{
+                    padding: "10px",
+                    textAlign: "left",
+                    maxWidth: "200px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Title
+                </th>
+                <th style={{ padding: "10px", textAlign: "left" }}>Status</th>
+                <th style={{ padding: "10px", textAlign: "left" }}>Bestseller</th>
+                <th
+                  onClick={() => handleSort("totalSales")}
+                  style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
+                >
+                  Total Sales{" "}
+                  {sortColumn === "totalSales" &&
+                    (sortDirection === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                  onClick={() => handleSort("dailyViews")}
+                  style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
+                >
+                  Daily Views{" "}
+                  {sortColumn === "dailyViews" &&
+                    (sortDirection === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                  onClick={() => handleSort("optimizedAt")}
+                  style={{ padding: "10px", textAlign: "left", cursor: "pointer" }}
+                >
+                  Optimized Date{" "}
+                  {sortColumn === "optimizedAt" &&
+                    (sortDirection === "asc" ? "↑" : "↓")}
+                </th>
+                <th style={{ padding: "10px", textAlign: "left" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: "center", padding: "20px" }}>
+                    <Loader2 style={{ animation: "spin 1s linear infinite" }} />{" "}
+                    Loading...
                   </td>
                 </tr>
-                {expandedRows.includes(listing.id) && (
-                  <tr>
-                    <td colSpan={10}>
-                      <div
-                        style={{ padding: "20px", backgroundColor: "#f0f0f0" }}
+              ) : (
+                displayedListings.map((listing) => (
+                  <React.Fragment key={listing.id}>
+                    <tr style={{ backgroundColor: "#f9f9f9" }}>
+                      <td style={{ padding: "10px" }}>
+                        <button onClick={() => toggleRowExpansion(listing.id)}>
+                          {expandedRows.includes(listing.id) ? (
+                            <ChevronUp />
+                          ) : (
+                            <ChevronDown />
+                          )}
+                        </button>
+                      </td>
+                      <td style={{ padding: "10px" }}>
+                        <img
+                          src={listing.primaryImage}
+                          alt={listing.listingTitle}
+                          style={{ width: "50px", height: "50px" }}
+                        />
+                      </td>
+                      <td style={{ padding: "10px" }}>{listing.listingID}</td>
+                      <td
+                        style={{
+                          padding: "10px",
+                          maxWidth: "200px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
                       >
-                        <div
+                        <a
+                          href={getEtsyUrl(listing.listingID)}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "24px",
+                            color: "#0066c0",
+                            textDecoration: "none",
+                            display: "flex",
+                            alignItems: "center",
                           }}
+                          onClick={(e) => e.stopPropagation()} // Prevent row expansion when clicking the link
                         >
-                          <div>
-                            <h4
+                          {listing.listingTitle}
+                          <ExternalLink size={14} style={{ marginLeft: "5px" }} />
+                        </a>
+                      </td>
+                      <td style={{ padding: "10px" }}>
+                        {listing.optimizationStatus ? "Optimized" : "Pending"}
+                      </td>
+                      <td style={{ padding: "10px" }}>
+                        {listing.bestseller ? "Yes" : "No"}
+                      </td>
+                      <td style={{ padding: "10px" }}>{listing.totalSales}</td>
+                      <td style={{ padding: "10px" }}>{listing.dailyViews}</td>
+                      <td style={{ padding: "10px" }}>
+                        {formatDate(listing.optimizedAt)}
+                      </td>
+                      <td style={{ padding: "10px" }}>
+                        <button
+                          onClick={() => handleOptimize(listing)}
+                          disabled={isOptimizing || listing.optimizationStatus}
+                        >
+                          {isOptimizing ? "Optimizing..." : "Optimize"}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedRows.includes(listing.id) && (
+                      <tr>
+                        <td colSpan={10}>
+                          <div
+                            style={{ padding: "20px", backgroundColor: "#f0f0f0" }}
+                          >
+                            <div
                               style={{
-                                fontWeight: "bold",
-                                marginBottom: "8px",
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "24px",
                               }}
                             >
-                              Original Listing
-                            </h4>
-                            <p>
-                              <strong>Title:</strong>
-                            </p>
-                            <p
-                              style={{ marginLeft: "8px", marginBottom: "8px" }}
-                            >
-                              {listing.listingTitle}
-                            </p>
-                            <p>
-                              <strong>Description:</strong>
-                            </p>
-                            <div style={{ marginLeft: "8px" }}>
-                              <span
-                                dangerouslySetInnerHTML={sanitizeHtml(
-                                  listing.listingDescription,
-                                )}
-                              />
-                            </div>
-                            <div style={{ marginTop: "8px" }}>
-                              <strong>Tags:</strong>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: "4px",
-                                  marginTop: "4px",
-                                }}
-                              >
-                                {listing.listingTags
-                                  .split(",")
-                                  .map((tag, index) => (
-                                    <span
-                                      key={index}
-                                      style={{
-                                        backgroundColor: "#e2e8f0",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        fontSize: "12px",
-                                      }}
-                                    >
-                                      {tag.trim()}
-                                    </span>
-                                  ))}
-                              </div>
-                            </div>
-                          </div>
-                          {listing.optimizationStatus && (
-                            <div>
-                              <h4
-                                style={{
-                                  fontWeight: "bold",
-                                  marginBottom: "8px",
-                                }}
-                              >
-                                Optimized Listing
-                              </h4>
-                              <div style={{ marginBottom: "8px" }}>
-                                <strong>Title:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedTitle || "",
-                                      `title-${listing.id}`,
-                                    )
-                                  }
+                              <div>
+                                <h4
                                   style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
+                                    fontWeight: "bold",
+                                    marginBottom: "8px",
                                   }}
                                 >
-                                  {copiedField === `title-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <p
-                                  style={{
-                                    marginLeft: "8px",
-                                    marginTop: "4px",
-                                  }}
-                                >
-                                  {listing.optimizedTitle}
+                                  Original Listing
+                                </h4>
+                                <p>
+                                  <strong>Title:</strong>
                                 </p>
-                              </div>
-                              <div style={{ marginBottom: "8px" }}>
-                                <strong>Description:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedDescription || "",
-                                      `description-${listing.id}`,
-                                    )
-                                  }
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
-                                  }}
+                                <p
+                                  style={{ marginLeft: "8px", marginBottom: "8px" }}
                                 >
-                                  {copiedField ===
-                                  `description-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <div
-                                  style={{
-                                    marginLeft: "8px",
-                                    marginTop: "4px",
-                                  }}
-                                >
+                                  {listing.listingTitle}
+                                </p>
+                                <p>
+                                  <strong>Description:</strong>
+                                </p>
+                                <div style={{ marginLeft: "8px" }}>
                                   <span
                                     dangerouslySetInnerHTML={sanitizeHtml(
-                                      listing.optimizedDescription || "",
+                                      listing.listingDescription,
                                     )}
                                   />
                                 </div>
-                              </div>
-                              <div style={{ marginTop: "8px" }}>
-                                <strong>Tags:</strong>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      listing.optimizedTags || "",
-                                      `tags-${listing.id}`,
-                                    )
-                                  }
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    float: "right",
-                                  }}
-                                >
-                                  {copiedField === `tags-${listing.id}` ? (
-                                    <Check size={16} color="green" />
-                                  ) : (
-                                    <Copy size={16} />
-                                  )}
-                                </button>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: "4px",
-                                    marginTop: "4px",
-                                  }}
-                                >
-                                  {listing.optimizedTags
-                                    ?.split(",")
-                                    .map((tag, index) => (
-                                      <span
-                                        key={index}
-                                        style={{
-                                          backgroundColor: "#e2e8f0",
-                                          padding: "2px 6px",
-                                          borderRadius: "4px",
-                                          fontSize: "12px",
-                                        }}
-                                      >
-                                        {tag.trim()}
-                                      </span>
-                                    ))}
+                                <div style={{ marginTop: "8px" }}>
+                                  <strong>Tags:</strong>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: "4px",
+                                      marginTop: "4px",
+                                    }}
+                                  >
+                                    {listing.listingTags
+                                      .split(",")
+                                      .map((tag, index) => (
+                                        <span
+                                          key={index}
+                                          style={{
+                                            backgroundColor: "#e2e8f0",
+                                            padding: "2px 6px",
+                                            borderRadius: "4px",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          {tag.trim()}
+                                        </span>
+                                      ))}
+                                  </div>
                                 </div>
                               </div>
+                              {listing.optimizationStatus && (
+                                <div>
+                                  <h4
+                                    style={{
+                                      fontWeight: "bold",
+                                      marginBottom: "8px",
+                                    }}
+                                  >
+                                    Optimized Listing
+                                  </h4>
+                                  <div style={{ marginBottom: "8px" }}>
+                                    <strong>Title:</strong>
+                                    <button
+                                      onClick={() =>
+                                        copyToClipboard(
+                                          listing.optimizedTitle || "",
+                                          `title-${listing.id}`,
+                                        )
+                                      }
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        float: "right",
+                                      }}
+                                    >
+                                      {copiedField === `title-${listing.id}` ? (
+                                        <Check size={16} color="green" />
+                                      ) : (
+                                        <Copy size={16} />
+                                      )}
+                                    </button>
+                                    <p
+                                      style={{
+                                        marginLeft: "8px",
+                                        marginTop: "4px",
+                                      }}
+                                    >
+                                      {listing.optimizedTitle}
+                                    </p>
+                                  </div>
+                                  <div style={{ marginBottom: "8px" }}>
+                                    <strong>Description:</strong>
+                                    <button
+                                      onClick={() =>
+                                        copyToClipboard(
+                                          listing.optimizedDescription || "",
+                                          `description-${listing.id}`,
+                                        )
+                                      }
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        float: "right",
+                                      }}
+                                    >
+                                      {copiedField ===
+                                      `description-${listing.id}` ? (
+                                        <Check size={16} color="green" />
+                                      ) : (
+                                        <Copy size={16} />
+                                      )}
+                                    </button>
+                                    <div
+                                      style={{
+                                        marginLeft: "8px",
+                                        marginTop: "4px",
+                                      }}
+                                    >
+                                      <span
+                                        dangerouslySetInnerHTML={sanitizeHtml(
+                                          listing.optimizedDescription || "",
+                                        )}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div style={{ marginTop: "8px" }}>
+                                    <strong>Tags:</strong>
+                                    <button
+                                      onClick={() =>
+                                        copyToClipboard(
+                                          listing.optimizedTags || "",
+                                          `tags-${listing.id}`,
+                                        )
+                                      }
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        float: "right",
+                                      }}
+                                    >
+                                      {copiedField === `tags-${listing.id}` ? (
+                                        <Check size={16} color="green" />
+                                      ) : (
+                                        <Copy size={16} />
+                                      )}
+                                    </button>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: "4px",
+                                        marginTop: "4px",
+                                      }}
+                                    >
+                                      {listing.optimizedTags
+                                        ?.split(",")
+                                        .map((tag, index) => (
+                                          <span
+                                            key={index}
+                                            style={{
+                                              backgroundColor: "#e2e8f0",
+                                              padding: "2px 6px",
+                                              borderRadius: "4px",
+                                              fontSize: "12px",
+                                            }}
+                                          >
+                                            {tag.trim()}
+                                          </span>
+                                        ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))
-          )}
-        </tbody>
-      </table>
-      <div
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <button onClick={handlePreviousPage} disabled={currentPage === 1}>
-          <ChevronLeft /> Previous
-        </button>
-        <span>
-          Page {currentPage} of {totalPages}
-        </span>
-        <button onClick={handleNextPage} disabled={currentPage === totalPages}>
-          Next <ChevronRight />
-        </button>
-      </div>
-
-      {/* Optimized Content Area */}
-      {selectedListing && optimizedContent && (
-        <div
-          style={{
-            marginTop: "40px",
-            padding: "20px",
-            backgroundColor: "#f0f0f0",
-            borderRadius: "8px",
-          }}
-        >
-          <h2 className="text-xl font-semibold mb-4">
-            Listing Optimization Results
-          </h2>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "24px",
+              marginTop: "20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            <div>
-              <h3 className="font-medium text-lg mb-2">Original Listing</h3>
+            <button onClick={handlePreviousPage} disabled={currentPage === 1}>
+              <ChevronLeft /> Previous
+            </button>
+            <span>
+              Page {currentPage} of {totalPages}
+            </span>
+            <button onClick={handleNextPage} disabled={currentPage === totalPages}>
+              Next <ChevronRight />
+            </button>
+          </div>
+
+          {/* Optimized Content Area */}
+          {selectedListing && optimizedContent && (
+            <div
+              style={{
+                marginTop: "40px",
+                padding: "20px",
+                backgroundColor: "#f0f0f0",
+                borderRadius: "8px",
+              }}
+            >
+              <h2 className="text-xl font-semibold mb-4">
+                Listing Optimization Results
+              </h2>
               <div
                 style={{
-                  backgroundColor: "#ffffff",
-                  padding: "16px",
-                  borderRadius: "4px",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "24px",
                 }}
               >
-                <h4 className="font-medium">Title:</h4>
-                <p className="mb-2">{selectedListing.listingTitle}</p>
-                <h4 className="font-medium">Description:</h4>
-                <p
-                  dangerouslySetInnerHTML={sanitizeHtml(
-                    selectedListing.listingDescription,
-                  )}
-                />
-                <h4 className="font-medium mt-2">Tags:</h4>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {selectedListing.listingTags.split(",").map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        backgroundColor: "#e2e8f0",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                      }}
-                    >
-                      {tag.trim()}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
-              <div
-                style={{
-                  backgroundColor: "#f0fff4",
-                  padding: "16px",
-                  borderRadius: "4px",
-                }}
-              >
-                <h4 className="font-medium">Title:</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <input
-                    value={optimizedContent.title}
-                    onChange={(e) =>
-                      setOptimizedContent({
-                        ...optimizedContent,
-                        title: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  <button
-                    onClick={() =>
-                      copyToClipboard(optimizedContent.title, "title")
-                    }
-                    style={{
-                      padding: "4px",
-                      backgroundColor:
-                        recentlyCopied === "title" ? "#4CAF50" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "background-color 0.3s ease",
-                    }}
-                  >
-                    <Copy
-                      size={16}
-                      color={recentlyCopied === "title" ? "white" : "black"}
-                    />
-                  </button>
-                  <button
-                    style={{
-                      padding: "4px",
-                      backgroundColor: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Edit size={16} />
-                  </button>
-                </div>
-                <h4 className="font-medium">Description:</h4>
-                <div
-                  style={{ display: "flex", alignItems: "start", gap: "8px" }}
-                >
-                  <textarea
-                    value={optimizedContent.description}
-                    onChange={(e) =>
-                      setOptimizedContent({
-                        ...optimizedContent,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={20} // Increased from 10 to 20
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                      minHeight: "400px", // Increased from 200px to 400px
-                      resize: "vertical", // Allows vertical resizing
-                    }}
-                  />
+                <div>
+                  <h3 className="font-medium text-lg mb-2">Original Listing</h3>
                   <div
                     style={{
+                      backgroundColor: "#ffffff",
+                      padding: "16px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <h4 className="font-medium">Title:</h4>
+                    <p className="mb-2">{selectedListing.listingTitle}</p>
+                    <h4 className="font-medium">Description:</h4>
+                    <p
+                      dangerouslySetInnerHTML={sanitizeHtml(
+                        selectedListing.listingDescription,
+                      )}
+                    />
+                    <h4 className="font-medium mt-2">Tags:</h4>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {selectedListing.listingTags.split(",").map((tag, index) => (
+                        <span
+                          key={index}
+                          style={{
+                            backgroundColor: "#e2e8f0",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {tag.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-medium text-lg mb-2">Optimized Listing</h3>
+                  <div
+                    style={{
+                      backgroundColor: "#f0fff4",
+                      padding: "16px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <h4 className="font-medium">Title:</h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <input
+                        value={optimizedContent.title}
+                        onChange={(e) =>
+                          setOptimizedContent({
+                            ...optimizedContent,
+                            title: e.target.value,
+                          })
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                        }}
+                      />
+                      <button
+                        onClick={() =>
+                          copyToClipboard(optimizedContent.title, "title")
+                        }
+                        style={{
+                          padding: "4px",
+                          backgroundColor:
+                            recentlyCopied === "title" ? "#4CAF50" : "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          transition: "background-color 0.3s ease",
+                        }}
+                      >
+                        <Copy
+                          size={16}
+                          color={recentlyCopied === "title" ? "white" : "black"}
+                        />
+                      </button>
+                      <button
+                        style={{
+                          padding: "4px",
+                          backgroundColor: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Edit size={16} />
+                      </button>
+                    </div>
+                    <h4 className="font-medium">Description:</h4>
+                    <div
+                      style={{ display: "flex", alignItems: "start", gap: "8px" }}
+                    >
+                      <textarea
+                        value={optimizedContent.description}
+                        onChange={(e) =>
+                          setOptimizedContent({
+                            ...optimizedContent,
+                            description: e.target.value,
+                          })
+                        }
+                        rows={20} // Increased from 10 to 20
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          minHeight: "400px", // Increased from 200px to 400px
+                          resize: "vertical", // Allows vertical resizing
+                        }}
+                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                        }}
+                      >
+                        <button
+                          onClick={() =>
+                            copyToClipboard(
+                              optimizedContent.description,
+                              "description",
+                            )
+                          }
+                          style={{
+                            padding: "4px",
+                            backgroundColor:
+                              recentlyCopied === "description"
+                                ? "#4CAF50"
+                                : "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            transition: "background-color 0.3s ease",
+                          }}
+                        >
+                          <Copy
+                            size={16}
+                            color={
+                              recentlyCopied === "description" ? "white" : "black"
+                            }
+                          />
+                        </button>
+                        <button
+                          style={{
+                            padding: "4px",
+                            backgroundColor: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Edit size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <h4 className="font-medium mt-2">Tags:</h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        marginBottom: "8px",
+                        alignItems: "center",
+                      }}
+                    >
+                      {editedTags.split(",").map((tag, index) => (
+                        <span
+                          key={index}
+                          style={{
+                            backgroundColor: "#e2e8f0",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          {tag.trim()}
+                          <button
+                            onClick={() => handleRemoveTag(tag.trim())}
+                            style={{
+                              fontSize: "12px",
+                              marginLeft: "4px",
+                              cursor: "pointer",
+                              border: "none",
+                              background: "none",
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <button
+                        onClick={() => copyToClipboard(editedTags, "tags")}
+                        style={{
+                          padding: "4px",
+                          backgroundColor:
+                            recentlyCopied === "tags" ? "#4CAF50" : "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          marginLeft: "8px",
+                          transition: "background-color 0.3s ease",
+                        }}
+                        title="Copy all tags"
+                      >
+                        <Copy
+                          size={16}
+                          color={recentlyCopied === "tags" ? "white" : "black"}
+                        />
+                      </button>
+                    </div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                    >
+                      <input
+                        placeholder="Add new tag(s)"
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const newTags = e.currentTarget.value.trim();
+                            if (newTags) {
+                              handleAddTag(newTags);
+                              e.currentTarget.value = "";
+                            }
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                        }}
+                        disabled={
+                          editedTags.split(",").filter((tag) => tag.trim() !== "")
+                            .length >= MAX_TAGS
+                        }
+                      />
+                      <button
+                        onClick={() => {
+                          const input = document.querySelector(
+                            'input[placeholder="Add new tag(s)"]',
+                          ) as HTMLInputElement;
+                          const newTags = input.value.trim();
+                          if (newTags) {
+                            handleAddTag(newTags);
+                            input.value = "";
+                          }
+                        }}
+                        style={{
+                          padding: "8px 16px",
+                          backgroundColor: "#e2e8f0",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                        disabled={
+                          editedTags.split(",").filter((tag) => tag.trim() !== "")
+                            .length >= MAX_TAGS
+                        }
+                      >
+                        Add Tag(s)
+                      </button>
+                    </div>
+                    {editedTags.split(",").filter((tag) => tag.trim() !== "")
+                      .length >= MAX_TAGS && (
+                      <p style={{ color: "red", marginTop: "8px" }}>
+                        Maximum number of tags (13) reached.
+                      </p>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "20px",
                       display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
+                      justifyContent: "flex-end",
+                      gap: "10px",
                     }}
                   >
                     <button
-                      onClick={() =>
-                        copyToClipboard(
-                          optimizedContent.description,
-                          "description",
-                        )
-                      }
+                      onClick={handleCancel}
                       style={{
-                        padding: "4px",
-                        backgroundColor:
-                          recentlyCopied === "description"
-                            ? "#4CAF50"
-                            : "transparent",
+                        padding: "10px 20px",
+                        backgroundColor: "#f44336",
+                        color: "white",
                         border: "none",
+                        borderRadius: "4px",
                         cursor: "pointer",
-                        transition: "background-color 0.3s ease",
                       }}
                     >
-                      <Copy
-                        size={16}
-                        color={
-                          recentlyCopied === "description" ? "white" : "black"
-                        }
-                      />
+                      Cancel
                     </button>
                     <button
+                      onClick={handleSave}
+                      disabled={isPublishing}
                       style={{
-                        padding: "4px",
-                        backgroundColor: "transparent",
+                        padding: "10px 20px",
+                        backgroundColor: "#4CAF50",
+                        color: "white",
                         border: "none",
+                        borderRadius: "4px",
                         cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
                       }}
                     >
-                      <Edit size={16} />
+                      {isPublishing ? (
+                        <>
+                          <Loader2
+                            size={16}
+                            style={{ animation: "spin 1s linear infinite" }}
+                          />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={16} />
+                          Save
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
-                <h4 className="font-medium mt-2">Tags:</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "8px",
-                    marginBottom: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  {editedTags.split(",").map((tag, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        backgroundColor: "#e2e8f0",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      {tag.trim()}
-                      <button
-                        onClick={() => handleRemoveTag(tag.trim())}
-                        style={{
-                          fontSize: "12px",
-                          marginLeft: "4px",
-                          cursor: "pointer",
-                          border: "none",
-                          background: "none",
-                        }}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    onClick={() => copyToClipboard(editedTags, "tags")}
-                    style={{
-                      padding: "4px",
-                      backgroundColor:
-                        recentlyCopied === "tags" ? "#4CAF50" : "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      marginLeft: "8px",
-                      transition: "background-color 0.3s ease",
-                    }}
-                    title="Copy all tags"
-                  >
-                    <Copy
-                      size={16}
-                      color={recentlyCopied === "tags" ? "white" : "black"}
-                    />
-                  </button>
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <input
-                    placeholder="Add new tag(s)"
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        const newTags = e.currentTarget.value.trim();
-                        if (newTags) {
-                          handleAddTag(newTags);
-                          e.currentTarget.value = "";
-                        }
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                    }}
-                    disabled={
-                      editedTags.split(",").filter((tag) => tag.trim() !== "")
-                        .length >= MAX_TAGS
-                    }
-                  />
-                  <button
-                    onClick={() => {
-                      const input = document.querySelector(
-                        'input[placeholder="Add new tag(s)"]',
-                      ) as HTMLInputElement;
-                      const newTags = input.value.trim();
-                      if (newTags) {
-                        handleAddTag(newTags);
-                        input.value = "";
-                      }
-                    }}
-                    style={{
-                      padding: "8px 16px",
-                      backgroundColor: "#e2e8f0",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                    disabled={
-                      editedTags.split(",").filter((tag) => tag.trim() !== "")
-                        .length >= MAX_TAGS
-                    }
-                  >
-                    Add Tag(s)
-                  </button>
-                </div>
-                {editedTags.split(",").filter((tag) => tag.trim() !== "")
-                  .length >= MAX_TAGS && (
-                  <p style={{ color: "red", marginTop: "8px" }}>
-                    Maximum number of tags (13) reached.
-                  </p>
-                )}
-              </div>
-              <div
-                style={{
-                  marginTop: "20px",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: "10px",
-                }}
-              >
-                <button
-                  onClick={handleCancel}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#f44336",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isPublishing}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#4CAF50",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  {isPublishing ? (
-                    <>
-                      <Loader2
-                        size={16}
-                        style={{ animation: "spin 1s linear infinite" }}
-                      />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Save
-                    </>
-                  )}
-                </button>
               </div>
             </div>
-          </div>
+          )}
+        </>
+      ) : (
+        // Duplication content (to be implemented)
+        <div>
+          <h3>Duplication Feature Coming Soon</h3>
         </div>
       )}
     </div>
