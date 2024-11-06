@@ -69,9 +69,12 @@ const PostCreationModal: React.FC<{
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
 
+  
+  const API_URL = 'https://goopss-dashboard-backend.onrender.com';
+
   const generateContentWithAI = async (platform: "facebook" | "instagram") => {
     try {
-      const response = await fetch("/api/generate-content", {
+      const response = await fetch(`${API_URL}/api/generate-content`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
