@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Space, Button, Tag, message, Typography, Row, Col, Checkbox } from 'antd';
+import { Card, Table, Input, Space, Button, Tag, message, Typography, Row, Col, Checkbox, Tabs } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, Timestamp, setDoc, FieldValue, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -100,6 +100,8 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
   const { createTask } = useTaskCreate();
   const { user } = useAuth();
   const [duplicatedListings, setDuplicatedListings] = useState<Record<string, Listing[]>>({});
+  const [selectedSegment, setSelectedSegment] = useState<'duplication' | 'duplicates'>('duplication');
+  const [duplicateListings, setDuplicateListings] = useState<Listing[]>([]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -192,16 +194,17 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     setIsPublishing(true);
     try {
       const currentDate = new Date();
+      const newDuplicate = {
+        listingId: newListingId.trim(),
+        createdAt: currentDate
+      };
 
       // First, update the original listing with duplication info
       const originalListingRef = doc(db, "listings", selectedListing.id);
       await updateDoc(originalListingRef, {
         duplicationStatus: true,
         duplicatedAt: currentDate,
-        duplicates: arrayUnion({  // Add this array to track duplicates
-          listingId: newListingId.trim(),
-          createdAt: currentDate
-        })
+        duplicates: arrayUnion(newDuplicate)  // Firestore will handle duplicate prevention
       });
 
       // Create new listing document
@@ -243,12 +246,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
         category: "Duplication",
       });
 
-      // Update local states
-      const newDuplicate = {
-        listingId: newListingId.trim(),
-        createdAt: currentDate
-      };
-
+      // Update local states to prevent duplicate entries
       setAllListings(prev => 
         prev.map(listing => 
           listing.id === selectedListing.id 
@@ -256,22 +254,43 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
                 ...listing, 
                 duplicationStatus: true, 
                 duplicatedAt: currentDate,
-                duplicates: [...(listing.duplicates || []), newDuplicate]
+                duplicates: [
+                  ...((listing.duplicates || []).filter(d => d.listingId !== newDuplicate.listingId)),
+                  newDuplicate
+                ]
               }
             : listing
         )
       );
+
       setFilteredListings(prev => 
         prev.map(listing => 
           listing.id === selectedListing.id 
-            ? { ...listing, duplicationStatus: true, duplicatedAt: currentDate, duplicates: [...(listing.duplicates || []), newDuplicate] }
+            ? { 
+                ...listing, 
+                duplicationStatus: true, 
+                duplicatedAt: currentDate,
+                duplicates: [
+                  ...((listing.duplicates || []).filter(d => d.listingId !== newDuplicate.listingId)),
+                  newDuplicate
+                ]
+              }
             : listing
         )
       );
+
       setDisplayedListings(prev => 
         prev.map(listing => 
           listing.id === selectedListing.id 
-            ? { ...listing, duplicationStatus: true, duplicatedAt: currentDate, duplicates: [...(listing.duplicates || []), newDuplicate] }
+            ? { 
+                ...listing, 
+                duplicationStatus: true, 
+                duplicatedAt: currentDate,
+                duplicates: [
+                  ...((listing.duplicates || []).filter(d => d.listingId !== newDuplicate.listingId)),
+                  newDuplicate
+                ]
+              }
             : listing
         )
       );
@@ -385,6 +404,38 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     }
   };
 
+  const fetchDuplicates = async () => {
+    if (!customerId) return;
+
+    setIsLoading(true);
+    try {
+      const listingsRef = collection(db, 'listings');
+      const q = query(
+        listingsRef, 
+        where('customer_id', '==', customerId),
+        where('duplicatedFrom', '!=', null)
+      );
+      const querySnapshot = await getDocs(q);
+      const duplicates = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Listing[];
+
+      setDuplicateListings(duplicates);
+    } catch (error) {
+      console.error('Error fetching duplicates:', error);
+      message.error('Failed to fetch duplicates');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedSegment === 'duplicates') {
+      fetchDuplicates();
+    }
+  }, [selectedSegment, customerId]);
+
   const columns = [
     {
       title: 'Image',
@@ -408,7 +459,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       dataIndex: 'listingTitle',
       key: 'title',
       render: (text: string, record: Listing) => (
-        <a href={getEtsyUrl(record.listingID)} target="_blank" rel="noopener noreferrer">
+        <a href={record.etsyLink} target="_blank" rel="noopener noreferrer">
           {text}
           <ExternalLink size={14} style={{ marginLeft: 4 }} />
         </a>
@@ -451,10 +502,18 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       render: (_: any, record: Listing) => formatDate(record.duplicatedAt),
       sorter: {
         compare: (a: Listing, b: Listing) => {
-          if (!a.duplicatedAt && !b.duplicatedAt) return 0;
-          if (!a.duplicatedAt) return -1;
-          if (!b.duplicatedAt) return 1;
-          return a.duplicatedAt.getTime() - b.duplicatedAt.getTime();
+          const getTime = (date: any) => {
+            if (!date) return 0;
+            if (typeof date === 'object' && 'seconds' in date) {
+              return date.seconds * 1000;
+            }
+            if (date instanceof Date) {
+              return date.getTime();
+            }
+            return 0;
+          };
+
+          return getTime(a.duplicatedAt) - getTime(b.duplicatedAt);
         },
         multiple: 1
       },
@@ -474,280 +533,455 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     },
   ];
 
-  return (
-    <Card title={`Listing Duplication - ${storeName}`}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Card>
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Input
-              placeholder="Search listings..."
-              prefix={<SearchOutlined />}
-              style={{ width: 300 }}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Space>
-              <Button onClick={handleCSVExport}>Export CSV</Button>
-              <Checkbox
-                checked={showBestsellers}
-                onChange={(e) => setShowBestsellers(e.target.checked)}
-              >
-                Show Bestsellers Only
-              </Checkbox>
-              <Checkbox
-                checked={hideDuplicated}
-                onChange={(e) => setHideDuplicated(e.target.checked)}
-              >
-                Hide Duplicated Listings
-              </Checkbox>
-            </Space>
-          </Space>
-        </Card>
+  const duplicatesColumns = [
+    {
+      title: 'Image',
+      key: 'image',
+      width: 80,
+      render: (record: Listing) => (
+        <img
+          src={record.primaryImage}
+          alt={record.listingTitle}
+          style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: '4px' }}
+        />
+      ),
+    },
+    {
+      title: 'Listing ID',
+      dataIndex: 'listingID',
+      key: 'listingID',
+      width: 200,
+    },
+    {
+      title: 'Title',
+      dataIndex: 'listingTitle',
+      key: 'title',
+      render: (text: string, record: Listing) => (
+        <a href={record.etsyLink} target="_blank" rel="noopener noreferrer">
+          {text}
+          <ExternalLink size={14} style={{ marginLeft: 4 }} />
+        </a>
+      ),
+    },
+    {
+      title: 'Original Listing ID',
+      dataIndex: 'duplicatedFrom',
+      key: 'duplicatedFrom',
+      width: 200,
+      render: (text: string, record: Listing) => {
+        // Find the original listing in allListings
+        const originalListing = allListings.find(l => l.listingID === text);
+        return (
+          <a href={originalListing?.etsyLink} target="_blank" rel="noopener noreferrer">
+            {text}
+            <ExternalLink size={14} style={{ marginLeft: 4 }} />
+          </a>
+        );
+      },
+    },
+    {
+      title: 'Section',
+      dataIndex: 'section',
+      key: 'section',
+    },
+    {
+      title: 'Created Date',
+      key: 'createdAt',
+      dataIndex: 'createdAt',
+      render: (_: any, record: Listing) => {
+        const createdAt = record.createdAt as any;  // Type assertion to handle different formats
+        
+        // Handle Firestore Timestamp
+        if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+          return formatDate(new Date(createdAt.seconds * 1000));
+        }
+        // Handle string date
+        if (createdAt && typeof createdAt === 'string') {
+          return formatDate(new Date(createdAt));
+        }
+        return '';
+      },
+      sorter: {
+        compare: (a: Listing, b: Listing) => {
+          const getTime = (date: any) => {
+            if (!date) return 0;
+            if (typeof date === 'object' && 'seconds' in date) {
+              return date.seconds * 1000;
+            }
+            if (typeof date === 'string') {
+              return new Date(date).getTime();
+            }
+            return 0;
+          };
 
-        <Table
-          columns={columns}
-          dataSource={displayedListings}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            current: currentPage,
-            pageSize: LISTINGS_PER_PAGE,
-            total: filteredListings.length,
-            onChange: (page) => {
-              const startIndex = (page - 1) * LISTINGS_PER_PAGE;
-              setDisplayedListings(filteredListings.slice(startIndex, startIndex + LISTINGS_PER_PAGE));
-              setCurrentPage(page);
-            },
-          }}
-          expandable={{
-            expandedRowRender: (record) => (
-              <Card>
-                {selectedListing?.id === record.id && optimizedContent ? (
-                  <Row gutter={24}>
-                    {/* Original Listing - Left Side */}
-                    <Col span={12}>
-                      <Card title="Original Listing" style={{ height: '100%' }}>
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                          <div>
-                            <Text strong>Title:</Text>
-                            <div style={{ marginLeft: 8 }}>{record.listingTitle}</div>
-                          </div>
-                          <div>
-                            <Text strong>Description:</Text>
-                            <div style={{ marginLeft: 8 }} dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
-                          </div>
-                          <div>
-                            <Text strong>Tags:</Text>
-                            <div style={{ marginLeft: 8 }}>
+          return getTime(a.createdAt) - getTime(b.createdAt);
+        },
+        multiple: 1
+      },
+    },
+  ];
+
+  return (
+    <div style={{ padding: '16px' }}>
+      <Tabs 
+        activeKey={selectedSegment} 
+        onChange={(key) => setSelectedSegment(key as 'duplication' | 'duplicates')}
+        type="card"
+      >
+        <Tabs.TabPane key="duplication" tab="Duplication Process">
+          <Space direction="vertical" size="middle" style={{ width: '100%', display: 'flex' }}>
+            <Card>
+              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                <Input
+                  placeholder="Search listings..."
+                  prefix={<SearchOutlined />}
+                  style={{ width: 300 }}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Space>
+                  <Button onClick={handleCSVExport}>Export CSV</Button>
+                  <Checkbox
+                    checked={showBestsellers}
+                    onChange={(e) => setShowBestsellers(e.target.checked)}
+                  >
+                    Show Bestsellers Only
+                  </Checkbox>
+                  <Checkbox
+                    checked={hideDuplicated}
+                    onChange={(e) => setHideDuplicated(e.target.checked)}
+                  >
+                    Hide Duplicated Listings
+                  </Checkbox>
+                </Space>
+              </Space>
+            </Card>
+
+            <Table
+              columns={columns}
+              dataSource={displayedListings}
+              rowKey="id"
+              loading={isLoading}
+              pagination={{
+                current: currentPage,
+                pageSize: LISTINGS_PER_PAGE,
+                total: filteredListings.length,
+                onChange: (page) => {
+                  const startIndex = (page - 1) * LISTINGS_PER_PAGE;
+                  setDisplayedListings(filteredListings.slice(startIndex, startIndex + LISTINGS_PER_PAGE));
+                  setCurrentPage(page);
+                },
+              }}
+              expandable={{
+                expandedRowRender: (record) => (
+                  <Card>
+                    {selectedListing?.id === record.id && optimizedContent ? (
+                      <Row gutter={24}>
+                        {/* Original Listing - Left Side */}
+                        <Col span={12}>
+                          <Card title="Original Listing" style={{ height: '100%' }}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <div>
+                                <Text strong>Title:</Text>
+                                <div style={{ marginLeft: 8 }}>{record.listingTitle}</div>
+                              </div>
+                              <div>
+                                <Text strong>Description:</Text>
+                                <div style={{ marginLeft: 8 }} dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
+                              </div>
+                              <div>
+                                <Text strong>Tags:</Text>
+                                <div style={{ marginLeft: 8 }}>
+                                  <Space wrap>
+                                    {record.listingTags.split(',').map((tag, index) => (
+                                      <Tag key={index}>{tag.trim()}</Tag>
+                                    ))}
+                                  </Space>
+                                </div>
+                              </div>
+                            </Space>
+                          </Card>
+                        </Col>
+
+                        {/* Duplicated Listing - Right Side */}
+                        <Col span={12}>
+                          <Card 
+                            title="Duplicated Listing"
+                            extra={
+                              <Space>
+                                <Button onClick={handleCancel}>
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="primary"
+                                  onClick={handleSaveDuplication}
+                                  loading={isPublishing}
+                                >
+                                  Save
+                                </Button>
+                              </Space>
+                            }
+                            style={{ height: '100%' }}
+                          >
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <div>
+                                <Text strong>New Listing ID: <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                                <Input
+                                  value={newListingId}
+                                  onChange={(e) => setNewListingId(e.target.value)}
+                                  placeholder="Enter new listing ID"
+                                  style={{ width: '100%', marginBottom: '16px' }}
+                                  required
+                                  status={isPublishing && !newListingId ? 'error' : undefined}
+                                />
+                                {isPublishing && !newListingId && (
+                                  <Text type="danger" style={{ display: 'block', marginTop: -12, marginBottom: 16 }}>
+                                    Please enter a new listing ID
+                                  </Text>
+                                )}
+                              </div>
+                              <div>
+                                <Text strong>Section:</Text>
+                                <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
+                                  If you're adding this duplicate to another section, input the section name here
+                                </Text>
+                                <Input
+                                  value={section}
+                                  onChange={(e) => setSection(e.target.value)}
+                                  placeholder="Enter section name (optional)"
+                                  style={{ width: '100%' }}
+                                />
+                              </div>
+                              <div>
+                                <Space align="center">
+                                  <Text strong>Title:</Text>
+                                  <Button 
+                                    type="text" 
+                                    icon={copiedField === `title-${record.id}` ? <Check /> : <Copy />}
+                                    onClick={() => copyToClipboard(optimizedContent.title, `title-${record.id}`)}
+                                  />
+                                </Space>
+                                <Input
+                                  value={optimizedContent.title}
+                                  onChange={(e) => setOptimizedContent({
+                                    ...optimizedContent,
+                                    title: e.target.value,
+                                  })}
+                                  style={{ width: '100%' }}
+                                />
+                              </div>
+                              <div>
+                                <Space align="center">
+                                  <Text strong>Description:</Text>
+                                  <Button 
+                                    type="text" 
+                                    icon={copiedField === `description-${record.id}` ? <Check /> : <Copy />}
+                                    onClick={() => copyToClipboard(optimizedContent.description, `description-${record.id}`)}
+                                  />
+                                </Space>
+                                <Input.TextArea
+                                  value={optimizedContent.description}
+                                  onChange={(e) => setOptimizedContent({
+                                    ...optimizedContent,
+                                    description: e.target.value,
+                                  })}
+                                  rows={10}
+                                />
+                              </div>
+                              <div>
+                                <Space align="center">
+                                  <Text strong>Tags:</Text>
+                                  <Button 
+                                    type="text" 
+                                    icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
+                                    onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
+                                  />
+                                </Space>
+                                <div>
+                                  <Space wrap style={{ marginBottom: 8 }}>
+                                    {editedTags.split(',').map((tag, index) => (
+                                      <Tag 
+                                        key={index}
+                                        closable
+                                        onClose={() => handleRemoveTag(tag.trim())}
+                                      >
+                                        {tag.trim()}
+                                      </Tag>
+                                    ))}
+                                  </Space>
+                                </div>
+                                <Space>
+                                  <Input
+                                    placeholder="Add new tag(s)"
+                                    onPressEnter={(e) => {
+                                      const newTags = e.currentTarget.value.trim();
+                                      if (newTags) {
+                                        handleAddTag(newTags);
+                                        e.currentTarget.value = '';
+                                      }
+                                    }}
+                                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                                  />
+                                  <Button
+                                    onClick={() => {
+                                      const input = document.querySelector('input[placeholder="Add new tag(s)"]') as HTMLInputElement;
+                                      const newTags = input.value.trim();
+                                      if (newTags) {
+                                        handleAddTag(newTags);
+                                        input.value = '';
+                                      }
+                                    }}
+                                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                                  >
+                                    Add Tag(s)
+                                  </Button>
+                                </Space>
+                                {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
+                                  <Text type="danger" style={{ marginTop: 8, display: 'block' }}>
+                                    Maximum number of tags (13) reached.
+                                  </Text>
+                                )}
+                              </div>
+                            </Space>
+                          </Card>
+                        </Col>
+                      </Row>
+                    ) : (
+                      // Regular view layout (when not duplicating)
+                      <Row gutter={24}>
+                        <Col span={12}>
+                          <Card title="Original Listing" style={{ height: '100%' }}>
+                            <Space direction="vertical">
+                              <Text strong>Title:</Text>
+                              <Text>{record.listingTitle}</Text>
+                              <Text strong>Description:</Text>
+                              <div dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
+                              <Text strong>Tags:</Text>
                               <Space wrap>
                                 {record.listingTags.split(',').map((tag, index) => (
                                   <Tag key={index}>{tag.trim()}</Tag>
                                 ))}
                               </Space>
-                            </div>
-                          </div>
-                        </Space>
-                      </Card>
-                    </Col>
+                            </Space>
+                          </Card>
+                        </Col>
 
-                    {/* Duplicated Listing - Right Side */}
-                    <Col span={12}>
-                      <Card 
-                        title="Duplicated Listing"
-                        extra={
-                          <Space>
-                            <Button onClick={handleCancel}>
-                              Cancel
-                            </Button>
-                            <Button
-                              type="primary"
-                              onClick={handleSaveDuplication}
-                              loading={isPublishing}
-                            >
-                              Save
-                            </Button>
-                          </Space>
-                        }
-                        style={{ height: '100%' }}
-                      >
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                          <div>
-                            <Text strong>New Listing ID: <span style={{ color: '#ff4d4f' }}>*</span></Text>
-                            <Input
-                              value={newListingId}
-                              onChange={(e) => setNewListingId(e.target.value)}
-                              placeholder="Enter new listing ID"
-                              style={{ width: '100%', marginBottom: '16px' }}
-                              required
-                              status={isPublishing && !newListingId ? 'error' : undefined}
-                            />
-                            {isPublishing && !newListingId && (
-                              <Text type="danger" style={{ display: 'block', marginTop: -12, marginBottom: 16 }}>
-                                Please enter a new listing ID
-                              </Text>
-                            )}
-                          </div>
-                          <div>
-                            <Text strong>Section:</Text>
-                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>
-                              If you're adding this duplicate to another section, input the section name here
-                            </Text>
-                            <Input
-                              value={section}
-                              onChange={(e) => setSection(e.target.value)}
-                              placeholder="Enter section name (optional)"
-                              style={{ width: '100%' }}
-                            />
-                          </div>
-                          <div>
-                            <Space align="center">
-                              <Text strong>Title:</Text>
-                              <Button 
-                                type="text" 
-                                icon={copiedField === `title-${record.id}` ? <Check /> : <Copy />}
-                                onClick={() => copyToClipboard(optimizedContent.title, `title-${record.id}`)}
-                              />
-                            </Space>
-                            <Input
-                              value={optimizedContent.title}
-                              onChange={(e) => setOptimizedContent({
-                                ...optimizedContent,
-                                title: e.target.value,
-                              })}
-                              style={{ width: '100%' }}
-                            />
-                          </div>
-                          <div>
-                            <Space align="center">
-                              <Text strong>Description:</Text>
-                              <Button 
-                                type="text" 
-                                icon={copiedField === `description-${record.id}` ? <Check /> : <Copy />}
-                                onClick={() => copyToClipboard(optimizedContent.description, `description-${record.id}`)}
-                              />
-                            </Space>
-                            <Input.TextArea
-                              value={optimizedContent.description}
-                              onChange={(e) => setOptimizedContent({
-                                ...optimizedContent,
-                                description: e.target.value,
-                              })}
-                              rows={10}
-                            />
-                          </div>
-                          <div>
-                            <Space align="center">
-                              <Text strong>Tags:</Text>
-                              <Button 
-                                type="text" 
-                                icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
-                                onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
-                              />
-                            </Space>
-                            <div>
-                              <Space wrap style={{ marginBottom: 8 }}>
-                                {editedTags.split(',').map((tag, index) => (
-                                  <Tag 
-                                    key={index}
-                                    closable
-                                    onClose={() => handleRemoveTag(tag.trim())}
-                                  >
-                                    {tag.trim()}
-                                  </Tag>
+                        {record.duplicationStatus && (
+                          <Col span={12}>
+                            <Card title="Duplicated Listings" style={{ height: '100%' }}>
+                              <Space direction="vertical" style={{ width: '100%' }}>
+                                {record.duplicates?.map((duplicate: { listingId: string, createdAt: Date }, index: number) => (
+                                  <div key={index}>
+                                    <Space>
+                                      <Text strong>Listing ID:</Text>
+                                      <Text>{duplicate.listingId}</Text>
+                                      <Text type="secondary">
+                                        ({formatDate(duplicate.createdAt)})
+                                      </Text>
+                                    </Space>
+                                  </div>
                                 ))}
                               </Space>
-                            </div>
-                            <Space>
-                              <Input
-                                placeholder="Add new tag(s)"
-                                onPressEnter={(e) => {
-                                  const newTags = e.currentTarget.value.trim();
-                                  if (newTags) {
-                                    handleAddTag(newTags);
-                                    e.currentTarget.value = '';
-                                  }
-                                }}
-                                disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
-                              />
-                              <Button
-                                onClick={() => {
-                                  const input = document.querySelector('input[placeholder="Add new tag(s)"]') as HTMLInputElement;
-                                  const newTags = input.value.trim();
-                                  if (newTags) {
-                                    handleAddTag(newTags);
-                                    input.value = '';
-                                  }
-                                }}
-                                disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
-                              >
-                                Add Tag(s)
-                              </Button>
-                            </Space>
-                            {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
-                              <Text type="danger" style={{ marginTop: 8, display: 'block' }}>
-                                Maximum number of tags (13) reached.
-                              </Text>
-                            )}
-                          </div>
-                        </Space>
-                      </Card>
-                    </Col>
-                  </Row>
-                ) : (
-                  // Regular view layout (when not duplicating)
-                  <Row gutter={24}>
-                    <Col span={12}>
-                      <Card title="Original Listing" style={{ height: '100%' }}>
-                        <Space direction="vertical">
-                          <Text strong>Title:</Text>
-                          <Text>{record.listingTitle}</Text>
-                          <Text strong>Description:</Text>
-                          <div dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
-                          <Text strong>Tags:</Text>
-                          <Space wrap>
-                            {record.listingTags.split(',').map((tag, index) => (
-                              <Tag key={index}>{tag.trim()}</Tag>
-                            ))}
-                          </Space>
-                        </Space>
-                      </Card>
-                    </Col>
-
-                    {record.duplicationStatus && (
-                      <Col span={12}>
-                        <Card title="Duplicated Listings" style={{ height: '100%' }}>
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            {record.duplicates?.map((duplicate: { listingId: string, createdAt: Date }, index: number) => (
-                              <div key={index}>
-                                <Space>
-                                  <Text strong>Listing ID:</Text>
-                                  <Text>{duplicate.listingId}</Text>
-                                  <Text type="secondary">
-                                    ({formatDate(duplicate.createdAt)})
-                                  </Text>
-                                </Space>
-                              </div>
-                            ))}
-                          </Space>
-                        </Card>
-                      </Col>
+                            </Card>
+                          </Col>
+                        )}
+                      </Row>
                     )}
-                  </Row>
-                )}
-              </Card>
-            ),
-            expandedRowKeys: expandedRows,
-            onExpand: (expanded, record) => {
-              if (expanded) {
-                setExpandedRows([...expandedRows, record.id]);
-              } else {
-                setExpandedRows(expandedRows.filter(id => id !== record.id));
-              }
-            },
-          }}
-        />
-      </Space>
-    </Card>
+                  </Card>
+                ),
+                expandedRowKeys: expandedRows,
+                onExpand: (expanded, record) => {
+                  if (expanded) {
+                    setExpandedRows([...expandedRows, record.id]);
+                  } else {
+                    setExpandedRows(expandedRows.filter(id => id !== record.id));
+                  }
+                },
+              }}
+            />
+          </Space>
+        </Tabs.TabPane>
+
+        <Tabs.TabPane key="duplicates" tab="Duplicates">
+          <Space direction="vertical" size="middle" style={{ width: '100%', display: 'flex' }}>
+            <Table
+              columns={duplicatesColumns}
+              dataSource={duplicateListings}
+              rowKey="id"
+              loading={isLoading}
+              pagination={{
+                pageSize: LISTINGS_PER_PAGE,
+                total: duplicateListings.length,
+              }}
+              expandable={{
+                expandedRowRender: (record) => {
+                  // Find original listing
+                  const originalListing = allListings.find(l => l.listingID === record.duplicatedFrom);
+                  
+                  return (
+                    <Card>
+                      <Row gutter={24}>
+                        {/* Original Listing */}
+                        <Col span={12}>
+                          <Card title="Original Listing" style={{ height: '100%' }}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <div>
+                                <Text strong>Title:</Text>
+                                <div style={{ marginLeft: 8 }}>{originalListing?.listingTitle}</div>
+                              </div>
+                              <div>
+                                <Text strong>Description:</Text>
+                                <div style={{ marginLeft: 8 }} dangerouslySetInnerHTML={sanitizeHtml(originalListing?.listingDescription || '')} />
+                              </div>
+                              <div>
+                                <Text strong>Tags:</Text>
+                                <div style={{ marginLeft: 8 }}>
+                                  <Space wrap>
+                                    {originalListing?.listingTags.split(',').map((tag, index) => (
+                                      <Tag key={index}>{tag.trim()}</Tag>
+                                    ))}
+                                  </Space>
+                                </div>
+                              </div>
+                            </Space>
+                          </Card>
+                        </Col>
+
+                        {/* Duplicated Listing */}
+                        <Col span={12}>
+                          <Card title="Duplicated Listing" style={{ height: '100%' }}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <div>
+                                <Text strong>Title:</Text>
+                                <div style={{ marginLeft: 8 }}>{record.listingTitle}</div>
+                              </div>
+                              <div>
+                                <Text strong>Description:</Text>
+                                <div style={{ marginLeft: 8 }} dangerouslySetInnerHTML={sanitizeHtml(record.listingDescription)} />
+                              </div>
+                              <div>
+                                <Text strong>Tags:</Text>
+                                <div style={{ marginLeft: 8 }}>
+                                  <Space wrap>
+                                    {record.listingTags.split(',').map((tag, index) => (
+                                      <Tag key={index}>{tag.trim()}</Tag>
+                                    ))}
+                                  </Space>
+                                </div>
+                              </div>
+                            </Space>
+                          </Card>
+                        </Col>
+                      </Row>
+                    </Card>
+                  );
+                },
+              }}
+            />
+          </Space>
+        </Tabs.TabPane>
+      </Tabs>
+    </div>
   );
 };
 

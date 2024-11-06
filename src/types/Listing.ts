@@ -35,6 +35,7 @@ export interface Listing {
   // Duplication fields
   duplicationStatus?: boolean;
   duplicatedAt?: Date | null;
+  duplicatedFrom?: string;
   duplicates?: DuplicateInfo[];
 
 }
