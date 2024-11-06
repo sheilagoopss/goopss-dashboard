@@ -25,7 +25,7 @@ import DesignHubV2 from "components/designHub/DesignHub";
 import { DesignHub } from "components/DesignHub";
 import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
-import ListingDuplication from "../components/listingDuplication/ListingDuplication";
+import ListingDuplication from "../components/ListingDuplication";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
