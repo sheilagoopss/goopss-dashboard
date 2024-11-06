@@ -107,8 +107,11 @@ const PostCreationModal: React.FC<{
         competitor_social: customerData.competitor_social || ''
       };
 
-      // Replace the endpoint with the new one
-      const response = await fetch("api/generate-content", {
+      // Replace with your endpoint 
+      const API_URL = 'https://goopss-dashboard-backend.onrender.com';
+
+      // Replace with your endpoint path
+      const response = await fetch(`${API_URL}/api/generate-content`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
