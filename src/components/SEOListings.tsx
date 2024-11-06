@@ -47,14 +47,40 @@ interface SEOListingsProps {
   storeName: string;
 }
 
-const formatDate = (date: Date | null | undefined): string => {
+const formatDate = (date: Date | null | undefined | any): string => {
   if (!date) return "";
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  
+  // Handle Firestore Timestamp
+  if (date.toDate && typeof date.toDate === "function") {
+    return date.toDate().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+  
+  // Handle regular Date object
+  if (date instanceof Date) {
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  // If it's a timestamp number
+  if (typeof date.seconds === "number") {
+    return new Date(date.seconds * 1000).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  return "";
 };
 
 const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
@@ -376,6 +402,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setOptimizedContent(null);
     setSelectedListing(null);
     setEditedTags("");
+    setNewListingId("");
+    setSection("");
   };
 
   // Add this helper function to sanitize HTML
@@ -557,6 +585,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const [showBestsellers, setShowBestsellers] = useState(false);
   const [hideDuplicated, setHideDuplicated] = useState(false);
   const [newListingId, setNewListingId] = useState('');
+  const [section, setSection] = useState('');
 
   // Add duplication columns
   const duplicationColumns = [
@@ -638,7 +667,19 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           if (!a.duplicatedAt && !b.duplicatedAt) return 0;
           if (!a.duplicatedAt) return -1;
           if (!b.duplicatedAt) return 1;
-          return a.duplicatedAt.getTime() - b.duplicatedAt.getTime();
+
+          // Convert both dates to timestamps
+          const getTimestamp = (date: Date | Timestamp) => {
+            if (date instanceof Date) {
+              return date.getTime();
+            }
+            if ('seconds' in date) {
+              return date.seconds * 1000;
+            }
+            return 0;
+          };
+
+          return getTimestamp(a.duplicatedAt) - getTimestamp(b.duplicatedAt);
         },
         multiple: 1
       },
@@ -650,7 +691,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       render: (record: Listing) => (
         <Button
           onClick={() => handleDuplicate(record)}
-          disabled={isDuplicating || record.duplicationStatus}
+          disabled={isDuplicating}
           type="primary"
         >
           {isDuplicating ? 'Duplicating...' : 'Duplicate'}
@@ -715,10 +756,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   }, [searchTerm, showBestsellers, hideDuplicated, allListings, selectedSegment]);
 
   const handleSaveDuplication = async () => {
-    if (!selectedListing || !optimizedContent) return;
-    
-    // Add validation for new listing ID
-    if (!newListingId.trim()) {
+    if (!selectedListing || !optimizedContent || !newListingId.trim()) {
       message.error('Please enter a new listing ID');
       return;
     }
@@ -726,18 +764,24 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setIsPublishing(true);
     try {
       const currentDate = new Date();
-      const updateData = {
-        duplicatedTitle: optimizedContent.title,
-        duplicatedDescription: newlineToBr(optimizedContent.description),
-        duplicatedTags: editedTags,
+      const updateData: any = {
+        listingTitle: optimizedContent.title,
+        listingDescription: newlineToBr(optimizedContent.description),
+        listingTags: editedTags,
         duplicationStatus: true,
         duplicatedAt: currentDate,
-        duplicatedFromId: selectedListing.id,
-        newListingId: newListingId
       };
+
+      // Only add section if it has a value
+      if (section.trim()) {
+        updateData.section = section.trim();
+      }
 
       const listingRef = doc(db, "listings", selectedListing.id);
       await updateDoc(listingRef, updateData);
+
+      // Log success
+      console.log("Successfully updated listing:", updateData);
 
       await createTask({
         customerId: customerId,
@@ -779,11 +823,17 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
       setSelectedListing(null);
       setEditedTags("");
       setNewListingId("");
+      setSection("");
 
       message.success('Listing duplicated successfully');
     } catch (error) {
+      // Detailed error logging
       console.error("Error saving duplicated listing:", error);
-      message.error('Failed to duplicate listing');
+      if (error instanceof Error) {
+        message.error(`Failed to duplicate listing: ${error.message}`);
+      } else {
+        message.error('Failed to duplicate listing');
+      }
     } finally {
       setIsPublishing(false);
     }
@@ -1093,7 +1143,7 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                     />
                                   </Space>
                                   <Space wrap>
-                                    {record.optimizedTags?.split(',').map((tag, index) => (
+                                    {record.optimizedTags?.split(',').map((tag: string, index: number) => (
                                       <Tag key={index}>{tag.trim()}</Tag>
                                     ))}
                                   </Space>
@@ -1282,6 +1332,20 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                 )}
                               </div>
                               <div>
+                                <Space direction="vertical" style={{ width: '100%', marginBottom: '16px' }}>
+                                  <Text strong>Section:</Text>
+                                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                                    If you're adding this duplicate to another section, input the section name here
+                                  </Text>
+                                  <Input
+                                    value={section}
+                                    onChange={(e) => setSection(e.target.value)}
+                                    placeholder="Enter section name (optional)"
+                                    style={{ width: '100%' }}
+                                  />
+                                </Space>
+                              </div>
+                              <div>
                                 <Space align="center">
                                   <Text strong>Title:</Text>
                                   <Button 
@@ -1400,8 +1464,8 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                             <Card title="Duplicated Listing" style={{ height: '100%' }}>
                               <Space direction="vertical">
                                 <div>
-                                  <Text strong>New Listing ID:</Text>
-                                  <Text>{record.newListingId}</Text>
+                                  <Text strong>Listing ID:</Text>
+                                  <Text>{record.listingID}</Text>
                                 </div>
                                 <div>
                                   <Space align="center">
@@ -1409,10 +1473,10 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                     <Button 
                                       type="text" 
                                       icon={copiedField === `title-${record.id}` ? <Check /> : <Copy />}
-                                      onClick={() => copyToClipboard(record.duplicatedTitle || '', `title-${record.id}`)}
+                                      onClick={() => copyToClipboard(record.optimizedTitle || '', `title-${record.id}`)}
                                     />
                                   </Space>
-                                  <Text>{record.duplicatedTitle}</Text>
+                                  <Text>{record.optimizedTitle}</Text>
                                 </div>
                                 <div>
                                   <Space align="center">
@@ -1420,10 +1484,10 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                     <Button 
                                       type="text" 
                                       icon={copiedField === `description-${record.id}` ? <Check /> : <Copy />}
-                                      onClick={() => copyToClipboard(record.duplicatedDescription || '', `description-${record.id}`)}
+                                      onClick={() => copyToClipboard(record.optimizedDescription || '', `description-${record.id}`)}
                                     />
                                   </Space>
-                                  <div dangerouslySetInnerHTML={sanitizeHtml(record.duplicatedDescription || '')} />
+                                  <div dangerouslySetInnerHTML={sanitizeHtml(record.optimizedDescription || '')} />
                                 </div>
                                 <div>
                                   <Space align="center">
@@ -1431,11 +1495,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                     <Button 
                                       type="text" 
                                       icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
-                                      onClick={() => copyToClipboard(record.duplicatedTags || '', `tags-${record.id}`)}
+                                      onClick={() => copyToClipboard(record.optimizedTags || '', `tags-${record.id}`)}
                                     />
                                   </Space>
                                   <Space wrap>
-                                    {record.duplicatedTags?.split(',').map((tag, index) => (
+                                    {record.optimizedTags?.split(',').map((tag: string, index: number) => (
                                       <Tag key={index}>{tag.trim()}</Tag>
                                     ))}
                                   </Space>
