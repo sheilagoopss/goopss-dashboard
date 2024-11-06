@@ -79,7 +79,7 @@ const ListingsTable = ({
           {isAdmin && (
             <DragDropUpload
               handleUpload={(data) => {
-                const newImage = data?.at(0);
+                const newImage = (data as string[])?.at(0);
                 if (newImage) {
                   setNewListingImages([...newListingImages, newImage]);
                 }
