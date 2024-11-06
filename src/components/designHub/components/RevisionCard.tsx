@@ -174,7 +174,7 @@ const RevisionCard: React.FC<{
                 {uploadingRevision && (
                   <DragDropUpload
                     handleUpload={(data) => {
-                      setRevisionImage(data?.at(0));
+                      setRevisionImage((data as string[])?.at(0));
                     }}
                   />
                 )}

@@ -43,6 +43,7 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import DragDropUpload from "./common/DragDropUpload";
 import CustomersDropdown from "./CustomersDropdown";
 import { IImage } from "../types/DesignHub";
+import { useDownloadImage } from "hooks/useListingImage";
 
 // Remove the local Customer interface definition
 
@@ -350,6 +351,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const [uploadingRevision, setUploadingRevision] = useState(false);
   const [revisionImage, setRevisionImage] = useState<string>();
   const [isAddingRevision, setIsAddingRevision] = useState(false);
+  const { downloadImage, isDownloading } = useDownloadImage();
 
   // Add this new state variable
   const [listingImages, setListingImages] = useState<
@@ -368,9 +370,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const customersCollection = collection(db, 'customers');
+        const customersCollection = collection(db, "customers");
         let q;
-        
+
         if (isAdmin) {
           q = query(customersCollection);
         } else {
@@ -378,7 +380,9 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
         }
 
         const querySnapshot = await getDocs(q);
-        const customersList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ICustomer));
+        const customersList = querySnapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as ICustomer),
+        );
         setCustomers(customersList);
 
         if (!isAdmin && customersList.length > 0) {
@@ -1049,22 +1053,51 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
   const handleDownloadImages = async (listing: Listing) => {
     const images = listingImages[listing.id] || [];
     if (images.length === 0) {
-      message.info('No images available to download');
+      message.info("No images available to download");
       return;
     }
 
     try {
-      message.info('Opening images in new tabs...');
-      
+      message.info("Opening images in new tabs...");
+
       for (const image of images) {
-        window.open(image.url, '_blank');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        window.open(image.url, "_blank");
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
-      
-      message.success('Please right-click and save each image manually');
+
+      message.success("Please right-click and save each image manually");
     } catch (error) {
-      console.error('Error opening images:', error);
-      message.error('Failed to open images. Please try again.');
+      console.error("Error opening images:", error);
+      message.error("Failed to open images. Please try again.");
+    }
+  };
+
+  const handleDownload = async (listingImages: ListingImage[]) => {
+    try {
+      for (const listingImage of listingImages) {
+        const imageData = await downloadImage(listingImage.id);
+
+        if (!imageData?.data) {
+          throw new Error("Network response was not ok");
+        }
+
+        const base64Data = imageData.data;
+        const blob = await (
+          await fetch(`data:image/jpeg;base64,${base64Data}`)
+        ).blob();
+        const url = URL.createObjectURL(blob);
+        const anchorElement = document.createElement("a");
+        anchorElement.href = url;
+        anchorElement.download =
+          listingImage.url.split("/").pop()?.split("?alt=")?.at(0) ||
+          "download";
+        document.body.appendChild(anchorElement);
+        anchorElement.click();
+        anchorElement.remove();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Download failed:", error);
     }
   };
 
@@ -1235,7 +1268,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                             style={{ display: "none" }}
                             id={`file-input-${listing.id}`}
                           />
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: "flex", gap: "8px" }}>
                             <button
                               onClick={() => handleSave(listing)}
                               style={styles.button}
@@ -1247,15 +1280,24 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                               Save
                             </button>
                             {listingImages[listing.id]?.length > 0 && (
-                              <button
-                                onClick={() => handleDownloadImages(listing)}
+                              <Button
+                                onClick={() =>
+                                  handleDownload(
+                                    listingImages[listing.id].filter(
+                                      (img) =>
+                                        img.status === statusFilter ||
+                                        statusFilter === "all",
+                                    ),
+                                  )
+                                }
                                 style={{
                                   ...styles.button,
-                                  backgroundColor: '#28a745'  // Different color for download button
+                                  backgroundColor: "#28a745", // Different color for download button
                                 }}
+                                loading={isDownloading}
                               >
                                 Download Images
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -1427,7 +1469,7 @@ const DesignHub: React.FC<DesignHubProps> = ({ customerId, isAdmin }) => {
                     {uploadingRevision && (
                       <DragDropUpload
                         handleUpload={(data) => {
-                          setRevisionImage(data?.at(0));
+                          setRevisionImage((data as string[])?.at(0));
                         }}
                       />
                     )}

@@ -1,19 +1,25 @@
-import React from "react";
+import React, { useState } from "react";
 import { InboxOutlined } from "@ant-design/icons";
-import type { UploadProps } from "antd";
+import type { UploadFile, UploadProps } from "antd";
 import { message, Upload } from "antd";
 
 const { Dragger } = Upload;
 
 interface DragDropUploadProp {
-  handleUpload: (data: string[]) => void;
-  multiple?: boolean; // Optional boolean prop to control multiple file uploads
+  handleUpload: (data: (string | UploadFile<File>)[]) => void;
+  multiple?: boolean;
+  rawFile?: boolean;
+  placeholder?: string;
 }
 
 const DragDropUpload: React.FC<DragDropUploadProp> = ({
   handleUpload,
   multiple = false,
+  rawFile = false,
+  placeholder = "Click or drag file to this area to upload",
 }) => {
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
   const getBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -26,30 +32,36 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
     name: "file",
     multiple: multiple,
     accept: ".png,.jpg",
-    maxCount: 1,
     beforeUpload: (file) => {
       const isImage = file.type.startsWith("image/");
       if (!isImage) {
-        message.error({
-          content: "You can only upload image files!",
-        });
+        message.error("You can only upload image files!");
         return Upload.LIST_IGNORE;
       }
-      return false;
+      return false; 
     },
     onChange(info) {
-      const { fileList } = info;
-      const base64Promises = fileList
-        .filter((file) => file.status !== "removed")
-        .map((file) => getBase64(file.originFileObj as File));
+      const newFileList = info.fileList.filter((file) => file.status !== "removed");
 
-      Promise.all(base64Promises)
-        .then((base64Strings) => {
-          handleUpload(base64Strings);
-        })
-        .catch(() => {
-          console.error("Failed to convert some files to base64.");
-        });
+      setFileList(newFileList); 
+
+      if (rawFile) {
+        handleUpload(newFileList);
+        setFileList([])
+      } else {
+        const base64Promises = newFileList.map((file) =>
+          getBase64(file.originFileObj as File)
+        );
+
+        Promise.all(base64Promises)
+          .then((base64Strings) => {
+            handleUpload(base64Strings);
+            setFileList([])
+          })
+          .catch(() => {
+            console.error("Failed to convert some files to base64.");
+          });
+      }
 
       if (info.file.status === "done") {
         console.log(`${info.file.name} file processed successfully.`);
@@ -57,6 +69,7 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
         console.error(`${info.file.name} file processing failed.`);
       }
     },
+    fileList, 
     showUploadList: false,
     onDrop(e) {
       console.log("Dropped files", e.dataTransfer.files);
@@ -68,9 +81,7 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
       <p className="ant-upload-drag-icon">
         <InboxOutlined />
       </p>
-      <p className="ant-upload-text">
-        Click or drag file to this area to upload
-      </p>
+      <p className="ant-upload-text">{placeholder}</p>
     </Dragger>
   );
 };
