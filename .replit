@@ -1,5 +1,16 @@
 run = "npm start"
 language = "nodejs"
+build = "npm run build"
+onstart = "npm run serve"
 entrypoint = "index.html"
-onstart = "serve -s build"
 
+[env]
+PATH = "/root/.local/share/fnm:$PATH"
+
+[deployment]
+deploymentTarget = "static"
+publicDir = "build"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
