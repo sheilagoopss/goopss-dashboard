@@ -37,7 +37,7 @@ const StoreAnalysis: React.FC = () => {
               ({
                 id: doc.id,
                 ...doc.data(),
-              } as ICustomer),
+              }) as ICustomer,
           );
           setCustomers(customersList);
         } catch (err) {
@@ -139,7 +139,6 @@ const StoreAnalysis: React.FC = () => {
         )}
         {selectedCustomer && (
           <>
-            {" "}
             <Row gutter={[16, 16]}>
               <Col span={24}>
                 Store analysis for {selectedCustomer.store_name}

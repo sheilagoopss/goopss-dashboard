@@ -7,7 +7,7 @@ import {
 } from "hooks/useCustomer";
 import { useEffect, useState } from "react";
 import { ICustomer } from "types/Customer";
-import StatusFilter from "../components/StatusFilter";
+import StatusFilter, { StatusFilterType } from "../components/StatusFilter";
 import { SearchOutlined } from "@ant-design/icons";
 import { Listing, ListingImage } from "types/Listing";
 import ListingsTable from "../components/ListingsTable";
@@ -21,10 +21,10 @@ const DesignHubAdmin = () => {
   const { fetchCustomerListingImages, isLoading: isFetchingImages } =
     useCustomerListingImagesFetch();
   const { uploadListingImages, isUploading } = useUploadListingImages();
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [statusFilter, setStatusFilter] = useState<
-    "revision" | "pending" | "approved" | "all"
-  >("revision");
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilterType>("approved");
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -57,6 +57,30 @@ const DesignHubAdmin = () => {
       return true;
     }
     return false;
+  };
+
+  const handleSort = (sortType: "newest" | "oldest") => {
+    const sortedListings = [...filteredListings].sort((a, b) => {
+      const dateA = listingImages.find((img) => img.listing_id === a.id)?.date;
+      const dateB = listingImages.find((img) => img.listing_id === b.id)?.date;
+      return sortType === "newest"
+        ? (dateB ? new Date(dateB).getTime() : 0) -
+            (dateA ? new Date(dateA).getTime() : 0)
+        : (dateA ? new Date(dateA).getTime() : 0) -
+            (dateB ? new Date(dateB).getTime() : 0);
+    });
+    setFilteredListings(sortedListings);
+  };
+
+  const handleSearch = (searchTerm: string) => {
+    setSearchTerm(searchTerm);
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
+    const filteredListings = listings.filter(
+      (listing) =>
+        listing.listingTitle.toLowerCase().includes(lowercasedSearchTerm) ||
+        listing.listingID.toLowerCase().includes(lowercasedSearchTerm),
+    );
+    setFilteredListings(filteredListings);
   };
 
   useEffect(() => {
@@ -116,14 +140,7 @@ const DesignHubAdmin = () => {
                 allowClear
                 prefix={<SearchOutlined />}
                 style={{ width: "30ch" }}
-                onChange={(e) => {
-                  const filteredListings = listings.filter((listing) =>
-                    listing.listingTitle
-                      .toLowerCase()
-                      .includes(e.target.value.toLowerCase()),
-                  );
-                  setFilteredListings(filteredListings);
-                }}
+                onChange={(e) => handleSearch(e.target.value)}
               />
               <Select
                 placeholder="Sort by"
@@ -131,36 +148,21 @@ const DesignHubAdmin = () => {
                   { label: "Newest", value: "newest" },
                   { label: "Oldest", value: "oldest" },
                 ]}
-                onChange={(value) => {
-                  const sortedListings = [...filteredListings].sort(
-                    (a: Listing, b: Listing) => {
-                      const getTimeOrDefault = (dateString?: string) =>
-                        dateString ? new Date(dateString).getTime() : 0;
-
-                      if (value === "newest") {
-                        return (
-                          getTimeOrDefault(b.createdAt) -
-                          getTimeOrDefault(a.createdAt)
-                        );
-                      } else if (value === "oldest") {
-                        return (
-                          getTimeOrDefault(a.createdAt) -
-                          getTimeOrDefault(b.createdAt)
-                        );
-                      }
-                      return 0;
-                    },
-                  );
-                  setFilteredListings(sortedListings);
-                }}
+                onChange={(value) => handleSort(value as "newest" | "oldest")}
               />
             </div>
           </Col>
           <Col span={24}>
             <ListingsTable
-              listings={filteredListings}
-              listingImages={listingImages.filter((image) =>
-                statusFilter ? image.status === statusFilter : true,
+              listings={filteredListings.filter((listing) => {
+                if (statusFilter !== "all" && searchTerm === "") {
+                  return listingImages
+                    .filter((image) => image.status === statusFilter)
+                    .some((image) => image.listing_id === listing.id);
+                } else return listing;
+              })}
+              listingImages={listingImages.filter(
+                (image) => statusFilter === "all" || image.status === statusFilter,
               )}
               loading={isFetchingListings || isFetchingImages}
               refresh={refetch}
