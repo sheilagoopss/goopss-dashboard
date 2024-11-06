@@ -1,5 +1,5 @@
-run = "node server.js"
 build = "npm run build"
+run = "npm run serve"
 modules = ["nix", "nodejs-20", "web"]
 
 [nix]
