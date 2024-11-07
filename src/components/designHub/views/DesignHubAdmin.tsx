@@ -112,7 +112,7 @@ const DesignHubAdmin = () => {
           marginBottom: "1ch",
         }}
       >
-        <Typography.Title level={4}>Design Hub - Admin View</Typography.Title>
+        <Typography.Title level={4}>Design Hub</Typography.Title>
         <CustomersDropdown
           customers={customers}
           selectedCustomer={selectedCustomer}

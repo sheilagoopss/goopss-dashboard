@@ -144,9 +144,7 @@ const DesignHubCustomer = () => {
           marginBottom: "1ch",
         }}
       >
-        <Typography.Title level={4}>
-          Design Hub - Customer View
-        </Typography.Title>
+        <Typography.Title level={4}>Design Hub</Typography.Title>
       </Col>
       <Col span={24}>
         <StatusFilter
