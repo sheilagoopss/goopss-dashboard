@@ -38,6 +38,14 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
   const { fetchPlan, updatePlan, updateTask } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [activeTab, setActiveTab] = useState('Initial setup');
+  const [tempInputValues, setTempInputValues] = useState<Record<string, string>>({});
+  const [columnWidths, setColumnWidths] = useState({
+    section: 150,
+    task: 500,
+    progress: 200,
+    completedDate: 100,
+    active: 100,
+  });
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -175,12 +183,21 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
     }
   };
 
+  // Add handle resize function
+  const handleResize = (index: number) => (e: React.SyntheticEvent, { size }: { size: { width: number } }) => {
+    const newColumnWidths = { ...columnWidths };
+    const keys = Object.keys(columnWidths);
+    newColumnWidths[keys[index] as keyof typeof columnWidths] = size.width;
+    setColumnWidths(newColumnWidths);
+  };
+
+  // Update admin columns to be resizable
   const columns: TableProps<Task>['columns'] = [
     {
       title: 'Section',
       dataIndex: 'section',
       key: 'section',
-      width: '15%',
+      width: columnWidths.section,
       render: (text, record) => (
         <Input
           value={text}
@@ -193,7 +210,7 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
       title: 'Task',
       dataIndex: 'task',
       key: 'task',
-      width: '50%',
+      width: columnWidths.task,
       render: (text, record) => (
         <Input
           value={text}
@@ -206,7 +223,7 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
       title: 'Progress',
       dataIndex: 'progress',
       key: 'progress',
-      width: '20%',
+      width: columnWidths.progress,
       render: (text: ProgressStatus, record) => {
         const needsInput = [
           'Listing Optimization (title, description, attributes, alt texts)',
@@ -217,11 +234,40 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
 
         if (needsInput.includes(record.task)) {
           return (
-            <Input
-              value={text}
-              onChange={(e) => handleCellEdit(record.key, 'progress', e.target.value)}
-              suffix={<EditOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
-            />
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                value={tempInputValues[record.key] ?? text}
+                onChange={(e) => setTempInputValues(prev => ({
+                  ...prev,
+                  [record.key]: e.target.value
+                }))}
+                onFocus={(e) => {
+                  // Set initial temp value when focusing
+                  if (!tempInputValues[record.key]) {
+                    setTempInputValues(prev => ({
+                      ...prev,
+                      [record.key]: text
+                    }));
+                  }
+                }}
+              />
+              <Button 
+                type="primary"
+                onClick={() => {
+                  handleCellEdit(record.key, 'progress', tempInputValues[record.key] || text);
+                  // Clear temp value after saving
+                  setTempInputValues(prev => {
+                    const newValues = { ...prev };
+                    delete newValues[record.key];
+                    return newValues;
+                  });
+                  // Add success message
+                  message.success('Progress updated successfully');
+                }}
+              >
+                Save
+              </Button>
+            </Space.Compact>
           );
         }
 
@@ -269,14 +315,14 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
       title: 'Completed Date',
       dataIndex: 'completedAt',
       key: 'completedAt',
-      width: '10%',
+      width: columnWidths.completedDate,
       render: (text: string | undefined) => text || '-'
     },
     {
       title: 'Active',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: '10%',
+      width: columnWidths.active,
       render: (isActive, record) => (
         <Switch
           checked={isActive}
@@ -299,14 +345,14 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
       title: 'Task',
       dataIndex: 'task',
       key: 'task',
-      width: '60%',
+      width: '50%',  // Changed from 60% to 50%
       render: (text) => <span>{text}</span>,  // Simple text display
     },
     {
       title: 'Progress',
       dataIndex: 'progress',
       key: 'progress',
-      width: '20%',
+      width: '30%',  // Changed from 20% to 30%
       render: (text: ProgressStatus) => (
         <Button
           type={text === 'Done' ? 'primary' : 'default'}
