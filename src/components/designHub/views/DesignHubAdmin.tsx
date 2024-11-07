@@ -23,8 +23,7 @@ const DesignHubAdmin = () => {
   const { uploadListingImages, isUploading } = useUploadListingImages();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [statusFilter, setStatusFilter] =
-    useState<StatusFilterType>("pending");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterType>("pending");
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -155,14 +154,21 @@ const DesignHubAdmin = () => {
           <Col span={24}>
             <ListingsTable
               listings={filteredListings.filter((listing) => {
-                if (statusFilter !== "all" && searchTerm === "") {
+                const listingsWithImages = listingImages.some(
+                  (image) => image.listing_id === listing.id,
+                );
+                if (statusFilter !== "all") {
                   return listingImages
                     .filter((image) => image.status === statusFilter)
                     .some((image) => image.listing_id === listing.id);
-                } else return listing;
+                } else if (searchTerm === "") {
+                  return listingsWithImages;
+                }
+                return listing;
               })}
               listingImages={listingImages.filter(
-                (image) => statusFilter === "all" || image.status === statusFilter,
+                (image) =>
+                  statusFilter === "all" || image.status === statusFilter,
               )}
               loading={isFetchingListings || isFetchingImages}
               refresh={refetch}
