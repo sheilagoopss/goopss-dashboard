@@ -119,6 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setUser(null);
       setIsAdmin(false);
       clearCookie(AUTH_COOKIE_KEY);
+      window.open(window.location.href, "_self");
     } catch (error) {
       console.error("Logout error:", error);
       throw error;
