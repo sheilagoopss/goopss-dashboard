@@ -48,4 +48,5 @@ export interface ListingImage {
   customer_id: string;
   statusChangeDate?: Date;
   revisionNote?: string;
+  date?: Date;
 }

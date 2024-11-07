@@ -21,6 +21,7 @@ import { useState } from "react";
 import RevisionCard from "./RevisionCard";
 import { useAuth } from "contexts/AuthContext";
 import { useDownloadImage } from "hooks/useListingImage";
+import dayjs from "dayjs";
 
 interface ImageCardProps {
   index: number;
@@ -81,49 +82,54 @@ const ImageCard = ({
   return (
     <>
       <Card
-        actions={
-          handleApprove &&
-          handleSupersede && [
-            <Button
-              icon={
-                <CheckCircleFilled
-                  style={{
-                    color: ["approved", "revision"].includes(
-                      listingImage?.status,
-                    )
-                      ? "gray"
-                      : "green",
-                  }}
-                />
-              }
-              shape="circle"
-              size="large"
-              key="approve"
-              style={{ border: "none" }}
-              disabled={["approved", "revision"].includes(listingImage?.status)}
-              onClick={() => handleApprove(listingImage?.id)}
-            />,
-            <Button
-              icon={<CloseCircleFilled />}
-              danger
-              shape="circle"
-              size="large"
-              key="supersede"
-              style={{ border: "none" }}
-              disabled={["approved", "revision"].includes(listingImage?.status)}
-              onClick={() => handleSupersede(listingImage?.id)}
-            />,
-            <Button
-              icon={<DownloadOutlined style={{ color: "blue" }} />}
-              shape="circle"
-              size="large"
-              key="download"
-              style={{ border: "none" }}
-              onClick={handleDownload}
-              loading={isDownloading}
-            />,
-          ]
-        }
+        actions={[
+          ...(handleApprove && handleSupersede
+            ? [
+                <Button
+                  icon={
+                    <CheckCircleFilled
+                      style={{
+                        color: ["approved", "revision"].includes(
+                          listingImage?.status,
+                        )
+                          ? "gray"
+                          : "green",
+                      }}
+                    />
+                  }
+                  shape="circle"
+                  size="large"
+                  key="approve"
+                  style={{ border: "none" }}
+                  disabled={["approved", "revision"].includes(
+                    listingImage?.status,
+                  )}
+                  onClick={() => handleApprove(listingImage?.id)}
+                />,
+                <Button
+                  icon={<CloseCircleFilled />}
+                  danger
+                  shape="circle"
+                  size="large"
+                  key="supersede"
+                  style={{ border: "none" }}
+                  disabled={["approved", "revision"].includes(
+                    listingImage?.status,
+                  )}
+                  onClick={() => handleSupersede(listingImage?.id)}
+                />,
+              ]
+            : []),
+          <Button
+            icon={<DownloadOutlined style={{ color: "blue" }} />}
+            shape="circle"
+            size="large"
+            key="download"
+            style={{ border: "none" }}
+            onClick={handleDownload}
+            loading={isDownloading}
+          />,
+        ]}
       >
         <Row>
           <Col span={20}>
@@ -159,6 +165,11 @@ const ImageCard = ({
               style={{ width: "100%", minHeight: "200px" }}
               alt={listing.listingTitle}
             />
+            <Typography.Text type="secondary">
+              {listingImage.date
+                ? dayjs(listingImage.date).format("MMM DD, YYYY HH:mm")
+                : ""}
+            </Typography.Text>
             <Tag
               color={STATUS_COLORS[listingImage.status]}
               style={{ width: "fit-content" }}
