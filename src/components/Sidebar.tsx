@@ -12,6 +12,10 @@ import {
   Sparkles,
   MoreVertical,
   ChevronDown,
+  LayoutDashboard,
+  User,
+  File,
+  ClipboardList,
 } from "lucide-react";
 import { MessageOutlined } from '@ant-design/icons';
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -125,6 +129,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       )
     }] : []),
     {
+      key: 'plan',
+      icon: <ClipboardList className="h-4 w-4" />,
+      label: <Link to="/plan">Plan</Link>
+    },
+    {
       key: 'design-hub',
       icon: <LayoutGrid className="h-6 w-6" />,
       label: <Link to="/design-hub">Design Hub</Link>
@@ -212,6 +221,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           )
         }
       ]
+    },
+    {
+      key: 'plan',
+      icon: <ClipboardList className="h-4 w-4" />,
+      label: <Link to="/plan">Plan</Link>
     }
   ];
 

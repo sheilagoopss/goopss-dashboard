@@ -349,6 +349,18 @@ export default function AppRoutes() {
                 </div>
               }
             />
+            <Route
+              path="plan"
+              element={
+                userType === "Free" ? 
+                <UpgradeNotice /> : 
+                <Plan 
+                  customers={[]} 
+                  selectedCustomer={null} 
+                  setSelectedCustomer={() => {}} 
+                />
+              }
+            />
           </>
         )}
       </Route>
