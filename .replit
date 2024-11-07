@@ -1,11 +1,12 @@
-run = "npm run serve"
+run = "npm start"
 language = "nodejs"
-# build = "npm run build"
-# onstart = "npm run serve"
 entrypoint = "index.html"
 
 [env]
 PATH = "/root/.local/share/fnm:$PATH"
+
+[nix]
+channel = "stable-23_11"
 
 [deployment]
 deploymentTarget = "static"
