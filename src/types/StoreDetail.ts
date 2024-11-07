@@ -1,4 +1,5 @@
 export interface IStoreDetail {
+  id?: string;
   storeName: string;
   sales?: number;
   announcement?: string;
@@ -11,4 +12,6 @@ export interface IStoreDetail {
   starSeller?: boolean;
   ownerPhoto?: string;
   featureItems?: boolean;
+  customerId: string;
+  createdAt: string;
 }

@@ -1,7 +1,10 @@
-import { Button, Col, Row, Table } from "antd";
+import { Button, Col, message, Popconfirm, Row, Table } from "antd";
 import dayjs from "dayjs";
 import { IStoreDetail } from "../../../types/StoreDetail";
 import { DeleteFilled, EyeFilled } from "@ant-design/icons";
+import { useStoreAnalysisDelete } from "hooks/useStoreAnalytics";
+import { useState } from "react";
+import ScrapeDataModal from "./ScrapeDataModal";
 
 interface PreviousAnalysisProps {
   storeDetail: IStoreDetail[];
@@ -14,6 +17,21 @@ export default function PreviousAnalysis({
   loading,
   refresh,
 }: PreviousAnalysisProps) {
+  const { deleteStoreAnalysis, isDeleting } = useStoreAnalysisDelete();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<
+    IStoreDetail | undefined
+  >(undefined);
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    const resp = await deleteStoreAnalysis(id);
+    if (resp) {
+      setDeletingId(null);
+      message.success("Store Analysis deleted successfully");
+      refresh();
+    }
+  };
+
   const columns = [
     {
       title: "Store Name",
@@ -24,17 +42,12 @@ export default function PreviousAnalysis({
     },
     {
       title: "Date",
-      dataIndex: "storeName",
-      key: "storeName",
+      dataIndex: "createdAt",
+      key: "createdAt",
       sorter: (a: IStoreDetail, b: IStoreDetail) =>
-        a.storeName.localeCompare(b.storeName),
-      render: (value: string) => {
-        if (value) {
-          return dayjs(value).format("MMM DD YYYY HH:mm");
-        } else {
-          return value;
-        }
-      },
+        dayjs(a.createdAt).isBefore(dayjs(b.createdAt)) ? -1 : 1,
+      render: (value: string) =>
+        value ? dayjs(value).format("MMM DD YYYY HH:mm") : null,
     },
     {
       title: "",
@@ -43,18 +56,26 @@ export default function PreviousAnalysis({
         <Row gutter={[16, 2]}>
           <Col>
             <Button
-              // onClick={() => handleEdit(record)}
               icon={<EyeFilled />}
               title="View Detail"
+              onClick={() => setSelectedAnalysis(record)}
             />
           </Col>
           <Col>
-            <Button
-              // onClick={() => handleDelete(record.id)}
-              icon={<DeleteFilled />}
-              danger
-              // loading={isDeleting}
-            />
+            <Popconfirm
+              title="Are you sure you want to delete this analysis?"
+              onConfirm={() => {
+                if (record.id) handleDelete(record.id);
+              }}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button
+                icon={<DeleteFilled />}
+                danger
+                loading={isDeleting && record.id === deletingId}
+              />
+            </Popconfirm>
           </Col>
         </Row>
       ),
@@ -71,6 +92,15 @@ export default function PreviousAnalysis({
         pagination={{
           showSizeChanger: true,
         }}
+      />
+      <ScrapeDataModal
+        title={selectedAnalysis?.storeName}
+        open={Boolean(selectedAnalysis)}
+        storeName={selectedAnalysis?.storeName || ""}
+        isLoading={false}
+        scrapedData={selectedAnalysis}
+        onCancel={() => setSelectedAnalysis(undefined)}
+        footer={false}
       />
     </>
   );
