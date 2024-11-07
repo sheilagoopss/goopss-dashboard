@@ -17,19 +17,20 @@ const DesignHubCustomer = () => {
     useCustomerFetchListings();
   const { fetchCustomerListingImages, isLoading: isFetchingImages } =
     useCustomerListingImagesFetch();
-
-  const [statusFilter, setStatusFilter] =
-    useState<StatusFilterType>("revision");
-  const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
-  const [listingImages, setListingImages] = useState<ListingImage[]>([]);
   const {
     approveImage,
     batchApproveImages,
     supersedeImage,
     isLoading: isChangingStatus,
   } = useListingImageStatusUpdate();
+
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilterType>("pending");
+  const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
+  const [listingImages, setListingImages] = useState<ListingImage[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const refetch = () => {
     if (user) {
@@ -110,6 +111,30 @@ const DesignHubCustomer = () => {
     }
   };
 
+  const handleSort = (sortType: "newest" | "oldest") => {
+    const sortedListings = [...filteredListings].sort((a, b) => {
+      const dateA = listingImages.find((img) => img.listing_id === a.id)?.date;
+      const dateB = listingImages.find((img) => img.listing_id === b.id)?.date;
+      return sortType === "newest"
+        ? (dateB ? new Date(dateB).getTime() : 0) -
+            (dateA ? new Date(dateA).getTime() : 0)
+        : (dateA ? new Date(dateA).getTime() : 0) -
+            (dateB ? new Date(dateB).getTime() : 0);
+    });
+    setFilteredListings(sortedListings);
+  };
+
+  const handleSearch = (searchTerm: string) => {
+    setSearchTerm(searchTerm);
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
+    const filteredListings = listings.filter(
+      (listing) =>
+        listing.listingTitle.toLowerCase().includes(lowercasedSearchTerm) ||
+        listing.listingID.toLowerCase().includes(lowercasedSearchTerm),
+    );
+    setFilteredListings(filteredListings);
+  };
+
   return (
     <Row gutter={[16, 16]}>
       <Col
@@ -140,14 +165,7 @@ const DesignHubCustomer = () => {
             allowClear
             prefix={<SearchOutlined />}
             style={{ width: "30ch" }}
-            onChange={(e) => {
-              const filteredListings = listings.filter((listing) =>
-                listing.listingTitle
-                  .toLowerCase()
-                  .includes(e.target.value.toLowerCase()),
-              );
-              setFilteredListings(filteredListings);
-            }}
+            onChange={(e) => handleSearch(e.target.value)}
           />
           <Select
             placeholder="Sort by"
@@ -155,28 +173,7 @@ const DesignHubCustomer = () => {
               { label: "Newest", value: "newest" },
               { label: "Oldest", value: "oldest" },
             ]}
-            onChange={(value) => {
-              const sortedListings = [...filteredListings].sort(
-                (a: Listing, b: Listing) => {
-                  const getTimeOrDefault = (dateString?: string) =>
-                    dateString ? new Date(dateString).getTime() : 0;
-
-                  if (value === "newest") {
-                    return (
-                      getTimeOrDefault(b.createdAt) -
-                      getTimeOrDefault(a.createdAt)
-                    );
-                  } else if (value === "oldest") {
-                    return (
-                      getTimeOrDefault(a.createdAt) -
-                      getTimeOrDefault(b.createdAt)
-                    );
-                  }
-                  return 0;
-                },
-              );
-              setFilteredListings(sortedListings);
-            }}
+            onChange={(value) => handleSort(value as "newest" | "oldest")}
           />
         </div>
         <div style={{ display: "flex", gap: "1ch" }}>
@@ -197,9 +194,15 @@ const DesignHubCustomer = () => {
       </Col>
       <Col span={24}>
         <ListingsTable
-          listings={filteredListings}
-          listingImages={listingImages.filter((image) =>
-            statusFilter ? image.status === statusFilter : true,
+          listings={filteredListings.filter((listing) => {
+            if (statusFilter !== "all" && searchTerm === "") {
+              return listingImages
+                .filter((image) => image.status === statusFilter)
+                .some((image) => image.listing_id === listing.id);
+            } else return listing;
+          })}
+          listingImages={listingImages.filter(
+            (image) => statusFilter === "all" || image.status === statusFilter,
           )}
           loading={isFetchingListings || isFetchingImages}
           refresh={refetch}

@@ -9,11 +9,13 @@ import {
   Pagination,
   Row,
   Spin,
+  Typography,
 } from "antd";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useAuth } from "contexts/AuthContext";
 import { CSSProperties, useState } from "react";
 import { Listing, ListingImage } from "types/Listing";
+import dayjs from "dayjs";
 import ImageCard from "./ImageCard";
 
 interface ListingsTableProps {
@@ -66,7 +68,22 @@ const ListingsTable = ({
   ) =>
     paginatedListings.map((listing) => ({
       key: listing.listingID,
-      label: listing.listingTitle,
+      label: (
+        <>
+          {listing.listingTitle}
+          <Typography.Text type="secondary" style={{ display: 'block' }}>
+            ID: {listing.listingID}
+          </Typography.Text>
+        </>
+      ),
+      extra: (
+        <Typography.Text type="secondary">
+          {listingImages.find((img) => img.listing_id === listing.listingID)
+            ?.date
+            ? dayjs(listingImages.find((img) => img.listing_id === listing.listingID)?.date).format("MMM DD, YYYY HH:mm")
+            : ""}
+        </Typography.Text>
+      ),
       children: (
         <Row
           gutter={[16, 16]}
