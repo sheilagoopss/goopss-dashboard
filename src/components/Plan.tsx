@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal, message } from 'antd';
 import type { TableProps } from 'antd';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { ICustomer } from '../types/Customer';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import CustomersDropdown from './CustomersDropdown';
+import { usePlan } from '../hooks/usePlan';
+import { PlanTask, PlanSection } from '../types/Plan';
 
 const { Title } = Typography;
 const { Content } = Layout;
@@ -35,7 +37,8 @@ interface PlanProps {
 }
 
 function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const { fetchPlan, updatePlan, updateTask } = usePlan();
   const [sections, setSections] = useState<Section[]>([
     {
       title: 'Initial setup',
@@ -87,58 +90,129 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
 
   const [activeTab, setActiveTab] = useState('Initial setup');
 
-  const handleCellEdit = (key: string, field: keyof Task, value: string | boolean) => {
-    setSections(prevSections => 
-      prevSections.map(section => ({
-        ...section,
-        tasks: section.tasks.map(task => {
-          if (task.key === key) {
-            if (field === 'progress' && value === 'Done') {
-              return { 
-                ...task, 
-                [field]: value,
-                completedAt: new Date().toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric'
-                })
-              };
+  const handleCellEdit = async (key: string, field: keyof Task, value: string | boolean) => {
+    if (!selectedCustomer) return;
+
+    try {
+      const sectionTitle = sections.find(section => 
+        section.tasks.some(task => task.key === key)
+      )?.title;
+
+      if (!sectionTitle) return;
+
+      // Update local state first for immediate feedback
+      setSections(prevSections => 
+        prevSections.map(section => ({
+          ...section,
+          tasks: section.tasks.map(task => {
+            if (task.key === key) {
+              if (field === 'progress') {
+                if (value === 'Done') {
+                  return { 
+                    ...task, 
+                    progress: value as string,
+                    completedAt: new Date().toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                  };
+                }
+                if (value === 'In Progress') {
+                  return { 
+                    ...task, 
+                    progress: value as string,
+                    completedAt: undefined
+                  };
+                }
+              }
+              if (field === 'isActive') {
+                return { ...task, isActive: value as boolean };
+              }
+              return { ...task, [field]: value };
             }
-            if (field === 'progress' && value === 'In Progress') {
-              return { 
-                ...task, 
-                [field]: value,
-                completedAt: undefined  // Clear the date when moving back to In Progress
-              };
-            }
-            return { ...task, [field]: value };
-          }
-          return task;
-        })
-      }))
-    );
+            return task;
+          })
+        }))
+      );
+
+      // Then update Firestore
+      const updates: Partial<PlanTask> = {
+        updatedAt: new Date(),
+        updatedBy: user?.email || ''
+      };
+
+      if (field === 'progress') {
+        updates.progress = value as string;
+        if (value === 'Done') {
+          updates.completedAt = new Date().toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+        } else if (value === 'In Progress') {
+          updates.completedAt = undefined;
+        }
+      }
+
+      if (field === 'isActive') {
+        updates.isActive = value as boolean;
+      }
+
+      await updateTask(selectedCustomer.id, sectionTitle, key, updates);
+
+    } catch (error) {
+      console.error('Error updating task:', error);
+      message.error('Failed to update task');
+    }
   };
 
-  const handleAddTask = (sectionTitle: string, values: { section: string; task: string }) => {
-    setSections(prevSections =>
-      prevSections.map(section => {
+  const handleAddTask = async (sectionTitle: string, values: { section: string; task: string }) => {
+    if (!selectedCustomer) return;
+
+    try {
+      const newKey = `${Date.now()}`; // Use timestamp as key
+      const newTask: PlanTask = {
+        key: newKey,
+        section: values.section,
+        task: values.task,
+        progress: 'In Progress',
+        isActive: true,
+        updatedAt: new Date(),
+        updatedBy: user?.email || ''
+      };
+
+      // First update local state
+      const updatedSections = sections.map(section => {
         if (section.title === sectionTitle) {
-          const newKey = `${section.tasks.length + 1}-${section.tasks.length + 1}`;
-          const newTask: Task = {
-            key: newKey,
-            section: values.section,
-            task: values.task,
-            progress: 'In Progress',
-            isActive: true
-          };
           return {
             ...section,
             tasks: [...section.tasks, newTask]
           };
         }
         return section;
-      })
-    );
+      });
+
+      // Convert to PlanSection[] before updating Firestore
+      const planSections: PlanSection[] = updatedSections.map(section => ({
+        title: section.title,
+        tasks: section.tasks.map(task => ({
+          ...task,
+          updatedAt: new Date(),
+          updatedBy: user?.email || ''
+        }))
+      }));
+
+      // Update Firestore with converted sections
+      await updatePlan(selectedCustomer.id, planSections);
+
+      // Update local state after successful Firestore update
+      setSections(updatedSections);
+      message.success('Task added successfully');
+    } catch (error) {
+      console.error('Error adding task:', error);
+      message.error('Failed to add task');
+    }
   };
 
   const columns: TableProps<Task>['columns'] = [
@@ -177,7 +251,8 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
         const needsInput = [
           'Listing Optimization (title, description, attributes, alt texts)',
           'Duplication of listings',
-          'Newsletters (for customers with custom domains)'
+          'Newsletters (for customers with custom domains)',
+          'Create new product images'
         ];
 
         if (needsInput.includes(record.task)) {
@@ -251,6 +326,23 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
     },
   ];
 
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (selectedCustomer) {
+        try {
+          const plan = await fetchPlan(selectedCustomer.id);
+          console.log('Loaded plan:', plan);
+          setSections(plan.sections);
+        } catch (error) {
+          console.error('Error loading plan:', error);
+          message.error('Failed to load plan');
+        }
+      }
+    };
+
+    loadPlan();
+  }, [selectedCustomer?.id]); // Only depend on the customer ID
+
   return (
     <Layout>
       <Content style={{ padding: '0 50px' }}>
@@ -288,6 +380,16 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
                     pagination={false}
                     bordered
                     size="middle"
+                    rowClassName={(record) => !record.isActive ? 'inactive-row' : ''}
+                    onRow={(record) => ({
+                      style: {
+                        backgroundColor: !record.isActive ? '#e0e0e0' : undefined,
+                        color: !record.isActive ? '#666666' : undefined,
+                        opacity: !record.isActive ? 0.85 : 1,
+                        filter: !record.isActive ? 'grayscale(1)' : undefined,
+                        transition: 'all 0.3s ease',
+                      },
+                    })}
                   />
                   <Form
                     layout="inline"
