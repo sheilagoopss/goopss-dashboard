@@ -25,7 +25,7 @@ const DesignHubCustomer = () => {
   } = useListingImageStatusUpdate();
 
   const [statusFilter, setStatusFilter] =
-    useState<StatusFilterType>("approved");
+    useState<StatusFilterType>("pending");
   const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);

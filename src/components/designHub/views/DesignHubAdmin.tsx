@@ -24,7 +24,7 @@ const DesignHubAdmin = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [statusFilter, setStatusFilter] =
-    useState<StatusFilterType>("approved");
+    useState<StatusFilterType>("pending");
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
