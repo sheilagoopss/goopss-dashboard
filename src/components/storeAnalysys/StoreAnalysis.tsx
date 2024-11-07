@@ -1,58 +1,60 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import CustomersDropdown from "../CustomersDropdown";
 import { ICustomer } from "../../types/Customer";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../../firebase/config";
 import PreviousAnalysis from "./components/PreviousAnalysis";
-import { Button, Col, Row } from "antd";
+import { Button, Col, message, Row, Spin } from "antd";
 import ScrapeDataModal from "./components/ScrapeDataModal";
 import { IStoreDetail } from "../../types/StoreDetail";
-import { useStoreAnalytics } from "../../hooks/useStoreAnalytics";
-// import useScrape from "../../hooks/useScrape";
+import {
+  useCustomerStoreAnalyticsFetch,
+  useStoreAnalysisCreate,
+  useStoreAnalytics,
+} from "../../hooks/useStoreAnalytics";
+import { useCustomerFetchAll } from "hooks/useCustomer";
+import { ReloadOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
 
 const StoreAnalysis: React.FC = () => {
   const { isAdmin } = useAuth();
+  const { fetchAllCustomers, isLoading } = useCustomerFetchAll();
+  const { isScraping, scrape } = useStoreAnalytics();
+  const { createStoreAnalysis, isLoading: isCreatingStoreAnalysis } =
+    useStoreAnalysisCreate();
+
+  const { fetchCustomerStoreAnalytics, isLoading: isFetchingStoreAnalytics } =
+    useCustomerStoreAnalyticsFetch();
+  const [scrapingInProgress, setScrapingInProgress] = useState(false);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [scrapedData, setScrapedData] = useState<
     IStoreDetail | undefined | null
   >();
-  const { isScraping, scrape } = useStoreAnalytics();
-  // const { scrape } = useScrape();
-  const [scrapingInProgress, setScrapingInProgress] = useState(false);
+  const [storeAnalytics, setStoreAnalytics] = useState<IStoreDetail[]>([]);
 
   useEffect(() => {
-    const fetchCustomers = async () => {
-      if (isAdmin) {
-        try {
-          const customersCollection = collection(db, "customers");
-          const customersSnapshot = await getDocs(customersCollection);
-          const customersList = customersSnapshot.docs.map(
-            (doc) =>
-              ({
-                id: doc.id,
-                ...doc.data(),
-              }) as ICustomer,
-          );
-          setCustomers(customersList);
-        } catch (err) {
-          console.error("Error fetching customers:", err);
-          setError("Failed to fetch customers");
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    };
-
-    fetchCustomers();
+    if (isAdmin) {
+      fetchAllCustomers().then((res) => {
+        setCustomers(res);
+      });
+    }
   }, [isAdmin]);
+
+  const refresh = () => {
+    if (!selectedCustomer) {
+      return;
+    }
+    fetchCustomerStoreAnalytics(selectedCustomer?.customer_id).then((res) => {
+      setStoreAnalytics(res || []);
+    });
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [selectedCustomer]);
 
   const handleScraping = async () => {
     if (!selectedCustomer) {
@@ -60,7 +62,6 @@ const StoreAnalysis: React.FC = () => {
     }
     setScrapingInProgress(true);
     const scrapedData = await scrape(selectedCustomer.store_name);
-    console.log(scrapedData);
     if (scrapedData?.data) {
       setScrapedData(scrapedData?.data);
     }
@@ -71,8 +72,25 @@ const StoreAnalysis: React.FC = () => {
     setScrapingInProgress(false);
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  const handleSave = async () => {
+    if (!scrapedData || !selectedCustomer) {
+      return;
+    }
+
+    const dataToSave: IStoreDetail = {
+      ...scrapedData,
+      customerId: selectedCustomer?.customer_id,
+      createdAt: dayjs().toISOString(),
+    };
+
+    const resp = await createStoreAnalysis(dataToSave);
+
+    if (resp) {
+      message.success("Data saved successfully");
+      refresh();
+      setScrapingInProgress(false)
+    }
+  };
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -94,6 +112,12 @@ const StoreAnalysis: React.FC = () => {
           />
         )}
       </div>
+
+      {isLoading && (
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <Spin />
+        </div>
+      )}
 
       {selectedCustomer && (
         <div
@@ -143,16 +167,28 @@ const StoreAnalysis: React.FC = () => {
               <Col span={24}>
                 Store analysis for {selectedCustomer.store_name}
               </Col>
-              <Col>
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "2ch",
+                }}
+              >
                 <Button type="primary" onClick={handleScraping}>
                   Scrape New Data
                 </Button>
-              </Col>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={refresh}
+                  loading={isFetchingStoreAnalytics}
+                />
+              </div>
               <Col span={24}>
                 <PreviousAnalysis
-                  loading={false}
-                  storeDetail={[]}
-                  refresh={() => {}}
+                  loading={isFetchingStoreAnalytics}
+                  storeDetail={storeAnalytics}
+                  refresh={refresh}
                 />
               </Col>
             </Row>
@@ -163,7 +199,19 @@ const StoreAnalysis: React.FC = () => {
               isLoading={isScraping}
               scrapedData={scrapedData}
               onCancel={handleCloseScraping}
-              footer={false}
+              footer={[
+                <Button key="cancel" onClick={handleCloseScraping}>
+                  Cancel
+                </Button>,
+                <Button
+                  key="save"
+                  type="primary"
+                  onClick={handleSave}
+                  loading={isCreatingStoreAnalysis}
+                >
+                  Save
+                </Button>,
+              ]}
             />
           </>
         )}
