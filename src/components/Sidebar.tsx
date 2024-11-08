@@ -254,7 +254,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   ];
 
   useEffect(() => {
-    console.log("Intercom", process.env.REACT_APP_INTERCOM_APP_ID);
     if (user && (user as ICustomer)?.customer_type === "Paid") {
       Intercom({
         app_id: process.env.REACT_APP_INTERCOM_APP_ID || "",
