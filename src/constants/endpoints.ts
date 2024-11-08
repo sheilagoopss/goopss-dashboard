@@ -5,6 +5,7 @@ export const endpoints = {
     scrape: `${API_URL}/api/v1/storeAnalytics/scrape`,
     getStoreAnalytics: (storeName: string) =>
       `${API_URL}/api/v1/storeAnalytics/${storeName}`,
+    generateFeedback: `${API_URL}/api/v1/storeAnalytics/generateFeedback`,
   },
   facebook: {
     getUserData: `${API_URL}/api/v1/facebook/userData`,

@@ -4,7 +4,13 @@ import { IAPIResponse } from "../types/API";
 import HttpHelper from "../helpers/HttpHelper";
 import { endpoints } from "../constants/endpoints";
 import { db } from "../firebase/config";
-import { collection, getDocs, query, Timestamp, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  Timestamp,
+  where,
+} from "firebase/firestore";
 import { filterUndefined } from "utils/filterUndefined";
 import FirebaseHelper from "helpers/FirebaseHelper";
 import dayjs from "dayjs";
@@ -27,6 +33,19 @@ interface UseStoreAnalysisCreateReturn {
 interface UseStoreAnalysisDeleteReturn {
   deleteStoreAnalysis: (storeAnalysisId: string) => Promise<boolean>;
   isDeleting: boolean;
+}
+
+interface UseGenerateFeedbackReturn {
+  generateFeedback: (params: {
+    aboutSection: string;
+    FAQ: string;
+    storeAnnouncement: string;
+  }) => Promise<IAPIResponse<{
+    aboutSectionFeedback: string;
+    storeAnnouncementFeedback: string;
+    faqFeedback: string;
+  }> | null>;
+  isGenerating: boolean;
 }
 
 export function useStoreAnalytics(): UseStoreAnalyticsReturn {
@@ -76,13 +95,16 @@ export function useCustomerStoreAnalyticsFetch(): UseCustomerStoreAnalyticsFetch
           ...(storeAnalysisDoc.data() as IStoreDetail),
           id: storeAnalysisDoc.id,
           createdAt: (storeAnalysisDoc.data().createdAt as Timestamp)?.seconds
-          ? dayjs(
-              new Date(
-                (storeAnalysisDoc.data().createdAt as Timestamp)?.seconds * 1000 +
-                  (storeAnalysisDoc.data().createdAt as Timestamp)?.nanoseconds / 1000000,
-              ),
-            ).toISOString()
-          : (storeAnalysisDoc.data().createdAt as string),
+            ? dayjs(
+                new Date(
+                  (storeAnalysisDoc.data().createdAt as Timestamp)?.seconds *
+                    1000 +
+                    (storeAnalysisDoc.data().createdAt as Timestamp)
+                      ?.nanoseconds /
+                      1000000,
+                ),
+              ).toISOString()
+            : (storeAnalysisDoc.data().createdAt as string),
         }));
         return analysisData as IStoreDetail[];
       } catch (error) {
@@ -143,4 +165,40 @@ export function useStoreAnalysisDelete(): UseStoreAnalysisDeleteReturn {
   );
 
   return { deleteStoreAnalysis, isDeleting };
+}
+
+export function useGenerateFeedback(): UseGenerateFeedbackReturn {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const generateFeedback = useCallback(
+    async (params: {
+      aboutSection: string;
+      FAQ: string;
+      storeAnnouncement: string;
+    }): Promise<IAPIResponse<{
+      aboutSectionFeedback: string;
+      storeAnnouncementFeedback: string;
+      faqFeedback: string;
+    }> | null> => {
+      setIsGenerating(true);
+      try {
+        const scrapeData = await HttpHelper.post(
+          endpoints.storeAnalytics.generateFeedback,
+          {
+            data: params,
+          },
+        );
+
+        return scrapeData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [],
+  );
+
+  return { generateFeedback, isGenerating };
 }
