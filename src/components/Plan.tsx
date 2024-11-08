@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal, message } from 'antd';
+import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal, message, Checkbox } from 'antd';
 import type { TableProps } from 'antd';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { ICustomer } from '../types/Customer';
@@ -46,6 +46,7 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
     completedDate: 100,
     active: 100,
   });
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -229,7 +230,10 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
           'Listing Optimization (title, description, attributes, alt texts)',
           'Duplication of listings',
           'Newsletters (for customers with custom domains)',
-          'Create new product images'
+          'Create new product images',
+          'Schedule Facebook posts',
+          'Schedule Instagram Posts',
+          'Publish Pinterest pins'
         ];
 
         if (needsInput.includes(record.task)) {
@@ -376,10 +380,19 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
     },
   ];
 
-  // Filter out inactive tasks for non-admin users
+  // Update the getFilteredTasks function
   const getFilteredTasks = (tasks: Task[]) => {
-    if (isAdmin) return tasks;
-    return tasks.filter(task => task.isActive);
+    // For non-admins, always filter out inactive tasks
+    if (!isAdmin) {
+      return tasks.filter(task => task.isActive);
+    }
+    
+    // For admins, only filter if showOnlyActive is true
+    if (showOnlyActive) {
+      return tasks.filter(task => task.isActive);
+    }
+    
+    return tasks;
   };
 
   return (
@@ -393,14 +406,24 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
           padding: '24px 0'
         }}>
           <Title level={2}>Plan</Title>
-          {isAdmin && (
-            <CustomersDropdown
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              isAdmin={isAdmin}
-            />
-          )}
+          <Space>
+            {isAdmin && (
+              <Checkbox
+                checked={showOnlyActive}
+                onChange={(e) => setShowOnlyActive(e.target.checked)}
+              >
+                Show Only Active Tasks
+              </Checkbox>
+            )}
+            {isAdmin && (
+              <CustomersDropdown
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                setSelectedCustomer={setSelectedCustomer}
+                isAdmin={isAdmin}
+              />
+            )}
+          </Space>
         </div>
 
         {(isAdmin ? selectedCustomer : true) ? (
@@ -419,6 +442,15 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
                     pagination={false}
                     bordered
                     size="middle"
+                    onRow={(record) => ({
+                      style: {
+                        backgroundColor: !record.isActive ? '#e0e0e0' : undefined,
+                        color: !record.isActive ? '#666666' : undefined,
+                        opacity: !record.isActive ? 0.85 : 1,
+                        filter: !record.isActive ? 'grayscale(1)' : undefined,
+                        transition: 'all 0.3s ease',
+                      },
+                    })}
                   />
                   {isAdmin && (
                     <Form
