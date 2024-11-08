@@ -11,7 +11,6 @@ export interface PlanTask {
   isEditing: boolean;
   current?: number;
   goal?: number;
-  customerId: string;
   completedDate?: string;
   updatedAt: Date;
   updatedBy: string;
@@ -23,7 +22,6 @@ export interface PlanSection {
 }
 
 export interface Plan {
-  customer_id: string;
   sections: PlanSection[];
   createdAt: Date;
   updatedAt: Date;

@@ -142,12 +142,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           key: 'customers-list',
           label: 'Customers List',
           onClick: () => navigate('/customers')
-        },
-        {
-          key: 'customers-plan',
-          icon: <ClipboardList className="h-4 w-4" />,
-          label: 'Plan',
-          onClick: () => navigate('/plan')
         }
       ]
     }] : []),

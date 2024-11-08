@@ -15,7 +15,9 @@ import {
   Tooltip, 
   Progress,
   DatePicker,
-  Collapse
+  Collapse,
+  Modal,
+  message
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -60,19 +62,26 @@ const dropdownStyle = {
   }
 };
 
-const collapseStyle = {
-  marginBottom: '12px',
-  '.ant-collapse-header': {
-    padding: '16px !important',
-    minHeight: '80px !important'
-  }
-};
-
 const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
+  const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
   const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
 
-  const handleEditClick = () => {
-    if (!task.isEditing) {
+  const handleEditClick = async () => {
+    if (task.isEditing) {
+      try {
+        Object.entries(tempValues).forEach(([key, value]) => {
+          if (value !== undefined) {
+            onEdit(task.key, key as keyof PlanTask, value as string | number | boolean);
+          }
+        });
+        setTempValues({});
+        await onEdit(task.key, 'isEditing', false);
+        message.success('Changes saved successfully');
+      } catch (error) {
+        handleCancel();
+        message.error('Failed to save changes');
+      }
+    } else {
       setOriginalValues({
         progress: task.progress,
         dueDate: task.dueDate,
@@ -83,28 +92,42 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
         goal: task.goal,
         notes: task.notes,
       });
+      onEdit(task.key, 'isEditing', true);
     }
-    onEdit(task.key, 'isEditing', !task.isEditing);
   };
 
   const handleCancel = () => {
     Object.entries(originalValues).forEach(([key, value]) => {
-      if (value instanceof Date) {
-        onEdit(task.key, key as keyof PlanTask, value.toISOString().split('T')[0]);
-      } else if (value !== undefined) {
+      if (value !== undefined) {
         onEdit(task.key, key as keyof PlanTask, value as string | number | boolean);
       }
     });
+    setTempValues({});
     onEdit(task.key, 'isEditing', false);
   };
 
+  const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
+    setTempValues(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   return (
-    <Collapse style={collapseStyle}>
+    <Collapse 
+      style={{ marginBottom: '12px' }}
+      expandIcon={() => null}
+    >
       <Panel
         key={task.key}
         header={
-          <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Space direction="vertical" size="small">
+          <Space size="middle" style={{ 
+            width: '100%', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            minHeight: '68px'
+          }}>
+            <Space direction="vertical" size={0} style={{ flex: 1 }}>
               <Text strong>{task.task}</Text>
               {customer && (
                 <Space>
@@ -119,21 +142,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
                 </Space>
               )}
             </Space>
-            <Space direction="vertical" size={4} align="end">
-              <Space>
-                <CalendarOutlined /> 
-                <Text type="secondary">Due: {task.dueDate}</Text>
-              </Space>
-              {task.completedDate && (
+            <Space align="center" size="large">
+              <Space direction="vertical" size={2}>
                 <Space>
-                  <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
-                  <Text type="secondary">Completed: {task.completedDate}</Text>
+                  <CalendarOutlined /> 
+                  <Text type="secondary">Due: {task.dueDate}</Text>
                 </Space>
-              )}
-              <Space>
-                {task.notes && <Tooltip title="Has notes"><FileTextOutlined /></Tooltip>}
-                <Tag color={pastelColors[task.progress]}>{task.progress}</Tag>
+                {task.completedDate && (
+                  <Space>
+                    <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
+                    <Text type="secondary">Completed: {task.completedDate}</Text>
+                  </Space>
+                )}
               </Space>
+              {task.notes && <Tooltip title="Has notes"><FileTextOutlined /></Tooltip>}
+              <Tag color={pastelColors[task.progress]}>{task.progress}</Tag>
             </Space>
           </Space>
         }
@@ -250,8 +273,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
           <Space direction="vertical" style={{ width: '100%' }}>
             <Text strong>Notes:</Text>
             <Input.TextArea
-              value={task.notes}
-              onChange={(e) => onEdit(task.key, 'notes', e.target.value)}
+              value={tempValues.notes !== undefined ? tempValues.notes : task.notes}
+              onChange={(e) => handleTempChange('notes', e.target.value)}
               disabled={!task.isEditing}
               rows={4}
             />
@@ -269,22 +292,25 @@ interface PlanProps {
 }
 
 const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
-  const { fetchPlan, updateTask } = usePlan();
+  const { fetchPlan, updatePlan, updateTask } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
+  const [newTaskModal, setNewTaskModal] = useState({
+    visible: false,
+    sectionTitle: '',
+    taskName: ''
+  });
 
   useEffect(() => {
     const loadPlan = async () => {
-      if (isAdmin && !selectedCustomer) return;
-      
       try {
-        const customerId = selectedCustomer?.id;
+        const customerId = isAdmin ? selectedCustomer?.id : user?.id;
         if (!customerId) return;
         
         const plan = await fetchPlan(customerId);
@@ -295,7 +321,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
     };
 
     loadPlan();
-  }, [isAdmin, selectedCustomer, fetchPlan]);
+  }, [isAdmin, selectedCustomer, user?.id, fetchPlan]);
 
   const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number) => {
     if (!selectedCustomer) return;
@@ -307,13 +333,22 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
 
       if (!sectionTitle) return;
 
-      await updateTask(selectedCustomer.id, sectionTitle, key, { [field]: value });
+      await updateTask(selectedCustomer.id, sectionTitle, key, { 
+        [field]: value,
+        updatedAt: new Date(),
+        updatedBy: user?.email || ''
+      });
 
       setSections(prevSections =>
         prevSections.map(section => ({
           ...section,
           tasks: section.tasks.map(task =>
-            task.key === key ? { ...task, [field]: value } : task
+            task.key === key ? { 
+              ...task, 
+              [field]: value,
+              updatedAt: new Date(),
+              updatedBy: user?.email || ''
+            } : task
           )
         }))
       );
@@ -323,6 +358,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
       }
     } catch (error) {
       console.error('Error updating task:', error);
+      message.error('Failed to update task');
     }
   };
 
@@ -343,6 +379,125 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
       ? [...section.tasks].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       : section.tasks
   }));
+
+  const handleAddTask = (sectionTitle: string) => {
+    setNewTaskModal({
+      visible: true,
+      sectionTitle,
+      taskName: ''
+    });
+  };
+
+  const handleCreateTask = async () => {
+    if (!selectedCustomer || !newTaskModal.taskName.trim()) return;
+
+    try {
+      const newTask: PlanTask = {
+        key: `${Date.now()}`,
+        task: newTaskModal.taskName.trim(),
+        progress: 'To Do',
+        isActive: true,
+        notes: '',
+        frequency: 'One Time',
+        dueDate: dayjs().format('YYYY-MM-DD'),
+        isEditing: false,
+        updatedAt: new Date(),
+        updatedBy: user?.email || '',
+        current: 0,
+        goal: 0,
+        completedDate: ''
+      };
+
+      const updatedSections = sections.map(section => {
+        if (section.title === newTaskModal.sectionTitle) {
+          return {
+            ...section,
+            tasks: [...section.tasks, newTask]
+          };
+        }
+        return section;
+      });
+
+      await updatePlan(selectedCustomer.id, updatedSections);
+      setSections(updatedSections);
+      setNewTaskModal({ visible: false, sectionTitle: '', taskName: '' });
+      message.success('Task added successfully');
+    } catch (error) {
+      console.error('Error adding new task:', error);
+      message.error('Failed to add task');
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <Layout>
+        <Header style={{ background: '#fff', padding: '0 16px' }}>
+          <Title level={2} style={{ margin: '16px 0' }}>My Plan</Title>
+        </Header>
+        <Content style={{ padding: '0 16px' }}>
+          <Card style={{ marginTop: 16 }}>
+            <Space wrap>
+              <Space>
+                <Switch
+                  checked={showActiveOnly}
+                  onChange={setShowActiveOnly}
+                />
+                <Text>Show Active Only</Text>
+              </Space>
+              <Select
+                style={{ width: 150 }}
+                value={progressFilter}
+                onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
+              >
+                <Option value="All">All Progress</Option>
+                <Option value="To Do">To Do</Option>
+                <Option value="Doing">Doing</Option>
+                <Option value="Done">Done</Option>
+              </Select>
+              <Search
+                placeholder="Search tasks..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: 200 }}
+              />
+              <Select
+                style={{ width: 150 }}
+                value={sortBy}
+                onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
+              >
+                <Option value="none">
+                  <Space>
+                    <SortAscendingOutlined />
+                    <span>No sorting</span>
+                  </Space>
+                </Option>
+                <Option value="dueDate">
+                  <Space>
+                    <SortAscendingOutlined />
+                    <span>Due Date</span>
+                  </Space>
+                </Option>
+              </Select>
+            </Space>
+          </Card>
+
+          {sortedSections.map((section) => (
+            <Card key={section.title} style={{ marginTop: 16 }}>
+              <Title level={4}>{section.title}</Title>
+              {section.tasks.map((task) => (
+                <TaskCard
+                  key={task.key}
+                  task={task}
+                  editMode={false}
+                  onEdit={handleCellEdit}
+                />
+              ))}
+            </Card>
+          ))}
+        </Content>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -440,16 +595,43 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
               </Space>
             </Card>
 
+            <Modal
+              title="Add New Task"
+              open={newTaskModal.visible}
+              onOk={handleCreateTask}
+              onCancel={() => setNewTaskModal({ visible: false, sectionTitle: '', taskName: '' })}
+              okButtonProps={{ disabled: !newTaskModal.taskName.trim() }}
+            >
+              <Input
+                placeholder="Enter task name"
+                value={newTaskModal.taskName}
+                onChange={(e) => setNewTaskModal(prev => ({ ...prev, taskName: e.target.value }))}
+                onPressEnter={handleCreateTask}
+                autoFocus
+              />
+            </Modal>
+
             {sortedSections.map((section) => (
               <Card key={section.title} style={{ marginTop: 16 }}>
-                <Title level={4}>{section.title}</Title>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <Title level={4}>{section.title}</Title>
+                  {isAdmin && (
+                    <Button
+                      type="primary"
+                      icon={<EditOutlined />}
+                      onClick={() => handleAddTask(section.title)}
+                    >
+                      Add Task
+                    </Button>
+                  )}
+                </div>
                 {section.tasks.map((task) => (
                   <TaskCard
                     key={task.key}
                     task={task}
                     editMode={editMode}
                     onEdit={handleCellEdit}
-                    customer={customers.find(c => c.id === task.customerId)}
+                    customer={selectedCustomer}
                   />
                 ))}
               </Card>
