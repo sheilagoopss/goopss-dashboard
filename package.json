@@ -35,6 +35,7 @@
     "@ant-design/icons": "^5.5.1",
     "@firebase/auth": "^1.8.0",
     "@greatsumini/react-facebook-login": "^3.3.3",
+    "@intercom/messenger-js-sdk": "^0.0.14",
     "@types/dompurify": "^3.0.5",
     "@types/react-router-dom": "^5.3.3",
     "antd": "^5.12.5",
