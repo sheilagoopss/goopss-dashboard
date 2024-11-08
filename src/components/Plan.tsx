@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal, message, Checkbox } from 'antd';
 import type { TableProps } from 'antd';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { ICustomer } from '../types/Customer';
+import { ICustomer, IAdmin } from '../types/Customer';
 import { useAuth } from '../contexts/AuthContext';
 import { usePlan } from '../hooks/usePlan';
 import { PlanTask, PlanSection } from '../types/Plan';
 import CustomersDropdown from './CustomersDropdown';
+import { useTaskCreate } from '../hooks/useTask';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 const { Title } = Typography;
 const { Content } = Layout;
@@ -36,6 +39,7 @@ interface PlanProps {
 function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
   const { isAdmin, user } = useAuth();
   const { fetchPlan, updatePlan, updateTask } = usePlan();
+  const { createTask } = useTaskCreate();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [activeTab, setActiveTab] = useState('Initial setup');
   const [tempInputValues, setTempInputValues] = useState<Record<string, string>>({});
@@ -47,6 +51,16 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
     active: 100,
   });
   const [showOnlyActive, setShowOnlyActive] = useState(false);
+
+  const needsInput = [
+    'Listing Optimization (title, description, attributes, alt texts)',
+    'Duplication of listings',
+    'Newsletters',
+    'Create new product images',
+    'Schedule Facebook posts',
+    'Schedule Instagram Posts',
+    'Publish Pinterest pins'
+  ];
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -74,6 +88,12 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
       )?.title;
 
       if (!sectionTitle) return;
+
+      const currentTask = sections
+        .find(section => section.tasks.some(task => task.key === key))
+        ?.tasks.find(task => task.key === key);
+
+      if (!currentTask) return;
 
       setSections(prevSections => 
         prevSections.map(section => ({
@@ -110,6 +130,30 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
         }))
       );
 
+      if (field === 'progress' && 
+          value === 'Done' && 
+          !needsInput.includes(currentTask.task)) {
+        const adminUser = user as IAdmin;
+        
+        // Get admin's name from Firestore
+        const adminDoc = await getDoc(doc(db, 'admin', adminUser.id));
+        const adminData = adminDoc.data();
+        
+        if (!adminData?.name) {
+          message.error('Could not find admin name');
+          return;
+        }
+
+        await createTask({
+          taskName: currentTask.task,
+          customerId: selectedCustomer.id,
+          teamMemberName: adminData.name,  // Use the actual admin name from Firestore
+          dateCompleted: new Date().toISOString(),
+          category: "Plan",
+          isDone: true
+        });
+      }
+
       const updates: Partial<PlanTask> = {
         updatedAt: new Date(),
         updatedBy: user?.email || ''
@@ -117,15 +161,6 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
 
       if (field === 'progress') {
         updates.progress = value as string;
-        if (value === 'Done') {
-          updates.completedAt = new Date().toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          });
-        } else if (value === 'In Progress') {
-          updates.completedAt = undefined;
-        }
       }
 
       if (field === 'isActive') {
