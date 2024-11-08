@@ -69,9 +69,6 @@ const PostCreationModal: React.FC<{
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
 
-  
-  const API_URL = 'https://goopss-dashboard-backend.onrender.com';
-
   useEffect(() => {
     setScheduledDate(null);
     setPlatform("facebook");
