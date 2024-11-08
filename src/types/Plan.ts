@@ -12,7 +12,7 @@ export interface PlanTask {
   current?: number;
   goal?: number;
   completedDate?: string;
-  updatedAt: Date;
+  updatedAt: string;
   updatedBy: string;
 }
 
@@ -23,6 +23,6 @@ export interface PlanSection {
 
 export interface Plan {
   sections: PlanSection[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -63,26 +63,62 @@ const dropdownStyle = {
 };
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
+  const { user } = useAuth();
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
   const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
+
+  const handleProgressChange = (value: 'To Do' | 'Doing' | 'Done') => {
+    const updates: Partial<PlanTask> = {
+      progress: value
+    };
+
+    if (value === 'Done' && !tempValues.completedDate && !task.completedDate) {
+      updates.completedDate = dayjs().format('YYYY-MM-DD');
+    }
+
+    setTempValues(prev => ({
+      ...prev,
+      ...updates
+    }));
+  };
 
   const handleEditClick = async () => {
     if (task.isEditing) {
       try {
-        Object.entries(tempValues).forEach(([key, value]) => {
-          if (value !== undefined) {
-            onEdit(task.key, key as keyof PlanTask, value as string | number | boolean);
-          }
-        });
-        setTempValues({});
+        await onEdit(task.key, 'progress', tempValues.progress || task.progress);
+        await onEdit(task.key, 'dueDate', tempValues.dueDate || task.dueDate);
+        
+        // Handle completedDate separately since it can be undefined
+        const completedDate = tempValues.completedDate !== undefined 
+          ? tempValues.completedDate 
+          : (task.completedDate || '');  // Use empty string as fallback
+        await onEdit(task.key, 'completedDate', completedDate);
+
+        await onEdit(task.key, 'isActive', tempValues.isActive !== undefined ? tempValues.isActive : task.isActive);
+        await onEdit(task.key, 'frequency', tempValues.frequency || task.frequency);
+        await onEdit(task.key, 'notes', tempValues.notes !== undefined ? tempValues.notes : task.notes);
+        
+        if (tempValues.current !== undefined) {
+          await onEdit(task.key, 'current', tempValues.current);
+        }
+        if (tempValues.goal !== undefined) {
+          await onEdit(task.key, 'goal', tempValues.goal);
+        }
+
+        await onEdit(task.key, 'updatedAt', new Date().toISOString());
+        await onEdit(task.key, 'updatedBy', user?.email || '');
         await onEdit(task.key, 'isEditing', false);
+
+        setTempValues({});
         message.success('Changes saved successfully');
       } catch (error) {
+        console.error('Error saving changes:', error);
         handleCancel();
         message.error('Failed to save changes');
       }
     } else {
       setOriginalValues({
+        notes: task.notes,
         progress: task.progress,
         dueDate: task.dueDate,
         completedDate: task.completedDate,
@@ -90,18 +126,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
         frequency: task.frequency,
         current: task.current,
         goal: task.goal,
-        notes: task.notes,
       });
       onEdit(task.key, 'isEditing', true);
     }
   };
 
   const handleCancel = () => {
-    Object.entries(originalValues).forEach(([key, value]) => {
-      if (value !== undefined) {
-        onEdit(task.key, key as keyof PlanTask, value as string | number | boolean);
-      }
-    });
+    if (originalValues.notes !== undefined) {
+      onEdit(task.key, 'notes', originalValues.notes);
+    }
     setTempValues({});
     onEdit(task.key, 'isEditing', false);
   };
@@ -198,13 +231,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
           <Space>
             <Select
               style={{ width: 120 }}
-              value={task.progress}
-              onChange={(value) => {
-                onEdit(task.key, 'progress', value)
-                if (value === 'Done' && !task.completedDate) {
-                  onEdit(task.key, 'completedDate', new Date().toISOString().split('T')[0])
-                }
-              }}
+              value={tempValues.progress !== undefined ? tempValues.progress : task.progress}
+              onChange={handleProgressChange}
               disabled={!task.isEditing}
             >
               <Option value="To Do">To Do</Option>
@@ -214,16 +242,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <div>
               <Text strong>Due Date:</Text>
               <DatePicker
-                value={task.dueDate ? dayjs(task.dueDate) : null}
-                onChange={(date) => onEdit(task.key, 'dueDate', date ? date.toISOString().split('T')[0] : '')}
+                value={tempValues.dueDate ? dayjs(tempValues.dueDate) : dayjs(task.dueDate)}
+                onChange={(date) => handleTempChange('dueDate', date ? date.toISOString().split('T')[0] : '')}
                 disabled={!task.isEditing}
               />
             </div>
             <div>
               <Text strong>Completed Date:</Text>
               <DatePicker
-                value={task.completedDate ? dayjs(task.completedDate) : null}
-                onChange={(date) => onEdit(task.key, 'completedDate', date ? date.toISOString().split('T')[0] : '')}
+                value={tempValues.completedDate ? dayjs(tempValues.completedDate) : (task.completedDate ? dayjs(task.completedDate) : null)}
+                onChange={(date) => handleTempChange('completedDate', date ? date.toISOString().split('T')[0] : '')}
                 disabled={!task.isEditing}
               />
             </div>
@@ -231,8 +259,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
           <Space>
             <Text strong>Active:</Text>
             <Switch
-              checked={task.isActive}
-              onChange={(checked) => onEdit(task.key, 'isActive', checked)}
+              checked={tempValues.isActive !== undefined ? tempValues.isActive : task.isActive}
+              onChange={(checked) => handleTempChange('isActive', checked)}
               disabled={!task.isEditing}
             />
           </Space>
@@ -240,34 +268,34 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <Text strong>Frequency:</Text>
             <Select
               style={{ width: 120 }}
-              value={task.frequency}
-              onChange={(value) => onEdit(task.key, 'frequency', value)}
+              value={tempValues.frequency !== undefined ? tempValues.frequency : task.frequency}
+              onChange={(value) => handleTempChange('frequency', value)}
               disabled={!task.isEditing}
             >
               <Option value="Monthly">Monthly</Option>
               <Option value="One Time">One Time</Option>
             </Select>
           </Space>
-          {task.frequency === 'Monthly' && (
+          {(tempValues.frequency || task.frequency) === 'Monthly' && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Space>
                 <Input
                   type="number"
-                  value={task.current}
-                  onChange={(e) => onEdit(task.key, 'current', parseInt(e.target.value))}
+                  value={tempValues.current !== undefined ? tempValues.current : task.current}
+                  onChange={(e) => handleTempChange('current', parseInt(e.target.value))}
                   disabled={!task.isEditing}
                   style={{ width: 80 }}
                 />
                 <Text>/</Text>
                 <Input
                   type="number"
-                  value={task.goal}
-                  onChange={(e) => onEdit(task.key, 'goal', parseInt(e.target.value))}
+                  value={tempValues.goal !== undefined ? tempValues.goal : task.goal}
+                  onChange={(e) => handleTempChange('goal', parseInt(e.target.value))}
                   disabled={!task.isEditing}
                   style={{ width: 80 }}
                 />
               </Space>
-              <Progress percent={Math.min((task.current! / task.goal!) * 100, 100)} />
+              <Progress percent={Math.min(((tempValues.current || task.current || 0) / (tempValues.goal || task.goal || 1)) * 100, 100)} />
             </Space>
           )}
           <Space direction="vertical" style={{ width: '100%' }}>
@@ -335,7 +363,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
 
       await updateTask(selectedCustomer.id, sectionTitle, key, { 
         [field]: value,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         updatedBy: user?.email || ''
       });
 
@@ -346,7 +374,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
             task.key === key ? { 
               ...task, 
               [field]: value,
-              updatedAt: new Date(),
+              updatedAt: new Date().toISOString(),
               updatedBy: user?.email || ''
             } : task
           )
@@ -401,7 +429,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
         frequency: 'One Time',
         dueDate: dayjs().format('YYYY-MM-DD'),
         isEditing: false,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
         updatedBy: user?.email || '',
         current: 0,
         goal: 0,
