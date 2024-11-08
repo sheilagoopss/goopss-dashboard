@@ -107,20 +107,27 @@ const PostCreationModal: React.FC<{
         competitor_social: customerData.competitor_social || ''
       };
 
-      // Replace with your endpoint 
-      const API_URL = 'https://goopss-dashboard-backend.onrender.com';
+          const payload = [
+      {
+        image_path: customerInfo.etsy_store_url || '',  // Adjust as needed, using the store URL as an image path placeholder
+        store_name: customerInfo.website || '',
+        about: customerInfo.about || '',
+        description: customerInfo.content_guideline || '',  // Assuming content guideline serves as a description
+        url: customerInfo.etsy_store_url || ''  // URL to link back to the Etsy store
+      }
+    ];
 
-      // Replace with your endpoint path
-      const response = await fetch(`${API_URL}/api/generate-content`, {
+
+
+      const API_URL = 'https://goopss.onrender.com/gen_posts';
+
+      // Make the POST request
+      const response = await fetch(API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          listing: listingInfo,  // Send only the specific listing fields we need
-          platform,
-          customerInfo
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -129,7 +136,8 @@ const PostCreationModal: React.FC<{
 
       // Fallback content if the AI fails
       const data = await response.json();
-      return data.content;
+      
+      return data.result;
     } catch (error) {
       console.error("Error generating content with AI:", error);
       return platform === "facebook"
