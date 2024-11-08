@@ -12,6 +12,10 @@ import {
   Sparkles,
   MoreVertical,
   ChevronDown,
+  LayoutDashboard,
+  User,
+  File,
+  ClipboardList,
 } from "lucide-react";
 import { MessageOutlined } from "@ant-design/icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -120,24 +124,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         </div>
       ),
     },
-    ...(homeExpanded
-      ? [
-          {
-            key: "my-info",
-            label: (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate("/my-info");
-                }}
-                style={{ cursor: "pointer", paddingLeft: "32px" }}
-              >
-                My Info
-              </div>
-            ),
-          },
-        ]
-      : []),
+    ...(homeExpanded ? [{
+      key: 'my-info',
+      label: (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/my-info');
+          }}
+          style={{ cursor: 'pointer', paddingLeft: '32px' }}
+        >
+          My Info
+        </div>
+      )
+    }] : []),
+    {
+      key: 'plan',
+      icon: <ClipboardList className="h-4 w-4" />,
+      label: <Link to="/plan">Plan</Link>
+    },
     {
       key: "design-hub",
       icon: <LayoutGrid className="h-6 w-6" />,
@@ -232,10 +237,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               <Link to="/ads-recommendation">Ads Analysis</Link>
               <span className="coming-soon-badge">Coming Soon</span>
             </div>
-          ),
-        },
-      ],
+          )
+        }
+      ]
     },
+    {
+      key: 'plan',
+      icon: <ClipboardList className="h-4 w-4" />,
+      label: <Link to="/plan">Plan</Link>
+    }
   ];
 
   const dropdownItems = [

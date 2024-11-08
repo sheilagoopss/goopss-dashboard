@@ -3,4 +3,6 @@ node_modules
 /build
 .cache/
 .cache/replit/
+.replit
+replit.nix
 
