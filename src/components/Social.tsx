@@ -256,6 +256,7 @@ const PostCreationModal: React.FC<{
               onChange={(e) => setFacebookContent(e.target.value)}
               placeholder="Facebook content"
               autoSize={{ minRows: 3, maxRows: 5 }}
+              style={{ whiteSpace: 'pre-line' }}
             />
           </div>
         )}
@@ -268,6 +269,7 @@ const PostCreationModal: React.FC<{
               onChange={(e) => setInstagramContent(e.target.value)}
               placeholder="Instagram content"
               autoSize={{ minRows: 3, maxRows: 5 }}
+              style={{ whiteSpace: 'pre-line' }}
             />
           </div>
         )}
@@ -880,10 +882,7 @@ const Social: React.FC = () => {
                       {post.platform}
                     </span>
                   </div>
-                  <p>
-                    <strong>Content:</strong>
-                  </p>
-                  <p>{post.content}</p>
+                  <p style={{ whiteSpace: 'pre-line' }}>{post.content}</p>
                 </div>
               ))
             ) : (

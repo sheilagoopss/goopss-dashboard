@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu } from "antd";
 import type { MenuProps } from 'antd';
@@ -32,6 +32,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   const { logout } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname;
+  const navigate = useNavigate();
 
   const [socialExpanded, setSocialExpanded] = useState(() => {
     const saved = localStorage.getItem('adminSocialExpanded');
@@ -59,24 +60,36 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
 
   const adminMenuItems: MenuItem[] = [
     {
-      key: 'customers',
-      icon: <UserOutlined />,
-      label: <span style={{ color: '#000000' }}>Customers</span>,
+      key: 'plan',
+      icon: <PieChartOutlined />,
+      label: <span>Plan</span>,
       children: [
         {
-          key: 'customers-list',
+          key: '/plan',
+          icon: <PieChartOutlined />,
+          label: <Link to="/plan">Plan</Link>
+        },
+        {
+          key: '/plan-task-rules',
+          icon: <FormOutlined />,
+          label: <Link to="/plan-task-rules">Plan Task Rules</Link>
+        }
+      ]
+    },
+    {
+      key: 'customers',
+      icon: <UserOutlined />,
+      label: <span>Customers</span>,
+      children: [
+        {
+          key: '/',
           icon: <UserOutlined />,
           label: <Link to="/">Customers List</Link>
         },
         {
-          key: 'customer-form',
+          key: '/customer-form',
           icon: <FormOutlined />,
           label: <Link to="/customer-form">Customer Form</Link>
-        },
-        {
-          key: 'plan',
-          icon: <PieChartOutlined />,
-          label: <Link to="/plan">Plan</Link>
         }
       ]
     },
@@ -91,17 +104,17 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       label: 'Listings',
       children: [
         {
-          key: 'listings-optimization',
+          key: '/listings',
           label: (
-            <Link to="/listings" style={{ paddingLeft: '32px' }}>
+            <Link to="/listings">
               Optimization
             </Link>
           )
         },
         {
-          key: 'listings-duplication',
+          key: '/listings/duplicate',
           label: (
-            <Link to="/listings/duplicate" style={{ paddingLeft: '32px' }}>
+            <Link to="/listings/duplicate">
               Duplication
             </Link>
           )
@@ -114,17 +127,17 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       label: 'Social',
       children: [
         {
-          key: 'social-main',
+          key: '/social',
           label: (
-            <Link to="/social" style={{ paddingLeft: '32px' }}>
+            <Link to="/social">
               Social Calendar
             </Link>
           )
         },
         {
-          key: 'social-insights',
+          key: '/social-insights',
           label: (
-            <Link to="/social-insights" style={{ paddingLeft: '32px' }}>
+            <Link to="/social-insights">
               Social Media Insights
             </Link>
           )
@@ -164,14 +177,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     },
   ];
 
-  const getSelectedKey = (path: string) => {
-    if (path.startsWith('/listings/duplicate')) return 'listings-duplication';
-    if (path.startsWith('/listings')) return 'listings-optimization';
-    if (path === '/social') return 'social-main';
-    if (path === '/social-insights') return 'social-insights';
-    return path.split('/')[1] || 'customers';
-  };
-
   return (
     <Sider 
       width={280}
@@ -199,7 +204,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
         </div>
         <Menu
           mode="inline"
-          selectedKeys={[getSelectedKey(currentPath)]}
+          selectedKeys={[currentPath]}
           openKeys={openKeys}
           onOpenChange={setOpenKeys}
           style={{ 

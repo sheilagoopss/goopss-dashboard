@@ -274,6 +274,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             >
               <Option value="Monthly">Monthly</Option>
               <Option value="One Time">One Time</Option>
+              <Option value="As Needed">As Needed</Option>
             </Select>
           </Space>
           {(tempValues.frequency || task.frequency) === 'Monthly' && (
