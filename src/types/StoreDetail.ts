@@ -14,4 +14,7 @@ export interface IStoreDetail {
   featureItems?: boolean;
   customerId: string;
   createdAt: string;
+  feedback?: Partial<
+    Record<keyof IStoreDetail, string | undefined>
+  >;
 }

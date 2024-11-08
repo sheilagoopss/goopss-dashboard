@@ -4,16 +4,22 @@ import { useAuth } from "../../contexts/AuthContext";
 import CustomersDropdown from "../CustomersDropdown";
 import { ICustomer } from "../../types/Customer";
 import PreviousAnalysis from "./components/PreviousAnalysis";
-import { Button, Col, message, Row, Spin } from "antd";
+import { Button, Col, message, Popconfirm, Row, Spin } from "antd";
 import ScrapeDataModal from "./components/ScrapeDataModal";
 import { IStoreDetail } from "../../types/StoreDetail";
 import {
   useCustomerStoreAnalyticsFetch,
+  useGenerateFeedback,
   useStoreAnalysisCreate,
+  useStoreAnalysisDelete,
   useStoreAnalytics,
 } from "../../hooks/useStoreAnalytics";
 import { useCustomerFetchAll } from "hooks/useCustomer";
-import { ReloadOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 
 const StoreAnalysis: React.FC = () => {
@@ -22,9 +28,10 @@ const StoreAnalysis: React.FC = () => {
   const { isScraping, scrape } = useStoreAnalytics();
   const { createStoreAnalysis, isLoading: isCreatingStoreAnalysis } =
     useStoreAnalysisCreate();
-
   const { fetchCustomerStoreAnalytics, isLoading: isFetchingStoreAnalytics } =
     useCustomerStoreAnalyticsFetch();
+  const { deleteStoreAnalysis, isDeleting } = useStoreAnalysisDelete();
+  const { generateFeedback, isGenerating } = useGenerateFeedback();
   const [scrapingInProgress, setScrapingInProgress] = useState(false);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
@@ -33,7 +40,9 @@ const StoreAnalysis: React.FC = () => {
   const [scrapedData, setScrapedData] = useState<
     IStoreDetail | undefined | null
   >();
-  const [storeAnalytics, setStoreAnalytics] = useState<IStoreDetail[]>([]);
+  const [storeAnalytics, setStoreAnalytics] = useState<
+    IStoreDetail | undefined
+  >(undefined);
 
   useEffect(() => {
     if (isAdmin) {
@@ -48,7 +57,7 @@ const StoreAnalysis: React.FC = () => {
       return;
     }
     fetchCustomerStoreAnalytics(selectedCustomer?.customer_id).then((res) => {
-      setStoreAnalytics(res || []);
+      setStoreAnalytics(res?.at(0));
     });
   };
 
@@ -88,7 +97,42 @@ const StoreAnalysis: React.FC = () => {
     if (resp) {
       message.success("Data saved successfully");
       refresh();
-      setScrapingInProgress(false)
+      setScrapingInProgress(false);
+    }
+  };
+
+  const handleDelete = async (id?: string) => {
+    if (!id) {
+      return;
+    }
+    const resp = await deleteStoreAnalysis(id);
+    if (resp) {
+      message.success("Store detail deleted successfully");
+      refresh();
+    }
+  };
+
+  const handleGenerateFeedback = async () => {
+    if (!storeAnalytics) {
+      return;
+    }
+
+    const feedback = await generateFeedback({
+      aboutSection: storeAnalytics?.about || "",
+      FAQ: storeAnalytics?.faq || "",
+      storeAnnouncement: storeAnalytics?.announcement || "",
+    });
+
+    if (feedback?.data) {
+      message.success("Feedback generated successfully");
+      setStoreAnalytics({
+        ...storeAnalytics,
+        feedback: {
+          about: feedback.data?.aboutSectionFeedback,
+          announcement: feedback.data?.storeAnnouncementFeedback,
+          faq: feedback.data?.faqFeedback,
+        },
+      });
     }
   };
 
@@ -171,26 +215,56 @@ const StoreAnalysis: React.FC = () => {
                 style={{
                   width: "100%",
                   display: "flex",
-                  justifyContent: "flex-end",
+                  // justifyContent: "flex-end",
                   gap: "2ch",
                 }}
               >
-                <Button type="primary" onClick={handleScraping}>
-                  Scrape New Data
-                </Button>
+                {!storeAnalytics && (
+                  <Button type="primary" onClick={handleScraping}>
+                    Scrape New Data
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   onClick={refresh}
                   loading={isFetchingStoreAnalytics}
                 />
+                {storeAnalytics && (
+                  <>
+                    <Button
+                      icon={<PlusOutlined />}
+                      onClick={handleGenerateFeedback}
+                      loading={isGenerating}
+                    >
+                      Generate Feedback
+                    </Button>
+                    <Button type="primary" onClick={handleSave}>
+                      Save
+                    </Button>
+                    <Popconfirm
+                      title="Are you sure you want to delete this store detail?"
+                      onConfirm={() => handleDelete(storeAnalytics?.id)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        icon={<DeleteOutlined />}
+                        danger
+                        loading={isDeleting}
+                      />
+                    </Popconfirm>
+                  </>
+                )}
               </div>
-              <Col span={24}>
-                <PreviousAnalysis
-                  loading={isFetchingStoreAnalytics}
-                  storeDetail={storeAnalytics}
-                  refresh={refresh}
-                />
-              </Col>
+              {storeAnalytics && (
+                <Col span={24}>
+                  <PreviousAnalysis
+                    loading={isFetchingStoreAnalytics}
+                    storeDetail={storeAnalytics}
+                    refresh={refresh}
+                  />
+                </Col>
+              )}
             </Row>
             <ScrapeDataModal
               title={selectedCustomer.store_name}

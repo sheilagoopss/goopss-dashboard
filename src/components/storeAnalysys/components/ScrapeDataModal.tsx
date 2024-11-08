@@ -21,12 +21,12 @@ interface ScrapeDataModalProps extends ModalProps {
   isLoading: boolean;
 }
 
-type ScrapeDataKeys = Exclude<
+export type ScrapeDataKeys = Exclude<
   keyof IStoreDetail,
-  "customerId" | "createdAt" | "id"
+  "customerId" | "createdAt" | "id" | "feedback"
 >;
 
-const SCRAPE_DATA: Record<
+export const SCRAPE_DATA: Record<
   ScrapeDataKeys,
   { label: string; type: "text" | "image" | "link" | "tag" }
 > = {
@@ -50,7 +50,6 @@ const ScrapeDataModal: React.FC<ScrapeDataModalProps> = ({
   scrapedData,
   ...modalProps
 }) => {
-  console.log(scrapedData);
   return (
     <Modal {...modalProps} width={"80%"} style={{ top: "2ch" }}>
       <Content
@@ -72,7 +71,12 @@ const ScrapeDataModal: React.FC<ScrapeDataModalProps> = ({
                 <Col span={20}>
                   {SCRAPE_DATA[key as ScrapeDataKeys].type === "text" ? (
                     <Paragraph>
-                      {scrapedData?.[key as keyof IStoreDetail] as string}
+                      {scrapedData?.[key as keyof IStoreDetail]?.toString().split("\n").map((line, index) => (
+                        <span key={index}>
+                          {line.replace(/&amp;/g, '&')}
+                          <br />
+                        </span>
+                      ))}
                     </Paragraph>
                   ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "image" ? (
                     <Image
