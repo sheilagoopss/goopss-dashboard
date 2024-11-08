@@ -61,12 +61,24 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     {
       key: 'customers',
       icon: <UserOutlined />,
-      label: <Link to="/">Customers</Link>,
-    },
-    {
-      key: 'customer-form',
-      icon: <FormOutlined />,
-      label: <Link to="/customer-form">Customer Form</Link>,
+      label: <span style={{ color: '#000000' }}>Customers</span>,
+      children: [
+        {
+          key: 'customers-list',
+          icon: <UserOutlined />,
+          label: <Link to="/">Customers List</Link>
+        },
+        {
+          key: 'customer-form',
+          icon: <FormOutlined />,
+          label: <Link to="/customer-form">Customer Form</Link>
+        },
+        {
+          key: 'plan',
+          icon: <PieChartOutlined />,
+          label: <Link to="/plan">Plan</Link>
+        }
+      ]
     },
     {
       key: 'design-hub',
@@ -143,11 +155,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       key: 'tasks',
       icon: <ProjectOutlined />,
       label: <Link to="/tasks">Tasks Summary</Link>,
-    },
-    {
-      key: 'plan',
-      icon: <PieChartOutlined />,
-      label: <Link to="/plan">Plan</Link>,
     },
     {
       key: 'logout',

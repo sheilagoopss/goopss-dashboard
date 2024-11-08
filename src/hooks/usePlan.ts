@@ -10,58 +10,77 @@ export const usePlan = () => {
 
   const getDefaultSections = (): PlanSection[] => [
     {
-      title: 'Initial setup',
+      title: 'General',
       tasks: [
-        { key: '1-1', section: 'General', task: 'Connect your Etsy store to Vela', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '1-2', section: 'General', task: 'Connect to Erank', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '1-3', section: 'Social', task: 'Connect to your Facebook account', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '1-4', section: 'Social', task: 'Connect to your Instagram account', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '1-5', section: 'Social', task: 'Connect to your Pinterest account', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '1-6', section: 'Email Marketing', task: 'Create an Aweber account', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-1', task: 'Connect your Etsy store to Vela', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-15', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-2', task: 'Connect to Erank', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-16', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
       ]
     },
     {
-      title: 'Research & Analyze',
+      title: 'Social',
       tasks: [
-        { key: '2-1', section: 'Social', task: 'Create a social insights report', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-2', section: 'Store Page', task: 'Analyze store banner', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-3', section: 'Store Page', task: 'Analyze About Shop Section', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-4', section: 'Store Page', task: 'Analyze About Owner Section + Owner picture', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-5', section: 'Store Page', task: 'Analyze Store Announcement', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-6', section: 'Store Page', task: 'Analyze FAQs', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-7', section: 'Store Page', task: 'Analyze Store policies', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-8', section: 'Store Page', task: 'Analyze free shipping', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-9', section: 'Store Page', task: 'Analyze store sale', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-10', section: 'Store Page', task: 'Analyze featured listings', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-11', section: 'Listings', task: "Analyze which listings doesn't have 'sections'", progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-12', section: 'Listings', task: 'Analyzing which listings should have more images', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-13', section: 'Listings', task: 'New keyword research - low competition', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-14', section: 'Listings', task: 'New keyword research - high searches, high competition (for big stores)', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-15', section: 'Listings', task: 'Identify bestsellers', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-16', section: 'Listings', task: 'Identify if listings have missing, one-word, or misspelled tags', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '2-17', section: 'Ads', task: 'Analyze ads data', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-1', task: 'Connect to your Facebook account', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-15', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-2', task: 'Connect to your Instagram account', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-16', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-3', task: 'Connect to your Pinterest account', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-17', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-4', task: 'Create a social insights report', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-18', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-5', task: 'Schedule Facebook page posts', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-11-19', isEditing: false, current: 0, goal: 10, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-6', task: 'Schedule Facebook group posts', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-11-20', isEditing: false, current: 0, goal: 10, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-7', task: 'Schedule Instagram Posts', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-11-21', isEditing: false, current: 0, goal: 10, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '1-8', task: 'Publish Pinterest pins', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-11-22', isEditing: false, current: 0, goal: 15, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
       ]
     },
     {
-      title: 'Time to work!',
+      title: 'Email Marketing',
       tasks: [
-        { key: '3-1', section: 'Store Page', task: 'Create/update Store Announcement', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-2', section: 'Store Page', task: 'Create/update FAQs', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-3', section: 'Store Page', task: 'Recommend store policy changes', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-4', section: 'Store Page', task: 'Recommend free shipping', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-5', section: 'Store Page', task: 'Recommend a store sale', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-6', section: 'Design', task: 'Store Banner', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-7', section: 'Design', task: 'Create new product images', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-8', section: 'Social', task: 'Creating new Pinterest boards', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-9', section: 'Listings', task: 'Update the listings with no sections', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-10', section: 'Listings', task: 'Listing Optimization (title, description, attributes, alt texts)', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-11', section: 'Listings', task: 'Duplication of listings', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-12', section: 'Listings', task: 'Update the listings with missing, one-word or misspelled tags', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-13', section: 'Listings', task: 'New Listings', progress: 'In Progress', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-14', section: 'Email Marketing', task: 'Newsletters', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-15', section: 'Social', task: 'Schedule Facebook posts', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-16', section: 'Social', task: 'Schedule Instagram Posts', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
-        { key: '3-17', section: 'Social', task: 'Publish Pinterest pins', progress: '', isActive: true, updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '3-1', task: 'Create an Aweber account', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-25', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '3-2', task: 'Newsletters', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-11-26', isEditing: false, current: 0, goal: 2, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+      ]
+    },
+    {
+      title: 'Store Page',
+      tasks: [
+        { key: '4-1', task: 'Analyze store banner', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-27', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-2', task: 'Analyze About Shop Section', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-28', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-3', task: 'Analyze About Owner Section + Owner picture', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-29', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-4', task: 'Analyze Store Announcement', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-11-30', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-5', task: 'Analyze FAQs', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-01', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-6', task: 'Analyze Store policies', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-02', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-7', task: 'Analyze free shipping', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-03', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-8', task: 'Analyze store sale', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-04', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-9', task: 'Analyze featured listings', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-05', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-10', task: 'Create/update Store Announcement', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-06', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-11', task: 'Create/update FAQs', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-07', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-12', task: 'Recommend store policy changes', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-08', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-13', task: 'Recommend free shipping', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-09', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '4-14', task: 'Recommend a store sale', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-10', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+      ]
+    },
+    {
+      title: 'Listings',
+      tasks: [
+        { key: '5-1', task: "Analyze which listings doesn't have 'sections'", progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-11', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-2', task: 'Analyzing which listings should have more images', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-12', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-3', task: 'New keyword research - low competition', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-13', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-4', task: 'New keyword research - high searches', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-14', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-5', task: 'Identify bestsellers', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-15', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-6', task: 'Identify if listings have missing', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-16', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-7', task: 'Update the listings with no sections', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-17', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-8', task: 'Listing Optimization', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-12-18', isEditing: false, current: 0, goal: 30, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-9', task: 'Duplication of listings', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-12-19', isEditing: false, current: 0, goal: 15, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '5-10', task: 'New Listings', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-12-20', isEditing: false, current: 0, goal: 10, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+      ]
+    },
+    {
+      title: 'Design',
+      tasks: [
+        { key: '6-1', task: 'Store Banner', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-21', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+        { key: '6-2', task: 'Create new product images', progress: 'To Do', isActive: true, notes: '', frequency: 'Monthly', dueDate: '2024-12-22', isEditing: false, current: 0, goal: 10, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
+      ]
+    },
+    {
+      title: 'Ads',
+      tasks: [
+        { key: '7-1', task: 'Analyze ads data', progress: 'To Do', isActive: true, notes: '', frequency: 'One Time', dueDate: '2024-12-23', isEditing: false, customerId: user?.id || '', updatedAt: new Date(), updatedBy: user?.email || '' },
       ]
     }
   ];

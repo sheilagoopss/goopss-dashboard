@@ -1,10 +1,18 @@
+import { ICustomer } from './Customer';
+
 export interface PlanTask {
   key: string;
-  section: string;
   task: string;
-  progress: 'In Progress' | 'Done' | string;
+  progress: 'To Do' | 'Doing' | 'Done';
   isActive: boolean;
-  completedAt?: string;
+  notes: string;
+  frequency: 'Monthly' | 'One Time';
+  dueDate: string;
+  isEditing: boolean;
+  current?: number;
+  goal?: number;
+  customerId: string;
+  completedDate?: string;
   updatedAt: Date;
   updatedBy: string;
 }

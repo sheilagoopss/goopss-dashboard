@@ -1,33 +1,265 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Input, Typography, Layout, Space, Switch, Button, Form, Alert, Tabs, Select, Modal, message, Checkbox } from 'antd';
-import type { TableProps } from 'antd';
-import { EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { ICustomer, IAdmin } from '../types/Customer';
-import { useAuth } from '../contexts/AuthContext';
-import { usePlan } from '../hooks/usePlan';
-import { PlanTask, PlanSection } from '../types/Plan';
-import CustomersDropdown from './CustomersDropdown';
-import { useTaskCreate } from '../hooks/useTask';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
+'use client'
 
-const { Title } = Typography;
-const { Content } = Layout;
+import React, { useState, useEffect } from 'react'
+import { 
+  Layout, 
+  Typography, 
+  Card, 
+  Select, 
+  Switch, 
+  Input, 
+  Button, 
+  Space, 
+  Table, 
+  Tag, 
+  Tooltip, 
+  Progress,
+  DatePicker,
+  Collapse
+} from 'antd'
+import { 
+  CalendarOutlined, 
+  CheckCircleOutlined, 
+  EditOutlined, 
+  FileTextOutlined,
+  SortAscendingOutlined,
+  UserOutlined
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { useAuth } from '../contexts/AuthContext'
+import { usePlan } from '../hooks/usePlan'
+import { PlanSection, PlanTask } from '../types/Plan'
+import { ICustomer } from '../types/Customer'
 
-type ProgressStatus = 'In Progress' | 'Done' | string;
+const { Header, Content } = Layout
+const { Title, Text } = Typography
+const { Option } = Select
+const { Search } = Input
+const { Column } = Table
+const { Panel } = Collapse
 
-interface Task {
-  key: string;
-  section: string;
-  task: string;
-  progress: ProgressStatus;
-  isActive: boolean;
-  completedAt?: string;
+const pastelColors = {
+  'To Do': '#FFCCCB',
+  'Doing': '#ADD8E6',
+  'Done': '#90EE90',
+  'Monthly': '#DDA0DD',
+  'One Time': '#FFE4B5',
 }
 
-interface Section {
-  title: string;
-  tasks: Task[];
+interface TaskCardProps {
+  task: PlanTask;
+  editMode: boolean;
+  onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number) => void;
+  customer?: ICustomer;
+}
+
+const dropdownStyle = {
+  height: '40px',
+  '.ant-select-selection-item': {
+    lineHeight: '40px'
+  }
+};
+
+const collapseStyle = {
+  marginBottom: '12px',
+  '.ant-collapse-header': {
+    padding: '16px !important',
+    minHeight: '80px !important'
+  }
+};
+
+const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
+  const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
+
+  const handleEditClick = () => {
+    if (!task.isEditing) {
+      setOriginalValues({
+        progress: task.progress,
+        dueDate: task.dueDate,
+        completedDate: task.completedDate,
+        isActive: task.isActive,
+        frequency: task.frequency,
+        current: task.current,
+        goal: task.goal,
+        notes: task.notes,
+      });
+    }
+    onEdit(task.key, 'isEditing', !task.isEditing);
+  };
+
+  const handleCancel = () => {
+    Object.entries(originalValues).forEach(([key, value]) => {
+      if (value instanceof Date) {
+        onEdit(task.key, key as keyof PlanTask, value.toISOString().split('T')[0]);
+      } else if (value !== undefined) {
+        onEdit(task.key, key as keyof PlanTask, value as string | number | boolean);
+      }
+    });
+    onEdit(task.key, 'isEditing', false);
+  };
+
+  return (
+    <Collapse style={collapseStyle}>
+      <Panel
+        key={task.key}
+        header={
+          <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Space direction="vertical" size="small">
+              <Text strong>{task.task}</Text>
+              {customer && (
+                <Space>
+                  <img 
+                    src={customer.logo || '/placeholder.svg'} 
+                    alt={`${customer.store_name} logo`} 
+                    width={16} 
+                    height={16} 
+                    style={{ borderRadius: '50%' }} 
+                  />
+                  <Text type="secondary">{customer.store_owner_name} - {customer.store_name}</Text>
+                </Space>
+              )}
+            </Space>
+            <Space direction="vertical" size={4} align="end">
+              <Space>
+                <CalendarOutlined /> 
+                <Text type="secondary">Due: {task.dueDate}</Text>
+              </Space>
+              {task.completedDate && (
+                <Space>
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
+                  <Text type="secondary">Completed: {task.completedDate}</Text>
+                </Space>
+              )}
+              <Space>
+                {task.notes && <Tooltip title="Has notes"><FileTextOutlined /></Tooltip>}
+                <Tag color={pastelColors[task.progress]}>{task.progress}</Tag>
+              </Space>
+            </Space>
+          </Space>
+        }
+      >
+        <div style={{ marginBottom: '16px' }}>
+          <Space>
+            {task.isEditing ? (
+              <>
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  onClick={handleEditClick}
+                  style={{
+                    backgroundColor: '#52c41a',
+                    borderColor: '#52c41a',
+                  }}
+                >
+                  Save
+                </Button>
+                <Button
+                  danger
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button
+                icon={<EditOutlined />}
+                onClick={handleEditClick}
+              >
+                Edit
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Space>
+            <Select
+              style={{ width: 120 }}
+              value={task.progress}
+              onChange={(value) => {
+                onEdit(task.key, 'progress', value)
+                if (value === 'Done' && !task.completedDate) {
+                  onEdit(task.key, 'completedDate', new Date().toISOString().split('T')[0])
+                }
+              }}
+              disabled={!task.isEditing}
+            >
+              <Option value="To Do">To Do</Option>
+              <Option value="Doing">Doing</Option>
+              <Option value="Done">Done</Option>
+            </Select>
+            <div>
+              <Text strong>Due Date:</Text>
+              <DatePicker
+                value={task.dueDate ? dayjs(task.dueDate) : null}
+                onChange={(date) => onEdit(task.key, 'dueDate', date ? date.toISOString().split('T')[0] : '')}
+                disabled={!task.isEditing}
+              />
+            </div>
+            <div>
+              <Text strong>Completed Date:</Text>
+              <DatePicker
+                value={task.completedDate ? dayjs(task.completedDate) : null}
+                onChange={(date) => onEdit(task.key, 'completedDate', date ? date.toISOString().split('T')[0] : '')}
+                disabled={!task.isEditing}
+              />
+            </div>
+          </Space>
+          <Space>
+            <Text strong>Active:</Text>
+            <Switch
+              checked={task.isActive}
+              onChange={(checked) => onEdit(task.key, 'isActive', checked)}
+              disabled={!task.isEditing}
+            />
+          </Space>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text strong>Frequency:</Text>
+            <Select
+              style={{ width: 120 }}
+              value={task.frequency}
+              onChange={(value) => onEdit(task.key, 'frequency', value)}
+              disabled={!task.isEditing}
+            >
+              <Option value="Monthly">Monthly</Option>
+              <Option value="One Time">One Time</Option>
+            </Select>
+          </Space>
+          {task.frequency === 'Monthly' && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space>
+                <Input
+                  type="number"
+                  value={task.current}
+                  onChange={(e) => onEdit(task.key, 'current', parseInt(e.target.value))}
+                  disabled={!task.isEditing}
+                  style={{ width: 80 }}
+                />
+                <Text>/</Text>
+                <Input
+                  type="number"
+                  value={task.goal}
+                  onChange={(e) => onEdit(task.key, 'goal', parseInt(e.target.value))}
+                  disabled={!task.isEditing}
+                  style={{ width: 80 }}
+                />
+              </Space>
+              <Progress percent={Math.min((task.current! / task.goal!) * 100, 100)} />
+            </Space>
+          )}
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text strong>Notes:</Text>
+            <Input.TextArea
+              value={task.notes}
+              onChange={(e) => onEdit(task.key, 'notes', e.target.value)}
+              disabled={!task.isEditing}
+              rows={4}
+            />
+          </Space>
+        </Space>
+      </Panel>
+    </Collapse>
+  )
 }
 
 interface PlanProps {
@@ -36,50 +268,36 @@ interface PlanProps {
   setSelectedCustomer: React.Dispatch<React.SetStateAction<ICustomer | null>>;
 }
 
-function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
-  const { isAdmin, user } = useAuth();
-  const { fetchPlan, updatePlan, updateTask } = usePlan();
-  const { createTask } = useTaskCreate();
+const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
+  const { isAdmin } = useAuth();
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState<boolean>(false);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
+  const { fetchPlan, updateTask } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
-  const [activeTab, setActiveTab] = useState('Initial setup');
-  const [tempInputValues, setTempInputValues] = useState<Record<string, string>>({});
-  const [columnWidths, setColumnWidths] = useState({
-    section: 150,
-    task: 500,
-    progress: 200,
-    completedDate: 100,
-    active: 100,
-  });
-  const [showOnlyActive, setShowOnlyActive] = useState(false);
-
-  const needsInput = [
-    'Listing Optimization (title, description, attributes, alt texts)',
-    'Duplication of listings',
-    'Newsletters',
-    'Create new product images',
-    'Schedule Facebook posts',
-    'Schedule Instagram Posts',
-    'Publish Pinterest pins'
-  ];
 
   useEffect(() => {
     const loadPlan = async () => {
+      if (isAdmin && !selectedCustomer) return;
+      
       try {
-        const customerId = isAdmin ? selectedCustomer?.id : user?.id;
+        const customerId = selectedCustomer?.id;
+        if (!customerId) return;
         
-        if (customerId) {
-          const plan = await fetchPlan(customerId);
-          setSections(plan.sections);
-        }
+        const plan = await fetchPlan(customerId);
+        setSections(plan.sections);
       } catch (error) {
-        message.error('Failed to load plan');
+        console.error('Error loading plan:', error);
       }
     };
 
     loadPlan();
-  }, [selectedCustomer, user?.id, isAdmin]);
+  }, [isAdmin, selectedCustomer, fetchPlan]);
 
-  const handleCellEdit = async (key: string, field: keyof Task, value: string | boolean) => {
+  const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number) => {
     if (!selectedCustomer) return;
 
     try {
@@ -89,444 +307,158 @@ function Plan({ customers, selectedCustomer, setSelectedCustomer }: PlanProps) {
 
       if (!sectionTitle) return;
 
-      const currentTask = sections
-        .find(section => section.tasks.some(task => task.key === key))
-        ?.tasks.find(task => task.key === key);
+      await updateTask(selectedCustomer.id, sectionTitle, key, { [field]: value });
 
-      if (!currentTask) return;
-
-      setSections(prevSections => 
+      setSections(prevSections =>
         prevSections.map(section => ({
           ...section,
-          tasks: section.tasks.map(task => {
-            if (task.key === key) {
-              if (field === 'progress') {
-                if (value === 'Done') {
-                  return { 
-                    ...task, 
-                    progress: value as string,
-                    completedAt: new Date().toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })
-                  };
-                }
-                if (value === 'In Progress') {
-                  return { 
-                    ...task, 
-                    progress: value as string,
-                    completedAt: undefined
-                  };
-                }
-              }
-              if (field === 'isActive') {
-                return { ...task, isActive: value as boolean };
-              }
-              return { ...task, [field]: value };
-            }
-            return task;
-          })
+          tasks: section.tasks.map(task =>
+            task.key === key ? { ...task, [field]: value } : task
+          )
         }))
       );
 
-      if (field === 'progress' && 
-          value === 'Done' && 
-          !needsInput.includes(currentTask.task)) {
-        const adminUser = user as IAdmin;
-        
-        // Get admin's name from Firestore
-        const adminDoc = await getDoc(doc(db, 'admin', adminUser.id));
-        const adminData = adminDoc.data();
-        
-        if (!adminData?.name) {
-          message.error('Could not find admin name');
-          return;
-        }
-
-        await createTask({
-          taskName: currentTask.task,
-          customerId: selectedCustomer.id,
-          teamMemberName: adminData.name,  // Use the actual admin name from Firestore
-          dateCompleted: new Date().toISOString(),
-          category: "Plan",
-          isDone: true
-        });
+      if (field === 'isEditing') {
+        setEditMode(!!value);
       }
-
-      const updates: Partial<PlanTask> = {
-        updatedAt: new Date(),
-        updatedBy: user?.email || ''
-      };
-
-      if (field === 'progress') {
-        updates.progress = value as string;
-      }
-
-      if (field === 'isActive') {
-        updates.isActive = value as boolean;
-      }
-
-      await updateTask(selectedCustomer.id, sectionTitle, key, updates);
-
     } catch (error) {
       console.error('Error updating task:', error);
-      message.error('Failed to update task');
     }
   };
 
-  const handleAddTask = async (sectionTitle: string, values: { section: string; task: string }) => {
-    if (!selectedCustomer) return;
+  const filteredSections = sections
+    .map(section => ({
+      ...section,
+      tasks: section.tasks.filter(task =>
+        (!showActiveOnly || task.isActive) &&
+        (progressFilter === 'All' || task.progress === progressFilter) &&
+        task.task.toLowerCase().includes(search.toLowerCase())
+      )
+    }))
+    .filter(section => section.tasks.length > 0);
 
-    try {
-      const newKey = `${Date.now()}`; // Use timestamp as key
-      const newTask: PlanTask = {
-        key: newKey,
-        section: values.section,
-        task: values.task,
-        progress: 'In Progress',
-        isActive: true,
-        updatedAt: new Date(),
-        updatedBy: user?.email || ''
-      };
-
-      const updatedSections = sections.map(section => {
-        if (section.title === sectionTitle) {
-          return {
-            ...section,
-            tasks: [...section.tasks, newTask]
-          };
-        }
-        return section;
-      });
-
-      const planSections: PlanSection[] = updatedSections.map(section => ({
-        title: section.title,
-        tasks: section.tasks.map(task => ({
-          ...task,
-          updatedAt: new Date(),
-          updatedBy: user?.email || ''
-        }))
-      }));
-
-      await updatePlan(selectedCustomer.id, planSections);
-
-      setSections(updatedSections);
-      message.success('Task added successfully');
-    } catch (error) {
-      console.error('Error adding task:', error);
-      message.error('Failed to add task');
-    }
-  };
-
-  // Add handle resize function
-  const handleResize = (index: number) => (e: React.SyntheticEvent, { size }: { size: { width: number } }) => {
-    const newColumnWidths = { ...columnWidths };
-    const keys = Object.keys(columnWidths);
-    newColumnWidths[keys[index] as keyof typeof columnWidths] = size.width;
-    setColumnWidths(newColumnWidths);
-  };
-
-  // Update admin columns to be resizable
-  const columns: TableProps<Task>['columns'] = [
-    {
-      title: 'Section',
-      dataIndex: 'section',
-      key: 'section',
-      width: columnWidths.section,
-      render: (text, record) => (
-        <Input
-          value={text}
-          onChange={(e) => handleCellEdit(record.key, 'section', e.target.value)}
-          suffix={<EditOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
-        />
-      ),
-    },
-    {
-      title: 'Task',
-      dataIndex: 'task',
-      key: 'task',
-      width: columnWidths.task,
-      render: (text, record) => (
-        <Input
-          value={text}
-          onChange={(e) => handleCellEdit(record.key, 'task', e.target.value)}
-          suffix={<EditOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
-        />
-      ),
-    },
-    {
-      title: 'Progress',
-      dataIndex: 'progress',
-      key: 'progress',
-      width: columnWidths.progress,
-      render: (text: ProgressStatus, record) => {
-        const needsInput = [
-          'Listing Optimization (title, description, attributes, alt texts)',
-          'Duplication of listings',
-          'Newsletters (for customers with custom domains)',
-          'Create new product images',
-          'Schedule Facebook posts',
-          'Schedule Instagram Posts',
-          'Publish Pinterest pins'
-        ];
-
-        if (needsInput.includes(record.task)) {
-          return (
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
-                value={tempInputValues[record.key] ?? text}
-                onChange={(e) => setTempInputValues(prev => ({
-                  ...prev,
-                  [record.key]: e.target.value
-                }))}
-                onFocus={(e) => {
-                  // Set initial temp value when focusing
-                  if (!tempInputValues[record.key]) {
-                    setTempInputValues(prev => ({
-                      ...prev,
-                      [record.key]: text
-                    }));
-                  }
-                }}
-              />
-              <Button 
-                type="primary"
-                onClick={() => {
-                  handleCellEdit(record.key, 'progress', tempInputValues[record.key] || text);
-                  // Clear temp value after saving
-                  setTempInputValues(prev => {
-                    const newValues = { ...prev };
-                    delete newValues[record.key];
-                    return newValues;
-                  });
-                  // Add success message
-                  message.success('Progress updated successfully');
-                }}
-              >
-                Save
-              </Button>
-            </Space.Compact>
-          );
-        }
-
-        return (
-          <Button
-            type={text === 'Done' ? 'primary' : 'default'}
-            onClick={() => {
-              if (text === 'In Progress') {
-                Modal.confirm({
-                  title: 'Mark as Done?',
-                  content: 'Are you sure you want to mark this task as done?',
-                  okText: 'Yes',
-                  cancelText: 'No',
-                  onOk: () => handleCellEdit(record.key, 'progress', 'Done')
-                });
-              } else {
-                Modal.confirm({
-                  title: 'Mark as In Progress?',
-                  content: 'Are you sure you want to change this task back to in progress?',
-                  okText: 'Yes',
-                  cancelText: 'No',
-                  onOk: () => handleCellEdit(record.key, 'progress', 'In Progress')
-                });
-              }
-            }}
-            style={{ 
-              width: '100%',
-              ...(text === 'Done' ? {
-                backgroundColor: '#b7eb8f',  // Light green color
-                borderColor: '#b7eb8f',
-                color: '#000000'  // Black text for better contrast
-              } : {
-                backgroundColor: '#ffd591',  // Light orange color
-                borderColor: '#ffd591',
-                color: '#000000'  // Black text for better contrast
-              })
-            }}
-          >
-            {text}
-          </Button>
-        );
-      },
-    },
-    {
-      title: 'Completed Date',
-      dataIndex: 'completedAt',
-      key: 'completedAt',
-      width: columnWidths.completedDate,
-      render: (text: string | undefined) => text || '-'
-    },
-    {
-      title: 'Active',
-      dataIndex: 'isActive',
-      key: 'isActive',
-      width: columnWidths.active,
-      render: (isActive, record) => (
-        <Switch
-          checked={isActive}
-          onChange={(checked) => handleCellEdit(record.key, 'isActive', checked)}
-        />
-      ),
-    },
-  ];
-
-  // Create separate columns for admin and non-admin views
-  const getNonAdminColumns = (): TableProps<Task>['columns'] => [
-    {
-      title: 'Section',
-      dataIndex: 'section',
-      key: 'section',
-      width: '20%',
-      render: (text) => <span>{text}</span>,  // Simple text display
-    },
-    {
-      title: 'Task',
-      dataIndex: 'task',
-      key: 'task',
-      width: '50%',  // Changed from 60% to 50%
-      render: (text) => <span>{text}</span>,  // Simple text display
-    },
-    {
-      title: 'Progress',
-      dataIndex: 'progress',
-      key: 'progress',
-      width: '30%',  // Changed from 20% to 30%
-      render: (text: ProgressStatus) => (
-        <Button
-          type={text === 'Done' ? 'primary' : 'default'}
-          style={{ 
-            width: '100%',
-            ...(text === 'Done' ? {
-              backgroundColor: '#b7eb8f',
-              borderColor: '#b7eb8f',
-              color: '#000000'
-            } : {
-              backgroundColor: '#ffd591',
-              borderColor: '#ffd591',
-              color: '#000000'
-            })
-          }}
-          disabled  // Disable the button for non-admin users
-        >
-          {text}
-        </Button>
-      ),
-    },
-  ];
-
-  // Update the getFilteredTasks function
-  const getFilteredTasks = (tasks: Task[]) => {
-    // For non-admins, always filter out inactive tasks
-    if (!isAdmin) {
-      return tasks.filter(task => task.isActive);
-    }
-    
-    // For admins, only filter if showOnlyActive is true
-    if (showOnlyActive) {
-      return tasks.filter(task => task.isActive);
-    }
-    
-    return tasks;
-  };
+  const sortedSections = filteredSections.map(section => ({
+    ...section,
+    tasks: sortBy === 'dueDate' 
+      ? [...section.tasks].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      : section.tasks
+  }));
 
   return (
     <Layout>
-      <Content style={{ padding: '0 50px' }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '20px',
-          padding: '24px 0'
-        }}>
-          <Title level={2}>Plan</Title>
-          <Space>
-            {isAdmin && (
-              <Checkbox
-                checked={showOnlyActive}
-                onChange={(e) => setShowOnlyActive(e.target.checked)}
-              >
-                Show Only Active Tasks
-              </Checkbox>
-            )}
-            {isAdmin && (
-              <CustomersDropdown
-                customers={customers}
-                selectedCustomer={selectedCustomer}
-                setSelectedCustomer={setSelectedCustomer}
-                isAdmin={isAdmin}
-              />
+      <Header style={{ background: '#fff', padding: '0 16px' }}>
+        <Title level={2} style={{ margin: '16px 0' }}>Etsy Store Management Dashboard</Title>
+      </Header>
+      <Content style={{ padding: '0 16px' }}>
+        <Card style={{ marginTop: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
+            <Title level={4}>Select Customer</Title>
+            <Select
+              style={{ width: '100%', ...dropdownStyle }}
+              placeholder="Select a customer"
+              value={selectedCustomer?.id}
+              onChange={(value) => {
+                const customer = customers.find(c => c.id === value);
+                setSelectedCustomer(customer || null);
+              }}
+              listHeight={400}
+            >
+              {customers.map((customer) => (
+                <Option key={customer.id} value={customer.id}>
+                  <Space>
+                    <img 
+                      src={customer.logo || '/placeholder.svg'} 
+                      alt={`${customer.store_name} logo`}
+                      width={24} 
+                      height={24} 
+                      style={{ borderRadius: '50%' }} 
+                    />
+                    <span>{customer.store_owner_name} - {customer.store_name}</span>
+                    <Text type="secondary">Joined: {customer.date_joined}</Text>
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+            {selectedCustomer && (
+              <Text type="secondary">
+                <CalendarOutlined /> Date Joined: {selectedCustomer.date_joined}
+              </Text>
             )}
           </Space>
-        </div>
+        </Card>
 
-        {(isAdmin ? selectedCustomer : true) ? (
-          <Tabs
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            type="card"
-            items={sections.map((section) => ({
-              key: section.title,
-              label: section.title,
-              children: (
-                <Space direction="vertical" size="large" style={{ display: 'flex', width: '100%' }}>
-                  <Table
-                    columns={isAdmin ? columns : getNonAdminColumns()}
-                    dataSource={getFilteredTasks(section.tasks)}
-                    pagination={false}
-                    bordered
-                    size="middle"
-                    onRow={(record) => ({
-                      style: {
-                        backgroundColor: !record.isActive ? '#e0e0e0' : undefined,
-                        color: !record.isActive ? '#666666' : undefined,
-                        opacity: !record.isActive ? 0.85 : 1,
-                        filter: !record.isActive ? 'grayscale(1)' : undefined,
-                        transition: 'all 0.3s ease',
-                      },
-                    })}
-                  />
-                  {isAdmin && (
-                    <Form
-                      layout="inline"
-                      onFinish={(values) => handleAddTask(section.title, values as { section: string; task: string })}
-                      style={{ marginTop: '16px' }}
-                    >
-                      <Form.Item
-                        name="section"
-                        rules={[{ required: true, message: 'Please input the section!' }]}
-                      >
-                        <Input placeholder="Section" style={{ width: '150px' }} />
-                      </Form.Item>
-                      <Form.Item
-                        name="task"
-                        rules={[{ required: true, message: 'Please input the task!' }]}
-                      >
-                        <Input placeholder="Task" style={{ width: '300px' }} />
-                      </Form.Item>
-                      <Form.Item>
-                        <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
-                          Add Task
-                        </Button>
-                      </Form.Item>
-                    </Form>
-                  )}
-                </Space>
-              ),
-            }))}
-          />
+        {!selectedCustomer ? (
+          <Card style={{ marginTop: 16, textAlign: 'center' }}>
+            <Title level={3}>Welcome to the Etsy Store Management Dashboard</Title>
+            <Text>Please select a customer to view their tasks.</Text>
+          </Card>
         ) : (
-          <Alert
-            message="Please select a customer to view their plan"
-            type="info"
-            showIcon
-            style={{ marginTop: '20px' }}
-          />
+          <>
+            <Card style={{ marginTop: 16 }}>
+              <Space wrap>
+                <Space>
+                  <Switch
+                    checked={showActiveOnly}
+                    onChange={setShowActiveOnly}
+                  />
+                  <Text>Show Active Only</Text>
+                </Space>
+                <Select
+                  style={{ width: 150 }}
+                  value={progressFilter}
+                  onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
+                >
+                  <Option value="All">All Progress</Option>
+                  <Option value="To Do">To Do</Option>
+                  <Option value="Doing">Doing</Option>
+                  <Option value="Done">Done</Option>
+                </Select>
+                <Search
+                  placeholder="Search tasks..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ width: 200 }}
+                />
+                <Select
+                  style={{ width: 150 }}
+                  value={sortBy}
+                  onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
+                >
+                  <Option value="none">
+                    <Space>
+                      <SortAscendingOutlined />
+                      <span>No sorting</span>
+                    </Space>
+                  </Option>
+                  <Option value="dueDate">
+                    <Space>
+                      <SortAscendingOutlined />
+                      <span>Due Date</span>
+                    </Space>
+                  </Option>
+                </Select>
+              </Space>
+            </Card>
+
+            {sortedSections.map((section) => (
+              <Card key={section.title} style={{ marginTop: 16 }}>
+                <Title level={4}>{section.title}</Title>
+                {section.tasks.map((task) => (
+                  <TaskCard
+                    key={task.key}
+                    task={task}
+                    editMode={editMode}
+                    onEdit={handleCellEdit}
+                    customer={customers.find(c => c.id === task.customerId)}
+                  />
+                ))}
+              </Card>
+            ))}
+          </>
         )}
       </Content>
     </Layout>
   );
-}
+};
 
 export default Plan;
