@@ -59,10 +59,8 @@ interface TaskCardProps {
 }
 
 const dropdownStyle = {
-  height: '40px',
-  '.ant-select-selection-item': {
-    lineHeight: '40px'
-  }
+  height: '50px',
+  fontSize: '16px'
 };
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
@@ -621,30 +619,43 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
             <Select
-              style={{ width: '100%', ...dropdownStyle }}
+              style={{ width: '100%' }}
               placeholder="Select a customer"
               value={selectedCustomer?.id}
               onChange={(value) => {
-                const customer = customers.find(c => c.id === value);
+                const customer = customers
+                  .filter(c => c.customer_type === 'Paid')
+                  .find((c) => c.id === value);
                 setSelectedCustomer(customer || null);
               }}
+              size="large"
               listHeight={400}
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+              }
             >
-              {customers.map((customer) => (
-                <Option key={customer.id} value={customer.id}>
-                  <Space>
-                    <img 
-                      src={customer.logo || '/placeholder.svg'} 
-                      alt={`${customer.store_name} logo`}
-                      width={24} 
-                      height={24} 
-                      style={{ borderRadius: '50%' }} 
-                    />
-                    <span>{customer.store_owner_name} - {customer.store_name}</span>
-                    <Text type="secondary">Joined: {customer.date_joined}</Text>
-                  </Space>
-                </Option>
-              ))}
+              {customers
+                .filter(customer => customer.customer_type === 'Paid')
+                .map((customer) => (
+                  <Select.Option 
+                    key={customer.id} 
+                    value={customer.id}
+                    label={`${customer.store_owner_name} - ${customer.store_name}`}
+                  >
+                    <Space>
+                      {customer.logo && (
+                        <img 
+                          src={customer.logo} 
+                          alt={customer.store_name} 
+                          style={{ width: 20, height: 20, borderRadius: '50%' }} 
+                        />
+                      )}
+                      {customer.store_owner_name} - {customer.store_name}
+                    </Space>
+                  </Select.Option>
+                ))}
             </Select>
             {selectedCustomer && (
               <Text type="secondary">

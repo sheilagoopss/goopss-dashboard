@@ -7,7 +7,7 @@ export interface ICustomer {
   customer_type: "Free" | "Paid";
   logo?: string;
   date_joined?: string;
-  package_type?: string;
+  package_type: PackageType;
   products_count?: number;
   notes?: string;
   weeks?: number;
@@ -50,3 +50,15 @@ export interface IAdmin {
   email: string;
   isAdmin: boolean;
 }
+
+export const packageTypes = {
+  acceleratorBasic: 'Accelerator - Basic',
+  acceleratorStandard: 'Accelerator - Standard',
+  acceleratorPro: 'Accelerator - Pro',
+  extendedMaintenance: 'Extended Maintenance',
+  regularMaintenance: 'Regular Maintenance',
+  social: 'Social',
+  free: 'Free'
+} as const;
+
+export type PackageType = typeof packageTypes[keyof typeof packageTypes];

@@ -9,6 +9,7 @@ import {
   Select,
 } from "antd";
 import dayjs from "dayjs";
+import { packageTypes } from '../../../types/Customer';
 
 interface CustomerFormProps {
   isUpdate?: boolean;
@@ -62,14 +63,11 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
             rules={[{ required: true }]}
           >
             <Select>
-              <Option value="Social">Social</Option>
-              <Option value="Maintenance">Maintenance</Option>
-              <Option value="Extended Maintenance">Extended Maintenance</Option>
-              <Option value="Accelerator - Basic">Accelerator - Basic</Option>
-              <Option value="Accelerator - Standard">
-                Accelerator - Standard
-              </Option>
-              <Option value="Free">Free</Option>
+              {Object.values(packageTypes).map((type) => (
+                <Option key={type} value={type}>
+                  {type}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
         </Col>
