@@ -1,10 +1,9 @@
 import { ICustomer } from './Customer';
 
-interface MonthlyProgress {
-  month: string;  // Format: 'YYYY-MM'
+export interface MonthlyProgress {
+  month: string;
   current: number;
   goal: number;
-  completedAt?: string;
 }
 
 export interface PlanTask {
@@ -15,13 +14,12 @@ export interface PlanTask {
   notes: string;
   frequency: 'Monthly' | 'One Time' | 'As Needed';
   dueDate: string | null;
-  isEditing: boolean;
-  current?: number;  // Current month's progress
-  goal?: number;     // Current month's goal
-  monthlyHistory?: MonthlyProgress[];  // Track monthly history
-  completedDate?: string;
+  completedDate: string | null;
   updatedAt: string;
   updatedBy: string;
+  current: number;
+  goal: number;
+  monthlyProgress?: MonthlyProgress[];
 }
 
 export interface PlanSection {
@@ -31,6 +29,4 @@ export interface PlanSection {
 
 export interface Plan {
   sections: PlanSection[];
-  createdAt: string;
-  updatedAt: string;
 }

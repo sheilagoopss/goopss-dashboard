@@ -32,11 +32,12 @@ import {
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
-import { PlanSection, PlanTask } from '../types/Plan'
+import { PlanSection, PlanTask, MonthlyProgress } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
 import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
+import { v4 as uuidv4 } from 'uuid';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -56,7 +57,7 @@ const pastelColors = {
 interface TaskCardProps {
   task: PlanTask;
   editMode: boolean;
-  onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number | null) => void;
+  onEdit: (key: string, field: keyof PlanTask, value: any) => void;
   customer: ICustomer | null | undefined;
 }
 
@@ -67,6 +68,7 @@ const dropdownStyle = {
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
   const { user } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
   const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
 
@@ -86,60 +88,33 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
   };
 
   const handleEditClick = async () => {
-    if (task.isEditing) {
-      try {
-        await onEdit(task.id, 'progress', tempValues.progress || task.progress);
-        await onEdit(task.id, 'dueDate', tempValues.dueDate || task.dueDate);
-        
-        // Handle completedDate separately since it can be undefined
-        const completedDate = tempValues.completedDate !== undefined 
-          ? tempValues.completedDate 
-          : (task.completedDate || '');  // Use empty string as fallback
-        await onEdit(task.id, 'completedDate', completedDate);
-
-        await onEdit(task.id, 'isActive', tempValues.isActive !== undefined ? tempValues.isActive : task.isActive);
-        await onEdit(task.id, 'frequency', tempValues.frequency || task.frequency);
-        await onEdit(task.id, 'notes', tempValues.notes !== undefined ? tempValues.notes : task.notes);
-        
-        if (tempValues.current !== undefined) {
-          await onEdit(task.id, 'current', tempValues.current);
+    if (isEditing) {
+      // Only update Firestore if there are actual changes
+      const hasChanges = Object.keys(tempValues).length > 0;
+      
+      if (hasChanges) {
+        try {
+          // Update all changed fields at once
+          for (const [field, value] of Object.entries(tempValues)) {
+            await onEdit(task.id, field as keyof PlanTask, value);
+          }
+          message.success('Changes saved successfully');
+        } catch (error) {
+          console.error('Error saving changes:', error);
+          message.error('Failed to save changes');
         }
-        if (tempValues.goal !== undefined) {
-          await onEdit(task.id, 'goal', tempValues.goal);
-        }
-
-        await onEdit(task.id, 'updatedAt', new Date().toISOString());
-        await onEdit(task.id, 'updatedBy', user?.email || '');
-        await onEdit(task.id, 'isEditing', false);
-
-        setTempValues({});
-        message.success('Changes saved successfully');
-      } catch (error) {
-        console.error('Error saving changes:', error);
-        handleCancel();
-        message.error('Failed to save changes');
       }
+      
+      setTempValues({});
+      setIsEditing(false);
     } else {
-      setOriginalValues({
-        notes: task.notes,
-        progress: task.progress,
-        dueDate: task.dueDate,
-        completedDate: task.completedDate,
-        isActive: task.isActive,
-        frequency: task.frequency,
-        current: task.current,
-        goal: task.goal,
-      });
-      onEdit(task.id, 'isEditing', true);
+      setIsEditing(true);
     }
   };
 
   const handleCancel = () => {
-    if (originalValues.notes !== undefined) {
-      onEdit(task.id, 'notes', originalValues.notes);
-    }
     setTempValues({});
-    onEdit(task.id, 'isEditing', false);
+    setIsEditing(false);
   };
 
   const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
@@ -150,7 +125,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
   };
 
   const calculateTotalProgress = (task: PlanTask) => {
-    const historyTotal = (task.monthlyHistory || []).reduce((sum, month) => sum + month.current, 0);
+    const historyTotal = (task.monthlyProgress || []).reduce((sum: number, month: MonthlyProgress) => 
+      sum + month.current, 0
+    );
     const currentTotal = task.current || 0;
     return historyTotal + currentTotal;
   };
@@ -224,7 +201,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
       >
         <div style={{ marginBottom: '16px' }}>
           <Space>
-            {task.isEditing ? (
+            {isEditing ? (
               <>
                 <Button
                   type="primary"
@@ -261,7 +238,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               style={{ width: 120 }}
               value={tempValues.progress !== undefined ? tempValues.progress : task.progress}
               onChange={handleProgressChange}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             >
               <Option value="To Do">To Do</Option>
               <Option value="Doing">Doing</Option>
@@ -272,7 +249,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               <DatePicker
                 value={tempValues.dueDate ? dayjs(tempValues.dueDate) : dayjs(task.dueDate)}
                 onChange={(date) => handleTempChange('dueDate', date ? date.toISOString().split('T')[0] : '')}
-                disabled={!task.isEditing}
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -280,7 +257,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               <DatePicker
                 value={tempValues.completedDate ? dayjs(tempValues.completedDate) : (task.completedDate ? dayjs(task.completedDate) : null)}
                 onChange={(date) => handleTempChange('completedDate', date ? date.toISOString().split('T')[0] : '')}
-                disabled={!task.isEditing}
+                disabled={!isEditing}
               />
             </div>
           </Space>
@@ -289,7 +266,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <Switch
               checked={tempValues.isActive !== undefined ? tempValues.isActive : task.isActive}
               onChange={(checked) => handleTempChange('isActive', checked)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             />
           </Space>
           <Space direction="vertical" style={{ width: '100%' }}>
@@ -298,7 +275,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               style={{ width: 120 }}
               value={tempValues.frequency !== undefined ? tempValues.frequency : task.frequency}
               onChange={(value) => handleTempChange('frequency', value)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             >
               <Option value="Monthly">Monthly</Option>
               <Option value="One Time">One Time</Option>
@@ -312,7 +289,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
                   type="number"
                   value={tempValues.current !== undefined ? tempValues.current : task.current}
                   onChange={(e) => handleTempChange('current', parseInt(e.target.value))}
-                  disabled={!task.isEditing}
+                  disabled={!isEditing}
                   style={{ width: 80 }}
                 />
                 <Text>/</Text>
@@ -320,7 +297,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
                   type="number"
                   value={tempValues.goal !== undefined ? tempValues.goal : task.goal}
                   onChange={(e) => handleTempChange('goal', parseInt(e.target.value))}
-                  disabled={!task.isEditing}
+                  disabled={!isEditing}
                   style={{ width: 80 }}
                 />
               </Space>
@@ -332,7 +309,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <Input.TextArea
               value={tempValues.notes !== undefined ? tempValues.notes : task.notes}
               onChange={(e) => handleTempChange('notes', e.target.value)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
               rows={4}
             />
           </Space>
@@ -433,6 +410,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   // Move loadPlan outside useEffect and make it reusable
   const loadPlan = async () => {
     try {
+      console.log('Fetching plan from Firestore');
       const customerId = isAdmin ? selectedCustomer?.id : user?.id;
       
       if (!customerId || !selectedCustomer) {
@@ -440,9 +418,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         return;
       }
       
-      console.log('Loading plan for customer:', customerId);
-      
-      // Get the plan
       const planRef = doc(db, 'plans', customerId);
       const planDoc = await getDoc(planRef);
       
@@ -453,17 +428,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         return;
       }
 
-      // Plan exists, get its data
+      console.log('Plan loaded successfully');
       const plan = planDoc.data() as Plan;
-      
-      // Check monthly progress
-      await checkMonthlyProgress(customerId);
-      
-      // Get updated plan after monthly check
-      const updatedPlanDoc = await getDoc(planRef);
-      const updatedPlan = updatedPlanDoc.data() as Plan;
-      
-      setSections(updatedPlan.sections);
+      setSections(plan.sections);
     } catch (error) {
       console.error('Error loading plan:', error);
     }
@@ -474,12 +441,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     let isMounted = true;
 
     const customerId = isAdmin ? selectedCustomer?.id : user?.id;
-    if (customerId && selectedCustomer && !plans.data[customerId]) {  // Only load if we don't have the data
+    if (customerId && selectedCustomer) {
+      console.log('Loading plan for customer:', customerId);
       loadPlan();
     }
 
     return () => {
       isMounted = false;
+      console.log('Plan component unmounting');
     };
   }, [isAdmin, selectedCustomer?.id, user?.id]);
 
@@ -498,35 +467,47 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   const handleCellEdit = async (taskId: string, field: keyof PlanTask, value: any) => {
     try {
+      console.log('Editing task:', {
+        taskId,
+        field,
+        value,
+        customerId: selectedCustomer?.id
+      });
+
       if (!selectedCustomer) return;
 
-      // Use local sections state instead of fetching
+      // Use local state instead of fetching
       const updatedSections = sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
-            return {
-              ...task,
-              [field]: value
-            };
+            return { ...task, [field]: value };
           }
           return task;
         })
       }));
 
-      // Update Firestore with the modified sections
-      const planRef = doc(db, 'plans', selectedCustomer.id);
-      await updateDoc(planRef, {
-        sections: updatedSections
+      // Log before Firestore update
+      console.log('Updating Firestore:', {
+        customerId: selectedCustomer.id,
+        taskId,
+        field,
+        value
       });
+
+      // Update Firestore
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      await updateDoc(planRef, { sections: updatedSections });
+
+      console.log('Firestore update successful');
 
       // Update local state
       setSections(updatedSections);
+      console.log('Local state updated');
 
     } catch (error) {
       console.error('Error updating task:', error);
       message.error('Failed to update task');
-      loadPlan();
     }
   };
 
@@ -581,24 +562,29 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     });
   };
 
+  const generateId = () => {
+    // Simple ID generator using timestamp and random number
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   const handleCreateTask = async () => {
     if (!selectedCustomer || !newTaskModal.taskName.trim()) return;
 
     try {
       const newTask: PlanTask = {
-        id: `custom-${Date.now()}`,
+        id: generateId(),
         task: newTaskModal.taskName.trim(),
-        progress: 'To Do',
+        progress: 'To Do' as const,
         isActive: true,
         notes: '',
         frequency: 'One Time',
         dueDate: null,
-        isEditing: false,
+        completedDate: null,
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || '',
         current: 0,
         goal: 0,
-        completedDate: ''
+        monthlyProgress: []
       };
 
       const planRef = doc(db, 'plans', selectedCustomer.id);
@@ -700,6 +686,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
     loadAllPlans();
   }, [customers]); // Only run when customers list changes
+
+  // Add render log
+  console.log('Plan component rendering:', {
+    selectedCustomer: selectedCustomer?.store_name,
+    isLoading,
+    sectionsCount: sections.length
+  });
 
   if (!isAdmin) {
     return (
@@ -1003,34 +996,31 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       task={task}
                       editMode={editMode}
                       onEdit={async (taskId, field, value) => {
-                        // Update the task without switching views
                         try {
-                          const planRef = doc(db, 'plans', customer.id);
-                          const planDoc = await getDoc(planRef);
-                          
-                          if (planDoc.exists()) {
-                            const planData = planDoc.data() as Plan;
-                            const updatedSections = planData.sections.map(section => ({
-                              ...section,
-                              tasks: section.tasks.map(t => {
-                                if (t.id === taskId) {
-                                  return { ...t, [field]: value };
-                                }
-                                return t;
-                              })
-                            }));
-
-                            await updateDoc(planRef, { sections: updatedSections });
-
-                            // Update the plans state without changing the view
-                            setPlans(prev => ({
-                              ...prev,
-                              data: {
-                                ...prev.data,
-                                [customer.id]: { ...prev.data[customer.id], sections: updatedSections }
+                          // Use existing data from plans state
+                          const currentPlan = plans.data[customer.id];
+                          const updatedSections = currentPlan.sections.map(section => ({
+                            ...section,
+                            tasks: section.tasks.map(t => {
+                              if (t.id === taskId) {
+                                return { ...t, [field]: value };
                               }
-                            }));
-                          }
+                              return t;
+                            })
+                          }));
+
+                          // Update Firestore directly
+                          const planRef = doc(db, 'plans', customer.id);
+                          await updateDoc(planRef, { sections: updatedSections });
+
+                          // Update local state
+                          setPlans(prev => ({
+                            ...prev,
+                            data: {
+                              ...prev.data,
+                              [customer.id]: { ...prev.data[customer.id], sections: updatedSections }
+                            }
+                          }));
                         } catch (error) {
                           console.error('Error updating task:', error);
                           message.error('Failed to update task');
