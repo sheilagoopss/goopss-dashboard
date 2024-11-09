@@ -390,19 +390,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     selectedCustomer: ICustomer | null;
     data: { [customerId: string]: Plan };
   }>({
-    type: 'single',
+    type: 'all',
     selectedCustomer: null,
     data: {}
   });
 
   // Add cache state
-  const [cachedPlans, setCachedPlans] = useState<{
-    single: { customer: ICustomer | null; plan: Plan | null };
-    all: { [customerId: string]: Plan };
-  }>({
-    single: { customer: null, plan: null },
-    all: {}
-  });
+  const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
 
   // Add loading state for sections
   const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
@@ -664,6 +658,56 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     return plans;
   };
 
+  // Add state for dropdown value
+  const [selectedValue, setSelectedValue] = useState<string>('all-paid');
+
+  // Add this state to track if we're switching to all customers
+  const [switchingToAll, setSwitchingToAll] = useState(false);
+
+  // At the top of the component, log when plans state changes
+  useEffect(() => {
+    console.log('Plans state changed:', {
+      type: plans.type,
+      customersCount: Object.keys(plans.data).length,
+      selectedCustomer: selectedCustomer?.store_name
+    });
+  }, [plans, selectedCustomer]);
+
+  useEffect(() => {
+    const loadAllPlans = async () => {
+      try {
+        setIsLoading(true);
+        
+        const newPlans: { [customerId: string]: Plan } = {};
+        const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
+        
+        await Promise.all(
+          paidCustomers.map(async (customer) => {
+            const planRef = doc(db, 'plans', customer.id);
+            const planDoc = await getDoc(planRef);
+            
+            if (planDoc.exists()) {
+              newPlans[customer.id] = planDoc.data() as Plan;
+            }
+          })
+        );
+
+        setPlans({
+          type: 'all',
+          selectedCustomer: null,
+          data: newPlans
+        });
+      } catch (error) {
+        console.error('Error loading all plans:', error);
+        message.error('Failed to load plans');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAllPlans();
+  }, [customers]); // Only run when customers list changes
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -742,45 +786,48 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             <Select
               style={{ width: '100%' }}
               placeholder="Select a customer"
-              value={plans.type === 'all' ? 'all-paid' : selectedCustomer?.id}
+              value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
               onChange={async (value) => {
                 try {
                   setIsLoading(true);
                   
                   if (value === 'all-paid') {
-                    setIsLoading(true);
-                    const plans = await fetchAllPlans();
+                    setSelectedCustomer(null);  // Clear selected customer
+                    
+                    const newPlans: { [customerId: string]: Plan } = {};
+                    const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
+                    
+                    await Promise.all(
+                      paidCustomers.map(async (customer) => {
+                        const planRef = doc(db, 'plans', customer.id);
+                        const planDoc = await getDoc(planRef);
+                        
+                        if (planDoc.exists()) {
+                          newPlans[customer.id] = planDoc.data() as Plan;
+                        }
+                      })
+                    );
+
                     setPlans({
                       type: 'all',
                       selectedCustomer: null,
-                      data: plans
+                      data: newPlans
                     });
                   } else {
-                    // Handle single customer selection
                     const customer = customers
                       .filter(c => c.customer_type === 'Paid')
                       .find((c) => c.id === value);
                     
                     if (customer) {
-                      // Cache current view before switching
-                      if (plans.type === 'all') {
-                        setCachedPlans(prev => ({ ...prev, all: plans.data }));
-                      }
-                      
                       const planRef = doc(db, 'plans', customer.id);
                       const planDoc = await getDoc(planRef);
                       
                       if (planDoc.exists()) {
-                        const planData = planDoc.data() as Plan;
-                        setCachedPlans(prev => ({
-                          ...prev,
-                          single: { customer, plan: planData }
-                        }));
-                        setSelectedCustomer(customer);
+                        setSelectedCustomer(customer);  // Set selected customer
                         setPlans({
                           type: 'single',
                           selectedCustomer: customer,
-                          data: { [customer.id]: planData }
+                          data: { [customer.id]: planDoc.data() as Plan }
                         });
                       }
                     }
@@ -800,15 +847,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
             >
-              <Select.Option 
-                key="all-paid"
-                value="all-paid"
-                label="All Paid Customers"
-              >
-                <Space>
-                  <UserOutlined />
-                  All Paid Customers
-                </Space>
+              <Select.Option key="all-paid" value="all-paid">
+                All Paid Customers
               </Select.Option>
               <Select.Option key="divider" disabled>
                 ──────────────
@@ -911,44 +951,78 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         {isLoading && <LoadingSpinner />}
 
         {!selectedCustomer && plans.type === 'all' ? (
-          // Show all paid customers' tasks grouped by section
           defaultSections.map(sectionTitle => {
-            // For "all customers" view
+            console.log(`Rendering section ${sectionTitle}:`, {
+              viewType: plans.type,
+              hasPlans: Object.keys(plans.data).length > 0
+            });
+
             if (plans.type === 'all') {
-              const allTasks = Object.entries(plans.data)
-                .flatMap(([customerId, plan]) => {
-                  const customer = customers.find(c => c.id === customerId);
-                  if (!customer) return [];
+              console.log('🟢 ENTERING ALL PLANS VIEW');
+              console.log('Available plans:', Object.keys(plans.data).map(id => {
+                const customer = customers.find(c => c.id === id);
+                return customer?.store_name;
+              }));
+              
+              // Get all tasks for this section from all customers
+              const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
+                console.log(`Processing customer ${customerId}`);
+                const customer = customers.find(c => c.id === customerId);
+                if (!customer) {
+                  console.log('Customer not found');
+                  return [];
+                }
 
-                  const section = plan.sections.find((s: PlanSection) => s.title === sectionTitle);
-                  if (!section) return [];
+                const section = plan.sections.find((s: PlanSection) => s.title === sectionTitle);
+                if (!section) {
+                  console.log(`Section ${sectionTitle} not found`);
+                  return [];
+                }
 
-                  return section.tasks
-                    .filter(filterTasks)
-                    .map(task => ({ customer, task }));
-                });
+                console.log(`Found ${section.tasks.length} tasks in section ${sectionTitle}`);
+                return section.tasks
+                  .filter((task: PlanTask) => {
+                    const baseFilters = 
+                      (!showActiveOnly || task.isActive) &&
+                      (progressFilter === 'All' || task.progress === progressFilter) &&
+                      task.task.toLowerCase().includes(search.toLowerCase());
 
-              // Only render section if it has tasks after filtering
-              if (allTasks.length === 0) return null;
+                    switch (dueDateFilter) {
+                      case 'overdue':
+                        return baseFilters && isOverdue(task.dueDate);
+                      case 'thisWeek':
+                        return baseFilters && isDueThisWeek(task.dueDate);
+                      default:
+                        return baseFilters;
+                    }
+                  })
+                  .map(task => ({ customer, task }));
+              });
+
+              console.log(`Total tasks after filtering: ${allTasks.length}`);
+
+              // Only show section if it has tasks after filtering
+              if (allTasks.length === 0) {
+                console.log(`No tasks in section ${sectionTitle} after filtering`);
+                return null;
+              }
 
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {allTasks
-                    .sort((a, b) => a.task.id.localeCompare(b.task.id))
-                    .map(({ customer, task }) => (
-                      <TaskCard
-                        key={`${customer.id}-${task.id}`}
-                        task={task}
-                        editMode={false}
-                        onEdit={handleCellEdit}
-                        customer={customer}
-                      />
-                    ))}
+                  {allTasks.map(({ customer, task }) => (
+                    <TaskCard
+                      key={`${customer.id}-${task.id}`}
+                      task={task}
+                      editMode={false}
+                      onEdit={handleCellEdit}
+                      customer={customer}
+                    />
+                  ))}
                 </Card>
               );
             } else {
-              // For single customer view
+              console.log('🔵 ENTERING SINGLE CUSTOMER VIEW');
               const customer = selectedCustomer as ICustomer | null;
               if (!customer) return null;
               
@@ -962,7 +1036,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
               const filteredTasks = section.tasks.filter(filterTasks);
 
-              // Only render section if it has tasks after filtering
               if (filteredTasks.length === 0) return null;
 
               return (
@@ -982,7 +1055,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             }
           })
         ) : (
-          // Show individual customer tasks
           sortedSections.map((section) => (
             <Card key={section.title} style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
