@@ -789,16 +789,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
             <Select
-              style={{ width: '100%' }}
+              style={{ width: '300px' }}
               placeholder="Select a customer"
-              value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
+              value={selectedCustomer ? selectedCustomer.id : plans.type === 'all' ? 'all-paid' : undefined}
               onChange={async (value) => {
                 try {
                   setIsLoading(true);
                   
                   if (value === 'all-paid') {
-                    setSelectedCustomer(null);  // Clear selected customer
-                    
+                    // Handle all customers view
                     const newPlans: { [customerId: string]: Plan } = {};
                     const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
                     
@@ -818,24 +817,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       selectedCustomer: null,
                       data: newPlans
                     });
+                    setSelectedCustomer(null);
                   } else {
+                    // Handle individual customer selection
                     const customer = customers
                       .filter(c => c.customer_type === 'Paid')
                       .find((c) => c.id === value);
                     
-                    if (customer) {
-                      const planRef = doc(db, 'plans', customer.id);
-                      const planDoc = await getDoc(planRef);
-                      
-                      if (planDoc.exists()) {
-                        setSelectedCustomer(customer);  // Set selected customer
-                        setPlans({
-                          type: 'single',
-                          selectedCustomer: customer,
-                          data: { [customer.id]: planDoc.data() as Plan }
-                        });
-                      }
-                    }
+                    setSelectedCustomer(customer || null);
+                    setPlans({
+                      type: 'single',
+                      selectedCustomer: customer || null,
+                      data: {}
+                    });
                   }
                 } catch (error) {
                   console.error('Error switching views:', error);
@@ -864,7 +858,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   <Select.Option 
                     key={customer.id} 
                     value={customer.id}
-                    label={`${customer.store_owner_name} - ${customer.store_name}`}
+                    label={`${customer.store_name} - ${customer.store_owner_name}`}
                   >
                     <Space>
                       {customer.logo && (
@@ -874,7 +868,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                           style={{ width: 20, height: 20, borderRadius: '50%' }} 
                         />
                       )}
-                      {customer.store_owner_name} - {customer.store_name}
+                      {customer.store_name} - {customer.store_owner_name}
                     </Space>
                   </Select.Option>
                 ))}
