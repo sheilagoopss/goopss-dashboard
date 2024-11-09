@@ -17,7 +17,8 @@ import {
   DatePicker,
   Collapse,
   Modal,
-  message
+  message,
+  Spin
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -32,7 +33,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 
@@ -55,7 +56,7 @@ interface TaskCardProps {
   task: PlanTask;
   editMode: boolean;
   onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number | null) => void;
-  customer?: ICustomer;
+  customer: ICustomer | null | undefined;
 }
 
 const dropdownStyle = {
@@ -346,14 +347,34 @@ interface PlanProps {
   setSelectedCustomer: (customer: ICustomer | null) => void;
 }
 
+const LoadingSpinner = () => (
+  <div style={{ 
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    background: 'rgba(255, 255, 255, 0.8)',
+    zIndex: 1000
+  }}>
+    <Space direction="vertical" size="large" align="center">
+      <Spin size="large" />
+      <Text>Loading plans...</Text>
+    </Space>
+  </div>
+);
+
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('To Do');
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [newTaskModal, setNewTaskModal] = useState({
@@ -361,6 +382,29 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     sectionTitle: '',
     taskName: ''
   });
+  const [defaultSections, setDefaultSections] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [plans, setPlans] = useState<{
+    type: 'single' | 'all';
+    selectedCustomer: ICustomer | null;
+    data: { [customerId: string]: Plan };
+  }>({
+    type: 'single',
+    selectedCustomer: null,
+    data: {}
+  });
+
+  // Add cache state
+  const [cachedPlans, setCachedPlans] = useState<{
+    single: { customer: ICustomer | null; plan: Plan | null };
+    all: { [customerId: string]: Plan };
+  }>({
+    single: { customer: null, plan: null },
+    all: {}
+  });
+
+  // Add loading state for sections
+  const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -416,6 +460,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       isMounted = false;
     };
   }, [isAdmin, selectedCustomer?.id, user?.id]);
+
+  useEffect(() => {
+    const fetchDefaultSections = async () => {
+      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const rulesDoc = await getDoc(rulesRef);
+      if (rulesDoc.exists()) {
+        const rules = rulesDoc.data();
+        setDefaultSections(rules.sections);
+      }
+    };
+
+    fetchDefaultSections();
+  }, []);
 
   const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number | null) => {
     if (!selectedCustomer) return;
@@ -538,14 +595,30 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
+  const fetchAllPlans = async () => {
+    const plans: { [customerId: string]: Plan } = {};
+    const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
+    
+    // Fetch all plans in parallel
+    await Promise.all(
+      paidCustomers.map(async (customer) => {
+        const planRef = doc(db, 'plans', customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          plans[customer.id] = planDoc.data() as Plan;
+        }
+      })
+    );
+    
+    return plans;
+  };
+
   if (!isAdmin) {
     return (
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 16px' }}>
-          <Title level={2} style={{ margin: '16px 0' }}>My Plan</Title>
-        </Header>
-        <Content style={{ padding: '0 16px' }}>
-          <Card style={{ marginTop: 16 }}>
+        <Content style={{ padding: '16px' }}>
+          <Card>
             <Space wrap>
               <Space>
                 <Switch
@@ -600,6 +673,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   task={task}
                   editMode={false}
                   onEdit={handleCellEdit}
+                  customer={null}
                 />
               ))}
             </Card>
@@ -611,22 +685,62 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   return (
     <Layout>
-      <Header style={{ background: '#fff', padding: '0 16px' }}>
-        <Title level={2} style={{ margin: '16px 0' }}>Etsy Store Management Dashboard</Title>
-      </Header>
-      <Content style={{ padding: '0 16px' }}>
-        <Card style={{ marginTop: 16 }}>
+      <Content style={{ padding: '16px' }}>
+        <Card>
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
             <Select
               style={{ width: '100%' }}
               placeholder="Select a customer"
-              value={selectedCustomer?.id}
-              onChange={(value) => {
-                const customer = customers
-                  .filter(c => c.customer_type === 'Paid')
-                  .find((c) => c.id === value);
-                setSelectedCustomer(customer || null);
+              value={plans.type === 'all' ? 'all-paid' : selectedCustomer?.id}
+              onChange={async (value) => {
+                try {
+                  setIsLoading(true);
+                  
+                  if (value === 'all-paid') {
+                    setIsLoading(true);
+                    const plans = await fetchAllPlans();
+                    setPlans({
+                      type: 'all',
+                      selectedCustomer: null,
+                      data: plans
+                    });
+                  } else {
+                    // Handle single customer selection
+                    const customer = customers
+                      .filter(c => c.customer_type === 'Paid')
+                      .find((c) => c.id === value);
+                    
+                    if (customer) {
+                      // Cache current view before switching
+                      if (plans.type === 'all') {
+                        setCachedPlans(prev => ({ ...prev, all: plans.data }));
+                      }
+                      
+                      const planRef = doc(db, 'plans', customer.id);
+                      const planDoc = await getDoc(planRef);
+                      
+                      if (planDoc.exists()) {
+                        const planData = planDoc.data() as Plan;
+                        setCachedPlans(prev => ({
+                          ...prev,
+                          single: { customer, plan: planData }
+                        }));
+                        setSelectedCustomer(customer);
+                        setPlans({
+                          type: 'single',
+                          selectedCustomer: customer,
+                          data: { [customer.id]: planData }
+                        });
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error switching views:', error);
+                  message.error('Failed to switch views');
+                } finally {
+                  setIsLoading(false);
+                }
               }}
               size="large"
               listHeight={400}
@@ -636,6 +750,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
               }
             >
+              <Select.Option 
+                key="all-paid"
+                value="all-paid"
+                label="All Paid Customers"
+              >
+                <Space>
+                  <UserOutlined />
+                  All Paid Customers
+                </Space>
+              </Select.Option>
+              <Select.Option key="divider" disabled>
+                ──────────────
+              </Select.Option>
               {customers
                 .filter(customer => customer.customer_type === 'Paid')
                 .map((customer) => (
@@ -665,79 +792,141 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           </Space>
         </Card>
 
-        {!selectedCustomer ? (
-          <Card style={{ marginTop: 16, textAlign: 'center' }}>
-            <Title level={3}>Welcome to the Etsy Store Management Dashboard</Title>
-            <Text>Please select a customer to view their tasks.</Text>
-          </Card>
-        ) : (
-          <>
-            <Card style={{ marginTop: 16 }}>
-              <Space wrap>
-                <Space>
-                  <Switch
-                    checked={showActiveOnly}
-                    onChange={setShowActiveOnly}
-                  />
-                  <Text>Show Active Only</Text>
-                </Space>
-                <Select
-                  style={{ width: 150 }}
-                  value={progressFilter}
-                  onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
-                >
-                  <Option value="All">All Progress</Option>
-                  <Option value="To Do">To Do</Option>
-                  <Option value="Doing">Doing</Option>
-                  <Option value="Done">Done</Option>
-                </Select>
-                <Search
-                  placeholder="Search tasks..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ width: 200 }}
-                />
-                <Select
-                  style={{ width: 150 }}
-                  value={sortBy}
-                  onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
-                >
-                  <Option value="none">
-                    <Space>
-                      <SortAscendingOutlined />
-                      <span>No sorting</span>
-                    </Space>
-                  </Option>
-                  <Option value="dueDate">
-                    <Space>
-                      <SortAscendingOutlined />
-                      <span>Due Date</span>
-                    </Space>
-                  </Option>
-                </Select>
-              </Space>
-            </Card>
-
-            <Modal
-              title="Add New Task"
-              open={newTaskModal.visible}
-              onOk={handleCreateTask}
-              onCancel={() => setNewTaskModal({ visible: false, sectionTitle: '', taskName: '' })}
-              okButtonProps={{ disabled: !newTaskModal.taskName.trim() }}
-            >
-              <Input
-                placeholder="Enter task name"
-                value={newTaskModal.taskName}
-                onChange={(e) => setNewTaskModal(prev => ({ ...prev, taskName: e.target.value }))}
-                onPressEnter={handleCreateTask}
-                autoFocus
+        {/* Always show filters */}
+        <Card style={{ marginTop: 16 }}>
+          <Space wrap>
+            <Space>
+              <Switch
+                checked={showActiveOnly}
+                onChange={setShowActiveOnly}
               />
-            </Modal>
+              <Text>Show Active Only</Text>
+            </Space>
+            <Select
+              style={{ width: 150 }}
+              value={progressFilter}
+              onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
+            >
+              <Option value="All">All Progress</Option>
+              <Option value="To Do">To Do</Option>
+              <Option value="Doing">Doing</Option>
+              <Option value="Done">Done</Option>
+            </Select>
+            <Search
+              placeholder="Search tasks..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: 200 }}
+            />
+            <Select
+              style={{ width: 150 }}
+              value={sortBy}
+              onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
+            >
+              <Option value="none">
+                <Space>
+                  <SortAscendingOutlined />
+                  <span>No sorting</span>
+                </Space>
+              </Option>
+              <Option value="dueDate">
+                <Space>
+                  <SortAscendingOutlined />
+                  <span>Due Date</span>
+                </Space>
+              </Option>
+            </Select>
+          </Space>
+        </Card>
 
-            {sortedSections.map((section) => (
-              <Card key={section.title} style={{ marginTop: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <Title level={4}>{section.title}</Title>
+        {isLoading && <LoadingSpinner />}
+
+        {!selectedCustomer && plans.type === 'all' ? (
+          // Show all paid customers' tasks grouped by section
+          defaultSections.map(sectionTitle => {
+            // For "all customers" view
+            if (plans.type === 'all') {
+              const allTasks = Object.entries(plans.data)
+                .flatMap(([customerId, plan]) => {
+                  const customer = customers.find(c => c.id === customerId);
+                  if (!customer) return [];
+
+                  const section = plan.sections.find((s: PlanSection) => s.title === sectionTitle);
+                  if (!section) return [];
+
+                  return section.tasks
+                    .filter((task: PlanTask) => 
+                      (!showActiveOnly || task.isActive) &&
+                      (progressFilter === 'All' || task.progress === progressFilter) &&
+                      task.task.toLowerCase().includes(search.toLowerCase())
+                    )
+                    .map(task => ({ customer, task }));
+                });
+
+              // Only render section if it has tasks after filtering
+              if (allTasks.length === 0) return null;
+
+              return (
+                <Card key={sectionTitle} style={{ marginTop: 16 }}>
+                  <Title level={4}>{sectionTitle}</Title>
+                  {allTasks
+                    .sort((a, b) => a.task.id.localeCompare(b.task.id))
+                    .map(({ customer, task }) => (
+                      <TaskCard
+                        key={`${customer.id}-${task.id}`}
+                        task={task}
+                        editMode={false}
+                        onEdit={handleCellEdit}
+                        customer={customer}
+                      />
+                    ))}
+                </Card>
+              );
+            } else {
+              // For single customer view
+              const customer = selectedCustomer as ICustomer | null;
+              if (!customer) return null;
+              
+              const customerId = customer.id;
+              if (!plans.data[customerId]) return null;
+
+              const section = plans.data[customerId].sections
+                .find((s: PlanSection) => s.title === sectionTitle);
+              
+              if (!section) return null;
+
+              const filteredTasks = section.tasks.filter((task: PlanTask) =>
+                (!showActiveOnly || task.isActive) &&
+                (progressFilter === 'All' || task.progress === progressFilter) &&
+                task.task.toLowerCase().includes(search.toLowerCase())
+              );
+
+              // Only render section if it has tasks after filtering
+              if (filteredTasks.length === 0) return null;
+
+              return (
+                <Card key={sectionTitle} style={{ marginTop: 16 }}>
+                  <Title level={4}>{sectionTitle}</Title>
+                  {filteredTasks.map((task: PlanTask) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      editMode={editMode}
+                      onEdit={handleCellEdit}
+                      customer={customer}
+                    />
+                  ))}
+                </Card>
+              );
+            }
+          })
+        ) : (
+          // Show individual customer tasks
+          sortedSections.map((section) => (
+            <Card key={section.title} style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={4}>{section.title}</Title>
+                {plans.type !== 'all' && (
                   <Button
                     type="primary"
                     icon={<EditOutlined />}
@@ -745,19 +934,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   >
                     Add Task
                   </Button>
-                </div>
-                {section.tasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    editMode={editMode}
-                    onEdit={handleCellEdit}
-                    customer={selectedCustomer}
-                  />
-                ))}
-              </Card>
-            ))}
-          </>
+                )}
+              </div>
+              {section.tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  editMode={editMode}
+                  onEdit={handleCellEdit}
+                  customer={selectedCustomer}
+                />
+              ))}
+            </Card>
+          ))
         )}
       </Content>
     </Layout>
