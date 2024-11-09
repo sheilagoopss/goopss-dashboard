@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { PlanTaskRule, PlanTaskSection } from '../types/PlanTasks';
+import { PlanTaskRule, PlanTaskRules } from '../types/PlanTasks';
 
 export const usePlanTaskRules = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -9,12 +9,9 @@ export const usePlanTaskRules = () => {
   const fetchTaskRules = useCallback(async () => {
     setIsLoading(true);
     try {
-      const rulesRef = collection(db, 'plan_task_rules');
-      const rulesSnapshot = await getDocs(rulesRef);
-      const rules = rulesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PlanTaskRule[];
+      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const rulesDoc = await getDoc(rulesRef);
+      const rules = rulesDoc.exists() ? (rulesDoc.data() as PlanTaskRules).tasks : [];
 
       return rules;
     } catch (error) {
@@ -28,12 +25,9 @@ export const usePlanTaskRules = () => {
   const fetchSections = useCallback(async () => {
     setIsLoading(true);
     try {
-      const sectionsRef = collection(db, 'plan_task_sections');
-      const sectionsSnapshot = await getDocs(sectionsRef);
-      const sections = sectionsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PlanTaskSection[];
+      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const rulesDoc = await getDoc(rulesRef);
+      const sections = rulesDoc.exists() ? (rulesDoc.data() as PlanTaskRules).sections : [];
 
       return sections;
     } catch (error) {
