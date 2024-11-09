@@ -34,7 +34,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
-import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 
@@ -430,50 +430,48 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     console.log('Progress Filter:', progressFilter);
   }, [dueDateFilter, showActiveOnly, progressFilter]);
 
+  // Move loadPlan outside useEffect and make it reusable
+  const loadPlan = async () => {
+    try {
+      const customerId = isAdmin ? selectedCustomer?.id : user?.id;
+      
+      if (!customerId || !selectedCustomer) {
+        console.log('No customer selected, skipping plan load');
+        return;
+      }
+      
+      console.log('Loading plan for customer:', customerId);
+      
+      // Get the plan
+      const planRef = doc(db, 'plans', customerId);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        console.log('No plan exists, creating new one');
+        const plan = await fetchPlan(customerId);
+        setSections(plan.sections);
+        return;
+      }
+
+      // Plan exists, get its data
+      const plan = planDoc.data() as Plan;
+      
+      // Check monthly progress
+      await checkMonthlyProgress(customerId);
+      
+      // Get updated plan after monthly check
+      const updatedPlanDoc = await getDoc(planRef);
+      const updatedPlan = updatedPlanDoc.data() as Plan;
+      
+      setSections(updatedPlan.sections);
+    } catch (error) {
+      console.error('Error loading plan:', error);
+    }
+  };
+
+  // Update useEffect to use the new loadPlan function
   useEffect(() => {
     let isMounted = true;
-
-    const loadPlan = async () => {
-      try {
-        const customerId = isAdmin ? selectedCustomer?.id : user?.id;
-        
-        if (!customerId || !selectedCustomer) {
-          console.log('No customer selected, skipping plan load');
-          return;
-        }
-        
-        console.log('Loading plan for customer:', customerId);
-        
-        // Get the plan
-        const planRef = doc(db, 'plans', customerId);
-        const planDoc = await getDoc(planRef);
-        
-        if (!planDoc.exists()) {
-          console.log('No plan exists, creating new one');
-          const plan = await fetchPlan(customerId);
-          if (isMounted) {
-            setSections(plan.sections);
-          }
-          return;
-        }
-
-        // Plan exists, get its data
-        const plan = planDoc.data() as Plan;
-        
-        // Check monthly progress
-        await checkMonthlyProgress(customerId);
-        
-        // Get updated plan after monthly check
-        const updatedPlanDoc = await getDoc(planRef);
-        const updatedPlan = updatedPlanDoc.data() as Plan;
-        
-        if (isMounted) {
-          setSections(updatedPlan.sections);
-        }
-      } catch (error) {
-        console.error('Error loading plan:', error);
-      }
-    };
 
     const customerId = isAdmin ? selectedCustomer?.id : user?.id;
     if (customerId && selectedCustomer) {
@@ -502,57 +500,45 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     try {
       if (!selectedCustomer) return;
 
-      const updatedSections = sections.map(section => ({
+      // Get the plan from Firestore
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        console.error('Plan not found in Firestore');
+        return;
+      }
+
+      const planData = planDoc.data() as Plan;
+
+      // Update the sections array
+      const updatedSections = planData.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
-          if (task.id === taskId) {
-            const updatedTask = { ...task, [field]: value };
-            
-            // Handle task completion status
-            if (field === 'progress') {
-              const tasklistRef = collection(db, 'tasklists');
-              
-              if (value === 'Done') {
-                // Add to tasklists when marked as Done
-                addDoc(tasklistRef, {
-                  taskId: task.id,
-                  taskName: task.task,
-                  customerId: selectedCustomer.id,
-                  customerName: selectedCustomer.store_name,
-                  completedAt: task.completedDate || new Date().toISOString(),  // Use completedAt instead of completedDate
-                  createdAt: new Date().toISOString(),
-                  section: section.title,
-                  status: 'Done',  // Add status field
-                  type: task.frequency || 'One Time',  // Add type field
-                  notes: task.notes || ''  // Add empty string as default for notes
-                });
-              } else if (task.progress === 'Done') {
-                // Remove from tasklists when unmarked from Done
-                const q = query(
-                  tasklistRef, 
-                  where('customerId', '==', selectedCustomer.id),
-                  where('taskId', '==', task.id)
-                );
-                
-                getDocs(q).then((querySnapshot) => {
-                  querySnapshot.forEach((doc) => {
-                    deleteDoc(doc.ref);
-                  });
-                });
-              }
-            }
-            
-            return updatedTask;
+          if (task.id === taskId) {  // Match by ID field
+            return {
+              ...task,
+              [field]: value
+            };
           }
           return task;
         })
       }));
 
-      await updatePlan(selectedCustomer.id, updatedSections);
+      // Update the entire sections array in Firestore
+      await updateDoc(planRef, {
+        sections: updatedSections
+      });
+
+      // Update local state
       setSections(updatedSections);
+
+      console.log('Task updated successfully');
+
     } catch (error) {
       console.error('Error updating task:', error);
       message.error('Failed to update task');
+      loadPlan();
     }
   };
 
