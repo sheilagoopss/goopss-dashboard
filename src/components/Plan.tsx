@@ -34,6 +34,7 @@ import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import type { Plan } from '../types/Plan';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -53,7 +54,7 @@ const pastelColors = {
 interface TaskCardProps {
   task: PlanTask;
   editMode: boolean;
-  onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number) => void;
+  onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number | null) => void;
   customer?: ICustomer;
 }
 
@@ -148,6 +149,12 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
     }));
   };
 
+  const calculateTotalProgress = (task: PlanTask) => {
+    const historyTotal = (task.monthlyHistory || []).reduce((sum, month) => sum + month.current, 0);
+    const currentTotal = task.current || 0;
+    return historyTotal + currentTotal;
+  };
+
   return (
     <Collapse 
       style={{ marginBottom: '12px' }}
@@ -178,11 +185,30 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               )}
             </Space>
             <Space align="center" size="large">
-              <Space direction="vertical" size={2}>
-                <Space>
-                  <CalendarOutlined /> 
-                  <Text type="secondary">Due: {task.dueDate}</Text>
+              {task.goal !== undefined && task.frequency === 'Monthly' && (
+                <Space direction="vertical" size={2} align="center">
+                  <Progress 
+                    type="circle" 
+                    percent={Math.round((task.current || 0) / task.goal * 100)} 
+                    width={40}
+                    format={(percent) => `${task.current || 0}/${task.goal}`}
+                  />
+                  <Text type="secondary" style={{ fontSize: '12px' }}>This Month</Text>
+                  
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Total to Date: {calculateTotalProgress(task)}
+                  </Text>
                 </Space>
+              )}
+              <Space direction="vertical" size={2}>
+                {task.dueDate ? (
+                  <Space>
+                    <CalendarOutlined /> 
+                    <Text type="secondary">Due: {task.dueDate}</Text>
+                  </Space>
+                ) : (
+                  <Text type="secondary">No due date</Text>
+                )}
                 {task.completedDate && (
                   <Space>
                     <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
@@ -319,10 +345,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
 interface PlanProps {
   customers: ICustomer[];
   selectedCustomer: ICustomer | null;
-  setSelectedCustomer: React.Dispatch<React.SetStateAction<ICustomer | null>>;
+  setSelectedCustomer: (customer: ICustomer | null) => void;
 }
 
-const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
+const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
@@ -330,7 +356,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
-  const { fetchPlan, updatePlan, updateTask } = usePlan();
+  const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [newTaskModal, setNewTaskModal] = useState({
     visible: false,
@@ -339,22 +365,61 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadPlan = async () => {
       try {
         const customerId = isAdmin ? selectedCustomer?.id : user?.id;
-        if (!customerId) return;
         
-        const plan = await fetchPlan(customerId);
-        setSections(plan.sections);
+        if (!customerId || !selectedCustomer) {
+          console.log('No customer selected, skipping plan load');
+          return;
+        }
+        
+        console.log('Loading plan for customer:', customerId);
+        
+        // Get the plan
+        const planRef = doc(db, 'plans', customerId);
+        const planDoc = await getDoc(planRef);
+        
+        if (!planDoc.exists()) {
+          console.log('No plan exists, creating new one');
+          const plan = await fetchPlan(customerId);
+          if (isMounted) {
+            setSections(plan.sections);
+          }
+          return;
+        }
+
+        // Plan exists, get its data
+        const plan = planDoc.data() as Plan;
+        
+        // Check monthly progress
+        await checkMonthlyProgress(customerId);
+        
+        // Get updated plan after monthly check
+        const updatedPlanDoc = await getDoc(planRef);
+        const updatedPlan = updatedPlanDoc.data() as Plan;
+        
+        if (isMounted) {
+          setSections(updatedPlan.sections);
+        }
       } catch (error) {
         console.error('Error loading plan:', error);
       }
     };
 
-    loadPlan();
-  }, [isAdmin, selectedCustomer, user?.id, fetchPlan]);
+    const customerId = isAdmin ? selectedCustomer?.id : user?.id;
+    if (customerId && selectedCustomer) {
+      loadPlan();
+    }
 
-  const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number) => {
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin, selectedCustomer?.id, user?.id]);
+
+  const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number | null) => {
     if (!selectedCustomer) return;
 
     try {
@@ -407,7 +472,12 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
   const sortedSections = filteredSections.map(section => ({
     ...section,
     tasks: sortBy === 'dueDate' 
-      ? [...section.tasks].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      ? [...section.tasks].sort((a, b) => {
+          // Handle null due dates
+          if (!a.dueDate) return 1;  // Move null dates to end
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        })
       : section.tasks
   }));
 
@@ -430,7 +500,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
         isActive: true,
         notes: '',
         frequency: 'One Time',
-        dueDate: dayjs().format('YYYY-MM-DD'),
+        dueDate: null,
         isEditing: false,
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || '',
@@ -657,15 +727,13 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
               <Card key={section.title} style={{ marginTop: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <Title level={4}>{section.title}</Title>
-                  {isAdmin && (
-                    <Button
-                      type="primary"
-                      icon={<EditOutlined />}
-                      onClick={() => handleAddTask(section.title)}
-                    >
-                      Add Task
-                    </Button>
-                  )}
+                  <Button
+                    type="primary"
+                    icon={<EditOutlined />}
+                    onClick={() => handleAddTask(section.title)}
+                  >
+                    Add Task
+                  </Button>
                 </div>
                 {section.tasks.map((task) => (
                   <TaskCard
@@ -685,4 +753,4 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
   );
 };
 
-export default Plan;
+export default PlanComponent;

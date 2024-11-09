@@ -5,6 +5,8 @@ import { Plan, PlanSection, PlanTask } from '../types/Plan';
 import { PlanTaskRules } from '../types/PlanTasks';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
+import { ICustomer } from '../types/Customer';
+import { PlanTaskRule } from '../types/PlanTasks';
 
 export const usePlan = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -91,9 +93,14 @@ export const usePlan = () => {
       const planRef = doc(db, 'plans', customerId);
       const planDoc = await getDoc(planRef);
 
+      console.log('Plan exists:', planDoc.exists());
+      console.log('Plan data:', planDoc.data());
+
       const customerRef = doc(db, 'customers', customerId);
       const customerDoc = await getDoc(customerRef);
-      const dateJoined = customerDoc.exists() ? customerDoc.data().date_joined : new Date().toISOString();
+      const customerData = customerDoc.exists() ? customerDoc.data() as ICustomer : {
+        date_joined: new Date().toISOString()
+      } as ICustomer;
 
       if (!planDoc.exists()) {
         const rulesRef = doc(db, 'planTaskRules', 'default');
@@ -115,9 +122,7 @@ export const usePlan = () => {
               isActive: rule.isActive,
               notes: '',
               frequency: rule.frequency,
-              dueDate: rule.frequency === 'Monthly' && rule.monthlyDueDate ? 
-                dayjs().date(rule.monthlyDueDate || 1).format('YYYY-MM-DD') :
-                dayjs(dateJoined).add(rule.daysAfterJoin || 0, 'day').format('YYYY-MM-DD'),
+              dueDate: calculateDueDate(customerData, rule),
               isEditing: false,
               current: rule.defaultCurrent || 0,
               goal: rule.defaultGoal || 0,
@@ -209,10 +214,85 @@ export const usePlan = () => {
     }
   }, [user]);
 
+  const checkMonthlyProgress = useCallback(async (customerId: string) => {
+    const currentMonth = dayjs().format('YYYY-MM');
+    
+    const planRef = doc(db, 'plans', customerId);
+    const planDoc = await getDoc(planRef);
+    
+    if (!planDoc.exists()) {
+      return;
+    }
+
+    const plan = planDoc.data() as Plan;
+    let needsUpdate = false;
+
+    const updatedSections = plan.sections.map(section => ({
+      ...section,
+      tasks: section.tasks.map(task => {
+        if (task.frequency === 'Monthly') {
+          const lastUpdateMonth = dayjs(task.updatedAt).format('YYYY-MM');
+          
+          if (lastUpdateMonth !== currentMonth) {
+            needsUpdate = true;
+            const monthlyHistory = task.monthlyHistory || [];
+            monthlyHistory.push({
+              month: lastUpdateMonth,
+              current: task.current || 0,
+              goal: task.goal || 0,
+              completedAt: task.completedDate
+            });
+
+            return {
+              ...task,
+              current: 0,
+              progress: 'To Do',
+              monthlyHistory,
+              updatedAt: task.updatedAt,
+              updatedBy: task.updatedBy
+            };
+          }
+        }
+        return task;
+      })
+    }));
+
+    if (needsUpdate) {
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }, []);
+
   return {
     isLoading,
     fetchPlan,
     updatePlan,
-    updateTask
+    updateTask,
+    checkMonthlyProgress
   };
+};
+
+const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    // For monthly tasks, use monthlyDueDate
+    const today = dayjs();
+    let nextDueDate = today.date(rule.monthlyDueDate);
+    
+    // If this month's due date has passed, move to next month
+    if (nextDueDate.isBefore(today)) {
+      nextDueDate = nextDueDate.add(1, 'month');
+    }
+    
+    return nextDueDate.format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
+    // As Needed tasks or tasks with daysAfterJoin = 0: No due date
+    return null;
+  } else {
+    // One Time tasks: Based on join date
+    return dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
+  }
 };

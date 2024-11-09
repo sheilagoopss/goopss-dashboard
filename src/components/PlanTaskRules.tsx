@@ -17,6 +17,21 @@ const { Header, Content } = Layout;
 const { Title } = Typography;
 const { Option } = Select;
 
+const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    // Monthly tasks: Use monthlyDueDate
+    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
+    // As Needed tasks or tasks with daysAfterJoin = 0: No due date
+    return null;
+  } else {
+    // One Time tasks: Based on join date
+    return dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
+  }
+};
+
 const PlanTaskRulesComponent: React.FC = () => {
   const [rules, setRules] = useState<PlanTaskRule[]>([]);
   const [sections, setSections] = useState<string[]>([]);
@@ -160,8 +175,8 @@ const PlanTaskRulesComponent: React.FC = () => {
           id: editingRule?.id || `${Date.now()}`,
           task: values.task,
           section: values.section,
-          daysAfterJoin: values.frequency === 'Monthly' ? null : values.daysAfterJoin,  // Only for non-monthly tasks
-          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,  // Only for monthly tasks
+          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,  // Ensure 0 becomes null
+          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           frequency: values.frequency,
           isActive: true,
           requiresGoal: values.requiresGoal || false,
@@ -207,29 +222,6 @@ const PlanTaskRulesComponent: React.FC = () => {
         ...doc.data()
       } as ICustomer));
 
-      // Calculate due date based on frequency
-      const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
-        if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
-          // For monthly tasks, use the selected monthly due date
-          const today = dayjs();
-          let nextDueDate = today.date(rule.monthlyDueDate);
-          
-          // If this month's due date has passed, move to next month
-          if (nextDueDate.isBefore(today)) {
-            nextDueDate = nextDueDate.add(1, 'month');
-          }
-          
-          return nextDueDate.format('YYYY-MM-DD');
-        } else if (rule.frequency === 'One Time' && rule.daysAfterJoin) {
-          // For one-time tasks, calculate from join date
-          return dayjs(customer.date_joined)
-            .add(rule.daysAfterJoin, 'day')
-            .format('YYYY-MM-DD');
-        }
-        // For As Needed tasks or if no valid date is set
-        return dayjs().format('YYYY-MM-DD');
-      };
-
       // Show confirmation modal with changes
       Modal.confirm({
         title: 'Apply Changes to All Customers',
@@ -247,7 +239,6 @@ const PlanTaskRulesComponent: React.FC = () => {
               {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
               {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
             </ul>
-            <p>Note: This will also update the task name if it has changed.</p>
             <p>This will update all customer plans while preserving their:</p>
             <ul>
               <li>Progress (To Do/Doing/Done)</li>
@@ -260,76 +251,49 @@ const PlanTaskRulesComponent: React.FC = () => {
         okText: 'Apply Changes',
         cancelText: 'Cancel',
         onOk: async () => {
+          // Update each customer's plan
           for (const customer of customers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
             
-            if (planDoc.exists()) {
-              const existingPlan = planDoc.data() as Plan;
-              
-              // Check if section exists, if not, create it
-              let newSections = existingPlan.sections;
-              if (!existingPlan.sections.find(s => s.title === rule.section)) {
-                newSections = [...existingPlan.sections, {
-                  title: rule.section,
-                  tasks: []
-                }];
-              }
+            // Skip if customer doesn't have a plan yet
+            if (!planDoc.exists()) continue;
 
-              // Now update or add task to the section
-              newSections = newSections.map((section: PlanSection) => {
-                if (section.title === rule.section) {
-                  const existingTask = section.tasks.find((t: PlanTask) => t.id === rule.id);
-                  
-                  if (existingTask) {
-                    // Update existing task
-                    return {
-                      ...section,
-                      tasks: section.tasks.map((task: PlanTask) => {
-                        if (task.id === rule.id) {
-                          return {
-                            ...task,
-                            task: rule.task,
-                            dueDate: calculateDueDate(customer, rule),
-                            frequency: rule.frequency,
-                            isActive: rule.isActive,
-                            goal: rule.defaultGoal || task.goal,
-                            updatedAt: new Date().toISOString(),
-                            updatedBy: user?.email || ''
-                          };
-                        }
-                        return task;
-                      })
-                    };
-                  } else {
-                    // Add new task to section
-                    return {
-                      ...section,
-                      tasks: [...section.tasks, {
-                        id: rule.id,
-                        task: rule.task,
-                        progress: 'To Do',
-                        isActive: rule.isActive,
-                        notes: '',
-                        frequency: rule.frequency,
-                        dueDate: calculateDueDate(customer, rule),
-                        isEditing: false,
-                        current: rule.defaultCurrent || 0,
-                        goal: rule.defaultGoal || 0,
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: user?.email || ''
-                      }]
-                    };
-                  }
+            const existingPlan = planDoc.data() as Plan;
+            const newSections = existingPlan.sections.map((section: PlanSection) => {
+              if (section.title === rule.section) {
+                const existingTask = section.tasks.find((t: PlanTask) => t.id === rule.id);
+                
+                if (existingTask) {
+                  // Update existing task
+                  return {
+                    ...section,
+                    tasks: section.tasks.map((task: PlanTask) => {
+                      if (task.id === rule.id) {
+                        return {
+                          ...task,
+                          task: rule.task,
+                          dueDate: calculateDueDate(customer, rule),
+                          frequency: rule.frequency,
+                          isActive: rule.isActive,
+                          goal: rule.defaultGoal || task.goal,
+                          updatedAt: new Date().toISOString(),
+                          updatedBy: user?.email || ''
+                        };
+                      }
+                      return task;
+                    })
+                  };
                 }
                 return section;
-              });
+              }
+              return section;
+            });
 
-              await updateDoc(planRef, {
-                sections: newSections,
-                updatedAt: new Date().toISOString()
-              });
-            }
+            await updateDoc(planRef, {
+              sections: newSections,
+              updatedAt: new Date().toISOString()
+            });
           }
 
           message.success(`Changes for "${rule.task}" applied to all customers successfully`);
@@ -407,11 +371,87 @@ const PlanTaskRulesComponent: React.FC = () => {
     }
   };
 
+  const handleResetAllMonthlyTasks = async () => {
+    try {
+      // Get all customers
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(customersRef);
+      const customers = customersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as ICustomer));
+
+      // Show confirmation modal
+      Modal.confirm({
+        title: 'Reset All Monthly Tasks',
+        content: (
+          <div>
+            <p>This will reset all monthly tasks for all customers:</p>
+            <ul>
+              <li>Progress will be reset to 0</li>
+              <li>Status will be set to 'To Do'</li>
+              <li>All other task data will be preserved</li>
+            </ul>
+            <p>Are you sure you want to continue?</p>
+          </div>
+        ),
+        okText: 'Reset All',
+        okButtonProps: { danger: true },
+        cancelText: 'Cancel',
+        onOk: async () => {
+          // Reset monthly tasks for each customer
+          for (const customer of customers) {
+            const planRef = doc(db, 'plans', customer.id);
+            const planDoc = await getDoc(planRef);
+            
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              const updatedSections = plan.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.map(task => {
+                  if (task.frequency === 'Monthly') {
+                    return {
+                      ...task,
+                      current: 0,
+                      progress: 'To Do',
+                      updatedAt: new Date().toISOString(),
+                      updatedBy: user?.email || ''
+                    };
+                  }
+                  return task;
+                })
+              }));
+
+              await updateDoc(planRef, {
+                sections: updatedSections,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+
+          message.success('All monthly tasks have been reset');
+        }
+      });
+    } catch (error) {
+      console.error('Error resetting monthly tasks:', error);
+      message.error('Failed to reset monthly tasks');
+    }
+  };
+
   return (
     <Layout>
       <Header style={{ background: '#fff', padding: '0 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={2}>Plan Task Rules</Title>
+          <Space>
+            <Button 
+              type="primary"
+              danger
+              onClick={handleResetAllMonthlyTasks}
+            >
+              Reset All Monthly Tasks
+            </Button>
+          </Space>
         </div>
       </Header>
       <Content style={{ padding: '16px' }}>
@@ -500,12 +540,12 @@ const PlanTaskRulesComponent: React.FC = () => {
               name="daysAfterJoin"
               label="Days After Join"
               rules={[{ 
-                required: form.getFieldValue('frequency') !== 'Monthly',  // Fixed the comparison
+                required: form.getFieldValue('frequency') !== 'Monthly',  // Fixed comparison
                 message: 'Please enter days after join' 
               }]}
             >
               <InputNumber 
-                min={1} 
+                min={0} 
                 disabled={form.getFieldValue('frequency') === 'Monthly'}
                 placeholder={form.getFieldValue('frequency') === 'Monthly' ? 'Not applicable for monthly tasks' : 'Enter days'}
               />

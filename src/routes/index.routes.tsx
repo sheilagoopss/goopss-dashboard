@@ -6,7 +6,7 @@ import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import UserDesignHub from "../components/UserDesignHub";
-import Plan from "../components/Plan";
+import PlanComponent from '../components/Plan';
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import LoginPage from "../components/auth/login";
@@ -250,7 +250,7 @@ export default function AppRoutes() {
               path="plan"
               element={
                 <div style={{ paddingTop: "16px" }}>
-                  <Plan
+                  <PlanComponent
                     customers={customers}
                     selectedCustomer={selectedCustomer}
                     setSelectedCustomer={setSelectedCustomer}
@@ -356,7 +356,7 @@ export default function AppRoutes() {
               element={
                 userType === "Free" ? 
                 <UpgradeNotice /> : 
-                <Plan 
+                <PlanComponent 
                   customers={[]} 
                   selectedCustomer={null} 
                   setSelectedCustomer={() => {}} 
