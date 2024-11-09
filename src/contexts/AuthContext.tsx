@@ -94,10 +94,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setCustomerData(null);
       } else {
         const created = await FirebaseHelper.create("customers", {
-          email: user.user.email,
+          id: user.user.uid,
+          customer_id: user.user.uid,
+          email: user.user.email || '',
+          contact_email: user.user.email || '',
           date_joined: dayjs().toISOString(),
           customer_type: "Free",
-          store_owner_name: user.user.displayName,
+          store_owner_name: user.user.displayName || '',
+          store_name: '',
           logo: user.user.photoURL,
         } as ICustomer);
         const customer = await FirebaseHelper.findOne<ICustomer>(

@@ -1,11 +1,26 @@
-export interface PlanTask {
-  key: string;
-  section: string;
-  task: string;
-  progress: 'In Progress' | 'Done' | string;
-  isActive: boolean;
+import { ICustomer } from './Customer';
+
+interface MonthlyProgress {
+  month: string;  // Format: 'YYYY-MM'
+  current: number;
+  goal: number;
   completedAt?: string;
-  updatedAt: Date;
+}
+
+export interface PlanTask {
+  id: string;
+  task: string;
+  progress: 'To Do' | 'Doing' | 'Done';
+  isActive: boolean;
+  notes: string;
+  frequency: 'Monthly' | 'One Time' | 'As Needed';
+  dueDate: string | null;
+  isEditing: boolean;
+  current?: number;  // Current month's progress
+  goal?: number;     // Current month's goal
+  monthlyHistory?: MonthlyProgress[];  // Track monthly history
+  completedDate?: string;
+  updatedAt: string;
   updatedBy: string;
 }
 
@@ -15,8 +30,7 @@ export interface PlanSection {
 }
 
 export interface Plan {
-  customer_id: string;
   sections: PlanSection[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -138,11 +138,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         </div>
       )
     }] : []),
-    {
+    ...(!isAdmin ? [{
       key: 'plan',
       icon: <ClipboardList className="h-4 w-4" />,
       label: <Link to="/plan">Plan</Link>
-    },
+    }] : []),
+    ...(isAdmin ? [{
+      key: 'customers',
+      icon: <User className="h-6 w-6" />,
+      label: 'Customers',
+      children: [
+        {
+          key: 'customers-list',
+          label: 'Customers List',
+          onClick: () => navigate('/customers')
+        }
+      ]
+    }] : []),
     {
       key: "design-hub",
       icon: <LayoutGrid className="h-6 w-6" />,
@@ -240,11 +252,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           )
         }
       ]
-    },
-    {
-      key: 'plan',
-      icon: <ClipboardList className="h-4 w-4" />,
-      label: <Link to="/plan">Plan</Link>
     }
   ];
 

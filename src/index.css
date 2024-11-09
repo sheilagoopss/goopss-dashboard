@@ -363,3 +363,91 @@ body {
 .social-insights-menu.ant-menu {
   padding: 0 !important;
 }
+
+/* Menu item hover and selection styles for admin sidebar */
+.admin-sidebar-menu .ant-menu-item:hover,
+.admin-sidebar-menu .ant-menu-item-selected {
+  background-color: #141414 !important;
+  border-radius: 24px !important;
+}
+
+/* Change text and icon color on hover and selection */
+.admin-sidebar-menu .ant-menu-item:hover *,
+.admin-sidebar-menu .ant-menu-item:hover .anticon,
+.admin-sidebar-menu .ant-menu-item:hover a,
+.admin-sidebar-menu .ant-menu-item-selected *,
+.admin-sidebar-menu .ant-menu-item-selected .anticon,
+.admin-sidebar-menu .ant-menu-item-selected a {
+  color: white !important;
+}
+
+/* Adjust spacing and height for admin menu items */
+.admin-sidebar-menu .ant-menu-item {
+  margin: 6px 0 !important;
+  padding: 0 20px 0 24px !important;
+  border-radius: 24px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+}
+
+/* Submenu styles */
+.admin-sidebar-menu .ant-menu-submenu-title {
+  margin: 6px 0 !important;
+  padding: 0 20px 0 24px !important;
+  border-radius: 24px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+}
+
+/* Submenu item styles */
+.admin-sidebar-menu .ant-menu-sub .ant-menu-item {
+  padding-left: 48px !important;
+}
+
+/* Menu container padding */
+.admin-sidebar-menu.ant-menu {
+  padding: 0 12px !important;
+}
+
+/* Menu item hover and selection styles for all submenus */
+.ant-menu-item:hover,
+.ant-menu-item-selected,
+.ant-menu-sub .ant-menu-item:hover,
+.ant-menu-sub .ant-menu-item-selected,
+.ant-menu-item-active,
+.ant-menu-item-selected:active,
+.ant-menu-item.ant-menu-item-selected {
+  background-color: #141414 !important;
+  border-radius: 24px !important;
+}
+
+/* Change text and icon color on hover and selection */
+.ant-menu-item:hover *,
+.ant-menu-item:hover .anticon,
+.ant-menu-item:hover a,
+.ant-menu-item-selected *,
+.ant-menu-item-selected .anticon,
+.ant-menu-item-selected a,
+.ant-menu-sub .ant-menu-item:hover *,
+.ant-menu-sub .ant-menu-item:hover a,
+.ant-menu-sub .ant-menu-item-selected *,
+.ant-menu-sub .ant-menu-item-selected a,
+.ant-menu-item-active *,
+.ant-menu-item-selected:active * {
+  color: white !important;
+}
+
+/* Ensure submenu items have the same styling */
+.ant-menu-sub .ant-menu-item {
+  margin: 6px 0 !important;
+  padding: 0 20px 0 24px !important;
+  border-radius: 24px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+}
+
+/* Ensure consistent padding for all menu items */
+.ant-menu-item,
+.ant-menu-sub .ant-menu-item {
+  padding-left: 24px !important;
+}

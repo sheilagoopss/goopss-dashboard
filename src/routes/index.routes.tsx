@@ -6,7 +6,7 @@ import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import UserDesignHub from "../components/UserDesignHub";
-import Plan from "../components/Plan";
+import PlanComponent from '../components/Plan';
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import LoginPage from "../components/auth/login";
@@ -26,6 +26,8 @@ import { DesignHub } from "components/DesignHub";
 import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
+import PlanTaskRules from "../components/PlanTaskRules";
+import { CustomerPlan } from '../components/CustomerPlan';
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -249,7 +251,7 @@ export default function AppRoutes() {
               path="plan"
               element={
                 <div style={{ paddingTop: "16px" }}>
-                  <Plan
+                  <PlanComponent
                     customers={customers}
                     selectedCustomer={selectedCustomer}
                     setSelectedCustomer={setSelectedCustomer}
@@ -257,6 +259,7 @@ export default function AppRoutes() {
                 </div>
               }
             />
+            <Route path="plan-task-rules" element={<PlanTaskRules />} />
           </>
         ) : (
           <>
@@ -354,11 +357,7 @@ export default function AppRoutes() {
               element={
                 userType === "Free" ? 
                 <UpgradeNotice /> : 
-                <Plan 
-                  customers={[]} 
-                  selectedCustomer={null} 
-                  setSelectedCustomer={() => {}} 
-                />
+                <CustomerPlan />
               }
             />
           </>
