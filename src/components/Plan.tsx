@@ -26,7 +26,8 @@ import {
   EditOutlined, 
   FileTextOutlined,
   SortAscendingOutlined,
-  UserOutlined
+  UserOutlined,
+  WarningOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
@@ -406,6 +407,35 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   // Add loading state for sections
   const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
 
+  // Add new state for due date filter
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('thisWeek');
+
+  // Add helper functions for date checks
+  const isOverdue = (dueDate: string | null) => {
+    if (!dueDate) return false;  // Tasks with no due date can't be overdue
+    const today = dayjs().startOf('day');
+    const dueDay = dayjs(dueDate).startOf('day');
+    return dueDay.isBefore(today);  // Task is overdue if due date is before today
+  };
+
+  const isDueThisWeek = (dueDate: string | null) => {
+    if (!dueDate) return false;  // Tasks with no due date aren't due this week
+    const today = dayjs().startOf('day');
+    const dueDay = dayjs(dueDate).startOf('day');
+    const endOfWeek = today.add(7, 'days').endOf('day');
+    
+    // Task is due this week if:
+    // 1. Due date is today or after today
+    // 2. Due date is before end of week
+    return !dueDay.isBefore(today) && dueDay.isBefore(endOfWeek);
+  };
+
+  useEffect(() => {
+    console.log('Due Date Filter:', dueDateFilter);
+    console.log('Active Only:', showActiveOnly);
+    console.log('Progress Filter:', progressFilter);
+  }, [dueDateFilter, showActiveOnly, progressFilter]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -513,14 +543,34 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
+  const filterTasks = (task: PlanTask) => {
+    console.log(`Task: ${task.task}, Due Date: ${task.dueDate}`);
+    if (task.dueDate) {
+      console.log('Is Overdue:', isOverdue(task.dueDate));
+      console.log('Is Due This Week:', isDueThisWeek(task.dueDate));
+    }
+
+    const baseFilters = 
+      (!showActiveOnly || task.isActive) &&
+      (progressFilter === 'All' || task.progress === progressFilter) &&
+      task.task.toLowerCase().includes(search.toLowerCase());
+
+    if (!baseFilters) return false;
+
+    switch (dueDateFilter) {
+      case 'overdue':
+        return isOverdue(task.dueDate);
+      case 'thisWeek':
+        return isDueThisWeek(task.dueDate);
+      default:
+        return true;
+    }
+  };
+
   const filteredSections = sections
     .map(section => ({
       ...section,
-      tasks: section.tasks.filter(task =>
-        (!showActiveOnly || task.isActive) &&
-        (progressFilter === 'All' || task.progress === progressFilter) &&
-        task.task.toLowerCase().includes(search.toLowerCase())
-      )
+      tasks: section.tasks.filter(filterTasks)
     }))
     .filter(section => section.tasks.length > 0);
 
@@ -812,6 +862,25 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               <Option value="Doing">Doing</Option>
               <Option value="Done">Done</Option>
             </Select>
+            <Select
+              style={{ width: 150 }}
+              value={dueDateFilter}
+              onChange={(value: 'all' | 'overdue' | 'thisWeek') => setDueDateFilter(value)}
+            >
+              <Option value="all">All Due Dates</Option>
+              <Option value="overdue">
+                <Space>
+                  <WarningOutlined style={{ color: '#ff4d4f' }} />
+                  <span>Overdue</span>
+                </Space>
+              </Option>
+              <Option value="thisWeek">
+                <Space>
+                  <CalendarOutlined style={{ color: '#1890ff' }} />
+                  <span>Due This Week</span>
+                </Space>
+              </Option>
+            </Select>
             <Search
               placeholder="Search tasks..."
               value={search}
@@ -855,11 +924,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   if (!section) return [];
 
                   return section.tasks
-                    .filter((task: PlanTask) => 
-                      (!showActiveOnly || task.isActive) &&
-                      (progressFilter === 'All' || task.progress === progressFilter) &&
-                      task.task.toLowerCase().includes(search.toLowerCase())
-                    )
+                    .filter(filterTasks)
                     .map(task => ({ customer, task }));
                 });
 
@@ -895,11 +960,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               
               if (!section) return null;
 
-              const filteredTasks = section.tasks.filter((task: PlanTask) =>
-                (!showActiveOnly || task.isActive) &&
-                (progressFilter === 'All' || task.progress === progressFilter) &&
-                task.task.toLowerCase().includes(search.toLowerCase())
-              );
+              const filteredTasks = section.tasks.filter(filterTasks);
 
               // Only render section if it has tasks after filtering
               if (filteredTasks.length === 0) return null;
