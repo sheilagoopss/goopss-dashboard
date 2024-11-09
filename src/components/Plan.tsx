@@ -32,6 +32,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { db } from '../firebase/config'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -85,29 +87,29 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
   const handleEditClick = async () => {
     if (task.isEditing) {
       try {
-        await onEdit(task.key, 'progress', tempValues.progress || task.progress);
-        await onEdit(task.key, 'dueDate', tempValues.dueDate || task.dueDate);
+        await onEdit(task.id, 'progress', tempValues.progress || task.progress);
+        await onEdit(task.id, 'dueDate', tempValues.dueDate || task.dueDate);
         
         // Handle completedDate separately since it can be undefined
         const completedDate = tempValues.completedDate !== undefined 
           ? tempValues.completedDate 
           : (task.completedDate || '');  // Use empty string as fallback
-        await onEdit(task.key, 'completedDate', completedDate);
+        await onEdit(task.id, 'completedDate', completedDate);
 
-        await onEdit(task.key, 'isActive', tempValues.isActive !== undefined ? tempValues.isActive : task.isActive);
-        await onEdit(task.key, 'frequency', tempValues.frequency || task.frequency);
-        await onEdit(task.key, 'notes', tempValues.notes !== undefined ? tempValues.notes : task.notes);
+        await onEdit(task.id, 'isActive', tempValues.isActive !== undefined ? tempValues.isActive : task.isActive);
+        await onEdit(task.id, 'frequency', tempValues.frequency || task.frequency);
+        await onEdit(task.id, 'notes', tempValues.notes !== undefined ? tempValues.notes : task.notes);
         
         if (tempValues.current !== undefined) {
-          await onEdit(task.key, 'current', tempValues.current);
+          await onEdit(task.id, 'current', tempValues.current);
         }
         if (tempValues.goal !== undefined) {
-          await onEdit(task.key, 'goal', tempValues.goal);
+          await onEdit(task.id, 'goal', tempValues.goal);
         }
 
-        await onEdit(task.key, 'updatedAt', new Date().toISOString());
-        await onEdit(task.key, 'updatedBy', user?.email || '');
-        await onEdit(task.key, 'isEditing', false);
+        await onEdit(task.id, 'updatedAt', new Date().toISOString());
+        await onEdit(task.id, 'updatedBy', user?.email || '');
+        await onEdit(task.id, 'isEditing', false);
 
         setTempValues({});
         message.success('Changes saved successfully');
@@ -127,16 +129,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
         current: task.current,
         goal: task.goal,
       });
-      onEdit(task.key, 'isEditing', true);
+      onEdit(task.id, 'isEditing', true);
     }
   };
 
   const handleCancel = () => {
     if (originalValues.notes !== undefined) {
-      onEdit(task.key, 'notes', originalValues.notes);
+      onEdit(task.id, 'notes', originalValues.notes);
     }
     setTempValues({});
-    onEdit(task.key, 'isEditing', false);
+    onEdit(task.id, 'isEditing', false);
   };
 
   const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
@@ -152,7 +154,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
       expandIcon={() => null}
     >
       <Panel
-        key={task.key}
+        key={task.id}
         header={
           <Space size="middle" style={{ 
             width: '100%', 
@@ -357,7 +359,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
 
     try {
       const sectionTitle = sections.find(section => 
-        section.tasks.some(task => task.key === key)
+        section.tasks.some(task => task.id === key)
       )?.title;
 
       if (!sectionTitle) return;
@@ -372,7 +374,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
         prevSections.map(section => ({
           ...section,
           tasks: section.tasks.map(task =>
-            task.key === key ? { 
+            task.id === key ? { 
               ...task, 
               [field]: value,
               updatedAt: new Date().toISOString(),
@@ -422,7 +424,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
 
     try {
       const newTask: PlanTask = {
-        key: `${Date.now()}`,
+        id: `custom-${Date.now()}`,
         task: newTaskModal.taskName.trim(),
         progress: 'To Do',
         isActive: true,
@@ -437,6 +439,13 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
         completedDate: ''
       };
 
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        throw new Error('Plan not found');
+      }
+
       const updatedSections = sections.map(section => {
         if (section.title === newTaskModal.sectionTitle) {
           return {
@@ -447,7 +456,11 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
         return section;
       });
 
-      await updatePlan(selectedCustomer.id, updatedSections);
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
       setSections(updatedSections);
       setNewTaskModal({ visible: false, sectionTitle: '', taskName: '' });
       message.success('Task added successfully');
@@ -515,7 +528,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
               <Title level={4}>{section.title}</Title>
               {section.tasks.map((task) => (
                 <TaskCard
-                  key={task.key}
+                  key={task.id}
                   task={task}
                   editMode={false}
                   onEdit={handleCellEdit}
@@ -656,7 +669,7 @@ const Plan: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCus
                 </div>
                 {section.tasks.map((task) => (
                   <TaskCard
-                    key={task.key}
+                    key={task.id}
                     task={task}
                     editMode={editMode}
                     onEdit={handleCellEdit}

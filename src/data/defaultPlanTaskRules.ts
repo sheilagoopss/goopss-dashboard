@@ -405,9 +405,36 @@ export const defaultPlanTaskRules: PlanTaskRules = {
       requiresGoal: false,
       updatedAt: new Date().toISOString(),
       updatedBy: 'admin@goopss.com'
+    },
+
+    // Email Marketing Section
+    {
+      id: '7-1',
+      task: 'Create an Aweber account',
+      section: 'Email Marketing',
+      daysAfterJoin: 1,
+      frequency: 'One Time',
+      isActive: true,
+      requiresGoal: false,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
+    },
+    {
+      id: '7-2',
+      task: 'Newsletters',
+      section: 'Email Marketing',
+      daysAfterJoin: null,
+      monthlyDueDate: 1,
+      frequency: 'Monthly',
+      isActive: true,
+      requiresGoal: true,
+      defaultGoal: 4,
+      defaultCurrent: 0,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
     }
   ],
-  sections: ['General', 'Social', 'Store Page', 'Listings', 'Design', 'Ads'],
+  sections: ['General', 'Social', 'Store Page', 'Listings', 'Design', 'Ads', 'Email Marketing'],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   updatedBy: 'admin@goopss.com'

@@ -9,6 +9,7 @@ import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { message, Switch } from 'antd';
 import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { ICustomer } from '../types/Customer';
 import type { Plan } from '../types/Plan';
 
@@ -34,6 +35,18 @@ const PlanTaskRulesComponent: React.FC = () => {
       newValue: any;
     }>;
   }>({ visible: false, changes: [] });
+  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<string | null>(null);
+
+  const getOrdinalSuffix = (day: number): string => {
+    if (day > 3 && day < 21) return 'th';
+    switch (day % 10) {
+      case 1:  return 'st';
+      case 2:  return 'nd';
+      case 3:  return 'rd';
+      default: return 'th';
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -82,6 +95,11 @@ const PlanTaskRulesComponent: React.FC = () => {
           >
             Apply Changes
           </Button>
+          <Button 
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record)}
+          />
         </Space>
       ),
     },
@@ -89,12 +107,44 @@ const PlanTaskRulesComponent: React.FC = () => {
 
   const handleEdit = (rule: PlanTaskRule) => {
     setEditingRule(rule);
-    form.setFieldsValue(rule);
+    
+    // Convert monthlyDueDate to dayjs object if it exists
+    const formValues = {
+      ...rule,
+      monthlyDueDate: rule.monthlyDueDate ? 
+        dayjs().date(rule.monthlyDueDate) : // Convert number to dayjs object
+        null
+    };
+    
+    form.setFieldsValue(formValues);
     setIsModalVisible(true);
   };
 
-  const handleDelete = (rule: PlanTaskRule) => {
-    // Add delete functionality
+  const handleDelete = async (rule: PlanTaskRule) => {
+    try {
+      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (rulesDoc.exists()) {
+        const currentRules = rulesDoc.data() as PlanTaskRulesType;
+        
+        // Filter out the rule to be deleted
+        const updatedTasks = currentRules.tasks.filter(task => task.id !== rule.id);
+
+        // Update the document with the filtered tasks
+        await updateDoc(rulesRef, {
+          tasks: updatedTasks,
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.email || ''
+        });
+
+        message.success(`Task rule "${rule.task}" deleted successfully`);
+        loadData();  // Refresh the data
+      }
+    } catch (error) {
+      console.error('Error deleting task rule:', error);
+      message.error('Failed to delete task rule');
+    }
   };
 
   const handleSubmit = async (values: any) => {
@@ -161,9 +211,15 @@ const PlanTaskRulesComponent: React.FC = () => {
       const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
         if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
           // For monthly tasks, use the selected monthly due date
-          return dayjs()
-            .date(rule.monthlyDueDate)
-            .format('YYYY-MM-DD');
+          const today = dayjs();
+          let nextDueDate = today.date(rule.monthlyDueDate);
+          
+          // If this month's due date has passed, move to next month
+          if (nextDueDate.isBefore(today)) {
+            nextDueDate = nextDueDate.add(1, 'month');
+          }
+          
+          return nextDueDate.format('YYYY-MM-DD');
         } else if (rule.frequency === 'One Time' && rule.daysAfterJoin) {
           // For one-time tasks, calculate from join date
           return dayjs(customer.date_joined)
@@ -182,11 +238,16 @@ const PlanTaskRulesComponent: React.FC = () => {
             <p>The following changes will be applied to all customers for task:</p>
             <p><strong>{rule.task}</strong></p>
             <ul>
-              {rule.daysAfterJoin && <li>Due Date: {rule.daysAfterJoin} days after join date</li>}
+              {rule.frequency === 'Monthly' && rule.monthlyDueDate ? (
+                <li>Due Date: Every {rule.monthlyDueDate}{getOrdinalSuffix(rule.monthlyDueDate)} of the month</li>
+              ) : rule.daysAfterJoin ? (
+                <li>Due Date: {rule.daysAfterJoin} days after join date</li>
+              ) : null}
               {rule.frequency && <li>Frequency: {rule.frequency}</li>}
               {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
               {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
             </ul>
+            <p>Note: This will also update the task name if it has changed.</p>
             <p>This will update all customer plans while preserving their:</p>
             <ul>
               <li>Progress (To Do/Doing/Done)</li>
@@ -199,32 +260,67 @@ const PlanTaskRulesComponent: React.FC = () => {
         okText: 'Apply Changes',
         cancelText: 'Cancel',
         onOk: async () => {
-          // Update each customer's plan
           for (const customer of customers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
             
             if (planDoc.exists()) {
               const existingPlan = planDoc.data() as Plan;
-              const newSections = existingPlan.sections.map((section: PlanSection) => {
+              
+              // Check if section exists, if not, create it
+              let newSections = existingPlan.sections;
+              if (!existingPlan.sections.find(s => s.title === rule.section)) {
+                newSections = [...existingPlan.sections, {
+                  title: rule.section,
+                  tasks: []
+                }];
+              }
+
+              // Now update or add task to the section
+              newSections = newSections.map((section: PlanSection) => {
                 if (section.title === rule.section) {
-                  return {
-                    ...section,
-                    tasks: section.tasks.map((task: PlanTask) => {
-                      if (task.task === rule.task) {
-                        return {
-                          ...task,
-                          dueDate: calculateDueDate(customer, rule),
-                          frequency: rule.frequency,
-                          isActive: rule.isActive,
-                          goal: rule.defaultGoal || task.goal,
-                          updatedAt: new Date().toISOString(),
-                          updatedBy: user?.email || ''
-                        };
-                      }
-                      return task;
-                    })
-                  };
+                  const existingTask = section.tasks.find((t: PlanTask) => t.id === rule.id);
+                  
+                  if (existingTask) {
+                    // Update existing task
+                    return {
+                      ...section,
+                      tasks: section.tasks.map((task: PlanTask) => {
+                        if (task.id === rule.id) {
+                          return {
+                            ...task,
+                            task: rule.task,
+                            dueDate: calculateDueDate(customer, rule),
+                            frequency: rule.frequency,
+                            isActive: rule.isActive,
+                            goal: rule.defaultGoal || task.goal,
+                            updatedAt: new Date().toISOString(),
+                            updatedBy: user?.email || ''
+                          };
+                        }
+                        return task;
+                      })
+                    };
+                  } else {
+                    // Add new task to section
+                    return {
+                      ...section,
+                      tasks: [...section.tasks, {
+                        id: rule.id,
+                        task: rule.task,
+                        progress: 'To Do',
+                        isActive: rule.isActive,
+                        notes: '',
+                        frequency: rule.frequency,
+                        dueDate: calculateDueDate(customer, rule),
+                        isEditing: false,
+                        current: rule.defaultCurrent || 0,
+                        goal: rule.defaultGoal || 0,
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: user?.email || ''
+                      }]
+                    };
+                  }
                 }
                 return section;
               });
@@ -276,10 +372,40 @@ const PlanTaskRulesComponent: React.FC = () => {
     }
   };
 
-  const filteredRules = rules.filter(rule => 
-    rule.task.toLowerCase().includes(searchText.toLowerCase()) ||
-    rule.section.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredRules = rules.filter(rule => {
+    const matchesSearch = rule.task.toLowerCase().includes(searchText.toLowerCase()) ||
+      rule.section.toLowerCase().includes(searchText.toLowerCase());
+    
+    const matchesFrequency = !selectedFrequency || rule.frequency === selectedFrequency;
+    const matchesSection = !selectedSection || rule.section === selectedSection;
+
+    return matchesSearch && matchesFrequency && matchesSection;
+  });
+
+  // Add a function to update sections
+  const updateSections = async () => {
+    try {
+      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (rulesDoc.exists()) {
+        const currentRules = rulesDoc.data() as PlanTaskRulesType;
+        const updatedSections = [...new Set([...currentRules.sections, 'Email Marketing'])];  // Add new section
+
+        await updateDoc(rulesRef, {
+          sections: updatedSections,
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.email || ''
+        });
+
+        message.success('Sections updated successfully');
+        loadData();  // Refresh the data
+      }
+    } catch (error) {
+      console.error('Error updating sections:', error);
+      message.error('Failed to update sections');
+    }
+  };
 
   return (
     <Layout>
@@ -291,23 +417,46 @@ const PlanTaskRulesComponent: React.FC = () => {
       <Content style={{ padding: '16px' }}>
         <Card>
           <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
-            <Input.Search
-              placeholder="Search tasks..."
-              allowClear
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ maxWidth: 400 }}
-            />
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditingRule(null);
-                form.resetFields();
-                setIsModalVisible(true);
-              }}
-            >
-              Add New Rule
-            </Button>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+              <Input.Search
+                placeholder="Search tasks..."
+                allowClear
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: 200 }}
+              />
+              <Select
+                placeholder="Filter by Frequency"
+                allowClear
+                style={{ width: 200 }}
+                onChange={(value) => setSelectedFrequency(value)}
+              >
+                <Option value="One Time">One Time</Option>
+                <Option value="Monthly">Monthly</Option>
+                <Option value="As Needed">As Needed</Option>
+              </Select>
+              <Select
+                placeholder="Filter by Section"
+                allowClear
+                style={{ width: 200 }}
+                onChange={(value) => setSelectedSection(value)}
+              >
+                {sections.map(section => (
+                  <Option key={section} value={section}>{section}</Option>
+                ))}
+              </Select>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditingRule(null);
+                  form.resetFields();
+                  setIsModalVisible(true);
+                }}
+              >
+                Add New Rule
+              </Button>
+              <Button onClick={updateSections}>Update Sections</Button>
+            </div>
           </Space>
           <Table 
             columns={columns} 
@@ -390,11 +539,17 @@ const PlanTaskRulesComponent: React.FC = () => {
                     <DatePicker 
                       picker="date"
                       disabledDate={(current) => {
-                        // Only allow selecting dates 1-28 of any month
                         return current && (current.date() > 28);
                       }}
-                      format="DD"  // Only show day selection
+                      format="DD"
                       placeholder="Select day of month"
+                      showToday={false}
+                      value={form.getFieldValue('monthlyDueDate') ? dayjs(form.getFieldValue('monthlyDueDate')) : null}
+                      onChange={(date: Dayjs | null) => {
+                        if (date) {
+                          form.setFieldsValue({ monthlyDueDate: date });
+                        }
+                      }}
                     />
                   </Form.Item>
                 ) : null

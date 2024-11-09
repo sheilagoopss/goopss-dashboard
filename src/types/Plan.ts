@@ -1,7 +1,7 @@
 import { ICustomer } from './Customer';
 
 export interface PlanTask {
-  key: string;
+  id: string;
   task: string;
   progress: 'To Do' | 'Doing' | 'Done';
   isActive: boolean;
@@ -14,7 +14,6 @@ export interface PlanTask {
   completedDate?: string;
   updatedAt: string;
   updatedBy: string;
-  trigger?: string;
 }
 
 export interface PlanSection {
