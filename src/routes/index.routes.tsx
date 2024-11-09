@@ -27,6 +27,7 @@ import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
+import { CustomerPlan } from '../components/CustomerPlan';
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -356,11 +357,7 @@ export default function AppRoutes() {
               element={
                 userType === "Free" ? 
                 <UpgradeNotice /> : 
-                <PlanComponent 
-                  customers={[]} 
-                  selectedCustomer={null} 
-                  setSelectedCustomer={() => {}} 
-                />
+                <CustomerPlan />
               }
             />
           </>

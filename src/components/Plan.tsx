@@ -34,7 +34,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
-import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 
@@ -498,39 +498,58 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchDefaultSections();
   }, []);
 
-  const handleCellEdit = async (key: string, field: keyof PlanTask, value: string | boolean | number | null) => {
-    if (!selectedCustomer) return;
-
+  const handleCellEdit = async (taskId: string, field: keyof PlanTask, value: any) => {
     try {
-      const sectionTitle = sections.find(section => 
-        section.tasks.some(task => task.id === key)
-      )?.title;
+      if (!selectedCustomer) return;
 
-      if (!sectionTitle) return;
+      const updatedSections = sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(task => {
+          if (task.id === taskId) {
+            const updatedTask = { ...task, [field]: value };
+            
+            // Handle task completion status
+            if (field === 'progress') {
+              const tasklistRef = collection(db, 'tasklists');
+              
+              if (value === 'Done') {
+                // Add to tasklists when marked as Done
+                addDoc(tasklistRef, {
+                  taskId: task.id,
+                  taskName: task.task,
+                  customerId: selectedCustomer.id,
+                  customerName: selectedCustomer.store_name,
+                  completedAt: task.completedDate || new Date().toISOString(),  // Use completedAt instead of completedDate
+                  createdAt: new Date().toISOString(),
+                  section: section.title,
+                  status: 'Done',  // Add status field
+                  type: task.frequency || 'One Time',  // Add type field
+                  notes: task.notes || ''  // Add empty string as default for notes
+                });
+              } else if (task.progress === 'Done') {
+                // Remove from tasklists when unmarked from Done
+                const q = query(
+                  tasklistRef, 
+                  where('customerId', '==', selectedCustomer.id),
+                  where('taskId', '==', task.id)
+                );
+                
+                getDocs(q).then((querySnapshot) => {
+                  querySnapshot.forEach((doc) => {
+                    deleteDoc(doc.ref);
+                  });
+                });
+              }
+            }
+            
+            return updatedTask;
+          }
+          return task;
+        })
+      }));
 
-      await updateTask(selectedCustomer.id, sectionTitle, key, { 
-        [field]: value,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || ''
-      });
-
-      setSections(prevSections =>
-        prevSections.map(section => ({
-          ...section,
-          tasks: section.tasks.map(task =>
-            task.id === key ? { 
-              ...task, 
-              [field]: value,
-              updatedAt: new Date().toISOString(),
-              updatedBy: user?.email || ''
-            } : task
-          )
-        }))
-      );
-
-      if (field === 'isEditing') {
-        setEditMode(!!value);
-      }
+      await updatePlan(selectedCustomer.id, updatedSections);
+      setSections(updatedSections);
     } catch (error) {
       console.error('Error updating task:', error);
       message.error('Failed to update task');
