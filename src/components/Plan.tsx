@@ -474,7 +474,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     let isMounted = true;
 
     const customerId = isAdmin ? selectedCustomer?.id : user?.id;
-    if (customerId && selectedCustomer) {
+    if (customerId && selectedCustomer && !plans.data[customerId]) {  // Only load if we don't have the data
       loadPlan();
     }
 
@@ -500,22 +500,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     try {
       if (!selectedCustomer) return;
 
-      // Get the plan from Firestore
-      const planRef = doc(db, 'plans', selectedCustomer.id);
-      const planDoc = await getDoc(planRef);
-      
-      if (!planDoc.exists()) {
-        console.error('Plan not found in Firestore');
-        return;
-      }
-
-      const planData = planDoc.data() as Plan;
-
-      // Update the sections array
-      const updatedSections = planData.sections.map(section => ({
+      // Use local sections state instead of fetching
+      const updatedSections = sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
-          if (task.id === taskId) {  // Match by ID field
+          if (task.id === taskId) {
             return {
               ...task,
               [field]: value
@@ -525,15 +514,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         })
       }));
 
-      // Update the entire sections array in Firestore
+      // Update Firestore with the modified sections
+      const planRef = doc(db, 'plans', selectedCustomer.id);
       await updateDoc(planRef, {
         sections: updatedSections
       });
 
       // Update local state
       setSections(updatedSections);
-
-      console.log('Task updated successfully');
 
     } catch (error) {
       console.error('Error updating task:', error);
@@ -770,7 +758,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 <TaskCard
                   key={task.id}
                   task={task}
-                  editMode={false}
+                  editMode={editMode}
                   onEdit={handleCellEdit}
                   customer={null}
                 />
@@ -1013,8 +1001,41 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     <TaskCard
                       key={`${customer.id}-${task.id}`}
                       task={task}
-                      editMode={false}
-                      onEdit={handleCellEdit}
+                      editMode={editMode}
+                      onEdit={async (taskId, field, value) => {
+                        // Update the task without switching views
+                        try {
+                          const planRef = doc(db, 'plans', customer.id);
+                          const planDoc = await getDoc(planRef);
+                          
+                          if (planDoc.exists()) {
+                            const planData = planDoc.data() as Plan;
+                            const updatedSections = planData.sections.map(section => ({
+                              ...section,
+                              tasks: section.tasks.map(t => {
+                                if (t.id === taskId) {
+                                  return { ...t, [field]: value };
+                                }
+                                return t;
+                              })
+                            }));
+
+                            await updateDoc(planRef, { sections: updatedSections });
+
+                            // Update the plans state without changing the view
+                            setPlans(prev => ({
+                              ...prev,
+                              data: {
+                                ...prev.data,
+                                [customer.id]: { ...prev.data[customer.id], sections: updatedSections }
+                              }
+                            }));
+                          }
+                        } catch (error) {
+                          console.error('Error updating task:', error);
+                          message.error('Failed to update task');
+                        }
+                      }}
                       customer={customer}
                     />
                   ))}
