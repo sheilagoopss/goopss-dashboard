@@ -305,7 +305,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               <Text strong>Due Date:</Text>
               <DatePicker
                 value={tempValues.dueDate ? dayjs(tempValues.dueDate) : (task.dueDate ? dayjs(task.dueDate) : null)}
-                onChange={(date) => handleTempChange('dueDate', date ? date.toISOString().split('T')[0] : '')}
+                onChange={(date) => handleTempChange('dueDate', date ? date.format('YYYY-MM-DD') : '')}
                 disabled={!isEditing}
               />
             </div>
@@ -313,7 +313,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               <Text strong>Completed Date:</Text>
               <DatePicker
                 value={tempValues.completedDate ? dayjs(tempValues.completedDate) : (task.completedDate ? dayjs(task.completedDate) : null)}
-                onChange={(date) => handleTempChange('completedDate', date ? date.toISOString().split('T')[0] : '')}
+                onChange={(date) => handleTempChange('completedDate', date ? date.format('YYYY-MM-DD') : '')}
                 disabled={!isEditing}
               />
             </div>
