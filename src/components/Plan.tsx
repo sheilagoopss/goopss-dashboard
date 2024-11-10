@@ -704,6 +704,12 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const pageSize = 10;  // Number of tasks per page
 
+  // Add useEffect to reset pagination when filters change
+  useEffect(() => {
+    // Reset pagination for all sections when any filter changes
+    setPaginationState({});
+  }, [showActiveOnly, progressFilter, dueDateFilter, search]);
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -999,10 +1005,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 return null;
               }
 
+              // Then apply pagination to filtered results
+              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
+              const endIndex = startIndex + pageSize;
+              const paginatedTasks = allTasks.slice(startIndex, endIndex);
+
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {allTasks.slice((paginationState[sectionTitle] || 0) * pageSize, ((paginationState[sectionTitle] || 0) + 1) * pageSize).map(({ customer, task }) => (
+                  {paginatedTasks.map(({ customer, task }) => (
                     <TaskCard
                       key={`${customer.id}-${task.id}`}
                       task={task}
@@ -1013,13 +1024,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       updateTask={updateTask}
                     />
                   ))}
-                  <Pagination
-                    current={paginationState[sectionTitle] || 1}
-                    total={allTasks.length}
-                    pageSize={pageSize}
-                    onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
-                    style={{ marginTop: '16px', textAlign: 'right' }}
-                  />
+                  {allTasks.length > pageSize && (
+                    <Pagination
+                      current={(paginationState[sectionTitle] || 0) + 1}
+                      total={allTasks.length}
+                      pageSize={pageSize}
+                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                      style={{ marginTop: '16px', textAlign: 'right' }}
+                      showTotal={(total) => `Total ${total} tasks`}
+                    />
+                  )}
                 </Card>
               );
             } else {
@@ -1035,14 +1049,27 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               
               if (!section) return null;
 
-              const filteredTasks = section.tasks.filter(filterTasks);
+              const filteredTasks = section.tasks.filter(task => 
+                (!showActiveOnly || task.isActive) &&
+                (progressFilter === 'All' || task.progress === progressFilter) &&
+                task.task.toLowerCase().includes(search.toLowerCase()) &&
+                (dueDateFilter === 'all' || 
+                  (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
+                  (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
+                )
+              );
 
               if (filteredTasks.length === 0) return null;
+
+              // Then apply pagination
+              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
+              const endIndex = startIndex + pageSize;
+              const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
 
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {filteredTasks.slice((paginationState[sectionTitle] || 0) * pageSize, ((paginationState[sectionTitle] || 0) + 1) * pageSize).map((task) => (
+                  {paginatedTasks.map((task) => (
                     <TaskCard
                       key={task.id}
                       task={task}
@@ -1053,45 +1080,65 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       updateTask={updateTask}
                     />
                   ))}
-                  <Pagination
-                    current={paginationState[sectionTitle] || 1}
-                    total={section.tasks.length}
-                    pageSize={pageSize}
-                    onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
-                    style={{ marginTop: '16px', textAlign: 'right' }}
-                  />
+                  {filteredTasks.length > pageSize && (
+                    <Pagination
+                      current={(paginationState[sectionTitle] || 0) + 1}
+                      total={filteredTasks.length}
+                      pageSize={pageSize}
+                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                      style={{ marginTop: '16px', textAlign: 'right' }}
+                      showTotal={(total) => `Total ${total} tasks`}
+                    />
+                  )}
                 </Card>
               );
             }
           })
         ) : (
-          sortedSections.map((section) => (
-            <Card key={section.title} style={{ marginTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          sortedSections.map((section) => {
+            // Apply ALL filters first
+            const filteredTasks = section.tasks.filter(task => 
+              (!showActiveOnly || task.isActive) &&
+              (progressFilter === 'All' || task.progress === progressFilter) &&
+              task.task.toLowerCase().includes(search.toLowerCase()) &&
+              (dueDateFilter === 'all' || 
+                (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
+                (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
+              )
+            );
+
+            // Then paginate
+            const startIndex = (paginationState[section.title] || 0) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+
+            return (
+              <Card key={section.title} style={{ marginTop: 16 }}>
                 <Title level={4}>{section.title}</Title>
-                {plans.type !== 'all' && (
-                  <Button
-                    type="primary"
-                    icon={<EditOutlined />}
-                    onClick={() => handleAddTask(section.title)}
-                  >
-                    Add Task
-                  </Button>
+                {paginatedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    editMode={editMode}
+                    onEdit={onEdit}
+                    customer={selectedCustomer}
+                    sections={sections}
+                    updateTask={updateTask}
+                  />
+                ))}
+                {filteredTasks.length > pageSize && (
+                  <Pagination
+                    current={(paginationState[section.title] || 0) + 1}
+                    total={filteredTasks.length}
+                    pageSize={pageSize}
+                    onChange={(page) => setPaginationState(prev => ({ ...prev, [section.title]: page - 1 }))}
+                    style={{ marginTop: '16px', textAlign: 'right' }}
+                    showTotal={(total) => `Total ${total} tasks`}
+                  />
                 )}
-              </div>
-              {section.tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  editMode={editMode}
-                  onEdit={onEdit}
-                  customer={selectedCustomer}
-                  sections={sections}
-                  updateTask={updateTask}
-                />
-              ))}
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </Content>
     </Layout>
