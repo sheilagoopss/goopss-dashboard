@@ -28,7 +28,8 @@ import {
   FileTextOutlined,
   SortAscendingOutlined,
   UserOutlined,
-  WarningOutlined
+  WarningOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
@@ -376,14 +377,49 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Add these helper functions at the top of the file, before the component
+const saveFiltersToStorage = (filters: {
+  showActiveOnly: boolean;
+  progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
+  dueDateFilter: 'all' | 'overdue' | 'thisWeek';
+  search: string;
+  sortBy: 'dueDate' | 'none';
+}) => {
+  localStorage.setItem('planFilters', JSON.stringify(filters));
+};
+
+const getFiltersFromStorage = () => {
+  const saved = localStorage.getItem('planFilters');
+  if (saved) {
+    return JSON.parse(saved);
+  }
+  return null;
+};
+
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
+  const savedFilters = getFiltersFromStorage();
+  
+  // Keep these filter states at the top
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>(savedFilters?.dueDateFilter ?? 'all');
+  const [search, setSearch] = useState(savedFilters?.search ?? '');
+  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
+
+  // Add useEffect to save filters when they change
+  useEffect(() => {
+    saveFiltersToStorage({
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      sortBy
+    });
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, sortBy]);
+
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [newTaskModal, setNewTaskModal] = useState({
@@ -408,9 +444,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // Add loading state for sections
   const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
-
-  // Add new state for due date filter
-  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('all');
 
   // Add helper functions for date checks
   const isOverdue = (dueDate: string | null) => {
@@ -710,6 +743,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setPaginationState({});
   }, [showActiveOnly, progressFilter, dueDateFilter, search]);
 
+  // Add this function to handle filter reset
+  const handleResetFilters = () => {
+    setShowActiveOnly(false);
+    setProgressFilter('All');
+    setDueDateFilter('all');
+    setSearch('');
+    setSortBy('none');
+    setPaginationState({});  // Also reset pagination
+  };
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -757,6 +800,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   </Space>
                 </Option>
               </Select>
+              <Button 
+                icon={<ReloadOutlined />} 
+                onClick={handleResetFilters}
+                title="Reset all filters"
+              />
             </Space>
           </Card>
 
@@ -945,6 +993,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 </Space>
               </Option>
             </Select>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            />
           </Space>
         </Card>
 
