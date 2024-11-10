@@ -93,43 +93,28 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
   };
 
   const handleEditClick = async () => {
-    console.log('Edit clicked for task:', task.id);
+    console.log('Edit clicked, isEditing:', isEditing);
     
     if (isEditing) {
       try {
-        if (!customer) return;
-
-        const section = sections.find(section => 
-          section.tasks.some(t => t.id === task.id)
-        );
-
-        if (!section) {
-          console.error('Section not found for task:', task.id);
+        if (!customer) {
+          console.log('No customer found');
           return;
         }
 
-        // Filter out any undefined values from tempValues
-        const cleanUpdates = Object.fromEntries(
-          Object.entries(tempValues).filter(([_, value]) => value !== undefined)
-        );
+        console.log('Saving changes, tempValues:', tempValues);
 
-        // Add required fields
+        // Create updates object
         const updates = {
-          ...cleanUpdates,
+          ...tempValues,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };
 
-        // Single write to Firestore
-        await updateTask(
-          customer.id,
-          section.title,
-          task.id,
-          updates
-        );
+        console.log('Updates to save:', updates);
 
-        // Update local state with all changes at once
-        onEdit(task.id, 'progress', updates);
+        // Single update with all changes
+        await onEdit(task.id, 'task', updates);
 
         setIsEditing(false);
         setTempValues({});
@@ -139,7 +124,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
         message.error('Failed to save changes');
       }
     } else {
-      console.log('Starting edit mode...');
+      console.log('Starting edit mode for task:', task.id);
       setIsEditing(true);
       setTempValues({
         progress: task.progress,
@@ -565,27 +550,69 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   const onEdit = async (taskId: string, field: keyof PlanTask, value: any) => {
     try {
-      if (!selectedCustomer) return;
+      console.log('onEdit called with:', { taskId, field, value });
 
-      const updatedSections = sections.map(section => ({
+      // In all views, we need to find the correct customer's plan
+      const customerId = plans.type === 'all' 
+        ? Object.keys(plans.data).find(id => 
+            plans.data[id].sections.some(section => 
+              section.tasks.some(task => task.id === taskId)
+            )
+          )
+        : selectedCustomer?.id;
+
+      if (!customerId) {
+        console.error('Customer not found');
+        return;
+      }
+
+      console.log('Found customerId:', customerId);
+
+      // Get the current sections for this customer
+      const currentSections = plans.type === 'all' 
+        ? plans.data[customerId].sections 
+        : sections;
+
+      // Create updated sections
+      const updatedSections = currentSections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
-            // If value is an object with multiple updates
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            if (field === 'task' && typeof value === 'object') {
               return { ...task, ...value };
             }
-            // Single field update
             return { ...task, [field]: value };
           }
           return task;
         })
       }));
 
+      console.log('Updated sections:', updatedSections);
+
+      // Update Firestore
+      const planRef = doc(db, 'plans', customerId);
+      await updateDoc(planRef, { sections: updatedSections });
+      console.log('Firestore updated');
+
+      // Update local state
+      if (plans.type === 'all') {
+        setPlans(prevPlans => ({
+          ...prevPlans,
+          data: {
+            ...prevPlans.data,
+            [customerId]: {
+              ...prevPlans.data[customerId],
+              sections: updatedSections
+            }
+          }
+        }));
+      }
       setSections(updatedSections);
+      console.log('Local state updated');
+
     } catch (error) {
-      console.error('Error updating task:', error);
-      message.error('Failed to update task');
+      console.error('Error in onEdit:', error);
+      message.error('Failed to save changes');
     }
   };
 
