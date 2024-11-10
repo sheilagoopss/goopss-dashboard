@@ -228,6 +228,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
                   <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px' }}>
                     This Month
                   </Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Total: {calculateTotalProgress(task)}
+                  </Text>
                 </Space>
               )}
               <Tag color={pastelColors[task.progress]}>
@@ -301,7 +304,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
             <div>
               <Text strong>Due Date:</Text>
               <DatePicker
-                value={tempValues.dueDate ? dayjs(tempValues.dueDate) : dayjs(task.dueDate)}
+                value={tempValues.dueDate ? dayjs(tempValues.dueDate) : (task.dueDate ? dayjs(task.dueDate) : null)}
                 onChange={(date) => handleTempChange('dueDate', date ? date.toISOString().split('T')[0] : '')}
                 disabled={!isEditing}
               />
