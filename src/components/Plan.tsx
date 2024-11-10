@@ -19,7 +19,8 @@ import {
   Modal,
   message,
   Spin,
-  Pagination
+  Pagination,
+  Avatar
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -62,6 +63,7 @@ interface TaskCardProps {
   customer: ICustomer | null | undefined;
   sections: PlanSection[];
   updateTask: (customerId: string, sectionTitle: string, taskId: string, updates: Partial<PlanTask>) => Promise<void>;
+  isOverdue: (dueDate: string | null) => boolean;
 }
 
 const dropdownStyle = {
@@ -69,7 +71,7 @@ const dropdownStyle = {
   fontSize: '16px'
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue }) => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
@@ -106,9 +108,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
           return;
         }
 
-        // Create updates object
+        // Filter out any undefined values from tempValues
+        const cleanUpdates = Object.fromEntries(
+          Object.entries(tempValues).filter(([_, value]) => value !== undefined)
+        );
+
+        // Add required fields
         const updates = {
-          ...tempValues,
+          ...cleanUpdates,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };
@@ -122,7 +129,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
         );
 
         // Update local state with all changes at once
-        onEdit(task.id, 'progress', updates);  // Pass entire updates object
+        onEdit(task.id, 'progress', updates);
 
         setIsEditing(false);
         setTempValues({});
@@ -175,58 +182,73 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
           <Space size="middle" style={{ 
             width: '100%', 
             justifyContent: 'space-between', 
-            alignItems: 'center',
-            minHeight: '68px'
+            alignItems: 'flex-start'
           }}>
-            <Space direction="vertical" size={0} style={{ flex: 1 }}>
+            <Space direction="vertical" size={4}>
               <Text strong>{task.task}</Text>
               {customer && (
                 <Space>
-                  <img 
-                    src={customer.logo || '/placeholder.svg'} 
-                    alt={`${customer.store_name} logo`} 
-                    width={16} 
-                    height={16} 
-                    style={{ borderRadius: '50%' }} 
-                  />
-                  <Text type="secondary">{customer.store_owner_name} - {customer.store_name}</Text>
+                  {customer.logo && (
+                    <Avatar
+                      src={customer.logo}
+                      alt={customer.store_name}
+                      size="small"
+                      icon={customer.logo ? undefined : customer.store_name[0]}
+                    />
+                  )}
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {customer.store_name}
+                    {customer.date_joined && (
+                      <span style={{ marginLeft: 8 }}>
+                        <CalendarOutlined /> {dayjs(customer.date_joined).format('MMM DD YYYY')}
+                      </span>
+                    )}
+                  </Text>
+                  {task.notes && <FileTextOutlined style={{ color: '#8c8c8c' }} />}
                 </Space>
               )}
             </Space>
-            <Space align="center" size="large">
-              {task.goal !== undefined && task.frequency === 'Monthly' && (
-                <Space direction="vertical" size={2} align="center">
-                  <Progress 
-                    type="circle" 
-                    percent={Math.round((task.current || 0) / task.goal * 100)} 
-                    width={40}
-                    format={(percent) => `${task.current || 0}/${task.goal}`}
+            <Space>
+              <Tag color={pastelColors[task.progress]}>
+                {task.progress}
+              </Tag>
+              {task.frequency === 'Monthly' && (
+                <Space direction="vertical" size={0} align="center">
+                  <Progress
+                    type="circle"
+                    percent={Math.round((task.current || 0) / (task.goal || 1) * 100)}
+                    size={50}
+                    strokeColor={{
+                      '0%': '#108ee9',
+                      '100%': '#87d068',
+                    }}
+                    format={() => (
+                      <Text style={{ fontSize: '12px' }}>
+                        {task.current || 0}/{task.goal || 0}
+                      </Text>
+                    )}
                   />
-                  <Text type="secondary" style={{ fontSize: '12px' }}>This Month</Text>
-                  
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Total to Date: {calculateTotalProgress(task)}
+                  <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px' }}>
+                    This Month
                   </Text>
                 </Space>
               )}
               <Space direction="vertical" size={2}>
-                {task.dueDate ? (
-                  <Space>
-                    <CalendarOutlined /> 
-                    <Text type="secondary">Due: {task.dueDate}</Text>
-                  </Space>
-                ) : (
-                  <Text type="secondary">No due date</Text>
+                {task.dueDate && (
+                  <Tooltip title={isOverdue(task.dueDate) ? 'Overdue' : 'Due date'}>
+                    <Tag color={isOverdue(task.dueDate) ? 'red' : 'blue'}>
+                      <CalendarOutlined /> Due: {dayjs(task.dueDate).format('MMM DD')}
+                    </Tag>
+                  </Tooltip>
                 )}
-                {task.completedDate && (
-                  <Space>
-                    <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
-                    <Text type="secondary">Completed: {task.completedDate}</Text>
-                  </Space>
+                {task.progress === 'Done' && task.completedDate && (
+                  <Tooltip title="Completed date">
+                    <Tag color="green">
+                      <CheckCircleOutlined /> Done: {dayjs(task.completedDate).format('MMM DD')}
+                    </Tag>
+                  </Tooltip>
                 )}
               </Space>
-              {task.notes && <Tooltip title="Has notes"><FileTextOutlined /></Tooltip>}
-              <Tag color={pastelColors[task.progress]}>{task.progress}</Tag>
             </Space>
           </Space>
         }
@@ -447,10 +469,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // Add helper functions for date checks
   const isOverdue = (dueDate: string | null) => {
-    if (!dueDate) return false;  // Tasks with no due date can't be overdue
+    if (!dueDate) return false;
     const today = dayjs().startOf('day');
     const dueDay = dayjs(dueDate).startOf('day');
-    return dueDay.isBefore(today);  // Task is overdue if due date is before today
+    return dueDay.isBefore(today);
   };
 
   const isDueThisWeek = (dueDate: string | null) => {
@@ -820,6 +842,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   customer={null}
                   sections={sections}
                   updateTask={updateTask}
+                  isOverdue={isOverdue}
                 />
               ))}
             </Card>
@@ -1011,7 +1034,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             });
 
             if (plans.type === 'all') {
-              console.log('🟢 ENTERING ALL PLANS VIEW');
+              console.log('ENTERING ALL PLANS VIEW');
               console.log('Available plans:', Object.keys(plans.data).map(id => {
                 const customer = customers.find(c => c.id === id);
                 return customer?.store_name;
@@ -1077,6 +1100,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       customer={customer}
                       sections={plans.data[customer.id].sections}
                       updateTask={updateTask}
+                      isOverdue={isOverdue}
                     />
                   ))}
                   {allTasks.length > pageSize && (
@@ -1133,6 +1157,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       customer={customer}
                       sections={sections}
                       updateTask={updateTask}
+                      isOverdue={isOverdue}
                     />
                   ))}
                   {filteredTasks.length > pageSize && (
@@ -1179,6 +1204,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     customer={selectedCustomer}
                     sections={sections}
                     updateTask={updateTask}
+                    isOverdue={isOverdue}
                   />
                 ))}
                 {filteredTasks.length > pageSize && (
