@@ -382,8 +382,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [editMode, setEditMode] = useState<boolean>(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('To Do');
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [newTaskModal, setNewTaskModal] = useState({
@@ -410,7 +410,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
 
   // Add new state for due date filter
-  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('thisWeek');
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('all');
 
   // Add helper functions for date checks
   const isOverdue = (dueDate: string | null) => {
@@ -923,6 +923,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               placeholder="Search tasks..."
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onSearch={value => setSearch(value)}
+              allowClear
               style={{ width: 200 }}
             />
             <Select
