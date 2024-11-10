@@ -209,9 +209,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               )}
             </Space>
             <Space>
-              <Tag color={pastelColors[task.progress]}>
-                {task.progress}
-              </Tag>
               {task.frequency === 'Monthly' && (
                 <Space direction="vertical" size={0} align="center">
                   <Progress
@@ -233,6 +230,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
                   </Text>
                 </Space>
               )}
+              <Tag color={pastelColors[task.progress]}>
+                {task.progress}
+              </Tag>
               <Space direction="vertical" size={2}>
                 {task.dueDate && (
                   <Tooltip title={isOverdue(task.dueDate) ? 'Overdue' : 'Due date'}>
