@@ -588,17 +588,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       const newTask: PlanTask = {
         id: `custom-${Date.now()}`,
         task: newTaskModal.taskName.trim(),
-        progress: 'To Do',
+        progress: 'To Do' as const,
         isActive: true,
         notes: '',
         frequency: 'One Time',
         dueDate: null,
-        isEditing: false,
+        completedDate: null,
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || '',
         current: 0,
         goal: 0,
-        completedDate: ''
       };
 
       const planRef = doc(db, 'plans', selectedCustomer.id);

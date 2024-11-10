@@ -4,7 +4,7 @@ interface MonthlyProgress {
   month: string;  // Format: 'YYYY-MM'
   current: number;
   goal: number;
-  completedAt?: string;
+  completedAt?: string | null;
 }
 
 export interface PlanTask {
@@ -15,13 +15,13 @@ export interface PlanTask {
   notes: string;
   frequency: 'Monthly' | 'One Time' | 'As Needed';
   dueDate: string | null;
-  isEditing: boolean;
-  current?: number;  // Current month's progress
-  goal?: number;     // Current month's goal
-  monthlyHistory?: MonthlyProgress[];  // Track monthly history
-  completedDate?: string;
+  current: number;
+  goal: number;
+  monthlyHistory?: MonthlyProgress[];
+  completedDate: string | null;
   updatedAt: string;
   updatedBy: string;
+  isEditing?: boolean;
 }
 
 export interface PlanSection {
