@@ -243,26 +243,12 @@ const PlanTaskRulesComponent: React.FC = () => {
         try {
           console.log('Starting handleApplyToAll for rule:', rule);
 
-          // Get all paid customers and their plans in parallel
+          // Get all paid customers
           const customersRef = collection(db, 'customers');
           const customersSnapshot = await getDocs(customersRef);
           const paidCustomers = customersSnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
             .filter(customer => customer.customer_type === 'Paid');
-          
-          console.log('Found paid customers:', paidCustomers.length);
-
-          // Get all plans in one batch
-          const plansPromises = paidCustomers.map(customer => 
-            getDoc(doc(db, 'plans', customer.id))
-          );
-          const plansSnapshots = await Promise.all(plansPromises);
-          const customerPlans = plansSnapshots.reduce((acc, planDoc, index) => {
-            if (planDoc.exists()) {
-              acc[paidCustomers[index].id] = planDoc.data() as Plan;
-            }
-            return acc;
-          }, {} as Record<string, Plan>);
 
           // Batch updates
           const batch = writeBatch(db);
@@ -271,21 +257,17 @@ const PlanTaskRulesComponent: React.FC = () => {
 
           // Process all customers
           for (const customer of paidCustomers) {
-            const plan = customerPlans[customer.id];
-            if (!plan) continue;
+            const planRef = doc(db, 'plans', customer.id);
+            const planDoc = await getDoc(planRef);
 
+            if (!planDoc.exists()) continue;
+
+            const plan = planDoc.data() as Plan;
             let needsUpdate = false;
 
             // Find or create section
             let sectionIndex = plan.sections.findIndex(s => s.title === rule.section);
-            console.log('Section check:', {
-              section: rule.section,
-              exists: sectionIndex !== -1,
-              sectionIndex
-            });
-
             if (sectionIndex === -1) {
-              console.log('Creating new section:', rule.section);
               plan.sections.push({
                 title: rule.section,
                 tasks: []
@@ -296,38 +278,24 @@ const PlanTaskRulesComponent: React.FC = () => {
 
             // Get current tasks in this section
             const currentTasks = [...plan.sections[sectionIndex].tasks];
-            console.log('Current tasks in section:', {
-              sectionTitle: rule.section,
-              taskCount: currentTasks.length,
-              tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
-            });
 
             // Check if task exists
             const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
-            console.log('Task check:', {
-              ruleId: rule.id,
-              exists: existingTaskIndex !== -1,
-              existingTaskIndex
-            });
-
             if (existingTaskIndex !== -1) {
-              console.log('Updating existing task:', rule.id);
+              // Update existing task but preserve monthlyHistory
+              const existingTask = currentTasks[existingTaskIndex];
               currentTasks[existingTaskIndex] = {
-                ...currentTasks[existingTaskIndex],
+                ...existingTask,  // Keep existing data including monthlyHistory
                 task: rule.task,
                 isActive: rule.isActive,
                 frequency: rule.frequency,
                 dueDate: calculateDueDate(customer, rule),
-                goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
+                goal: rule.defaultGoal || existingTask.goal,
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               };
             } else {
-              console.log('Adding new task:', {
-                id: rule.id,
-                section: rule.section,
-                task: rule.task
-              });
+              // Add new task without monthlyHistory
               currentTasks.push({
                 id: rule.id,
                 task: rule.task,
@@ -340,16 +308,9 @@ const PlanTaskRulesComponent: React.FC = () => {
                 current: rule.defaultCurrent || 0,
                 goal: rule.defaultGoal || 0,
                 updatedAt: new Date().toISOString(),
-                updatedBy: user?.email || '',
-                monthlyHistory: []
+                updatedBy: user?.email || ''
               });
             }
-
-            console.log('Updated tasks:', {
-              sectionTitle: rule.section,
-              taskCount: currentTasks.length,
-              tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
-            });
 
             // Update section tasks
             plan.sections[sectionIndex].tasks = currentTasks;
@@ -360,11 +321,12 @@ const PlanTaskRulesComponent: React.FC = () => {
                 await batch.commit();
                 batchCount = 0;
               }
-              batch.update(doc(db, 'plans', customer.id), { sections: plan.sections });
+              batch.update(planRef, { sections: plan.sections });
               batchCount++;
             }
           }
 
+          // Commit any remaining updates
           if (batchCount > 0) {
             await batch.commit();
           }
@@ -374,7 +336,6 @@ const PlanTaskRulesComponent: React.FC = () => {
             description: 'Task rule has been applied to all customers.',
           });
 
-          setIsApplying(false);
         } catch (error) {
           console.error('Error applying changes:', error);
           message.error('Failed to apply changes');
@@ -504,8 +465,7 @@ const PlanTaskRulesComponent: React.FC = () => {
                   current: rule.defaultCurrent || 0,
                   goal: rule.defaultGoal || 0,
                   updatedAt: new Date().toISOString(),
-                  updatedBy: user?.email || '',
-                  monthlyHistory: []
+                  updatedBy: user?.email || ''
                 });
               }
 
