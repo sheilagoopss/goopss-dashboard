@@ -59,7 +59,7 @@ const pastelColors = {
 interface TaskCardProps {
   task: PlanTask;
   editMode: boolean;
-  onEdit: (key: string, field: keyof PlanTask, value: any) => void;
+  onEdit: (taskId: string, field: keyof PlanTask, value: any, customerId: string) => void;
   customer: ICustomer | null | undefined;
   sections: PlanSection[];
   updateTask: (customerId: string, sectionTitle: string, taskId: string, updates: Partial<PlanTask>) => Promise<void>;
@@ -93,28 +93,24 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
   };
 
   const handleEditClick = async () => {
-    console.log('Edit clicked, isEditing:', isEditing);
+    console.log('Edit clicked, isEditing:', isEditing, 'Customer:', customer);
     
     if (isEditing) {
       try {
         if (!customer) {
-          console.log('No customer found');
+          console.error('No customer found');
           return;
         }
 
-        console.log('Saving changes, tempValues:', tempValues);
+        console.log('Saving changes for customer:', customer.id);
 
-        // Create updates object
         const updates = {
           ...tempValues,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };
 
-        console.log('Updates to save:', updates);
-
-        // Single update with all changes
-        await onEdit(task.id, 'task', updates);
+        await onEdit(task.id, 'task', updates, customer.id);
 
         setIsEditing(false);
         setTempValues({});
@@ -124,7 +120,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
         message.error('Failed to save changes');
       }
     } else {
-      console.log('Starting edit mode for task:', task.id);
+      console.log('Starting edit mode for task:', task.id, 'in plan:', customer?.id);
       setIsEditing(true);
       setTempValues({
         progress: task.progress,
@@ -548,33 +544,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchDefaultSections();
   }, []);
 
-  const onEdit = async (taskId: string, field: keyof PlanTask, value: any) => {
+  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, planId: string) => {
     try {
-      console.log('onEdit called with:', { taskId, field, value });
+      console.log('onEdit called:', { taskId, field, planId });
 
-      // In all views, we need to find the correct customer's plan
-      const customerId = plans.type === 'all' 
-        ? Object.keys(plans.data).find(id => 
-            plans.data[id].sections.some(section => 
-              section.tasks.some(task => task.id === taskId)
-            )
-          )
-        : selectedCustomer?.id;
+      // Get current plan data
+      const planRef = doc(db, 'plans', planId);
+      const planDoc = await getDoc(planRef);
 
-      if (!customerId) {
-        console.error('Customer not found');
+      if (!planDoc.exists()) {
+        console.error('Plan not found:', planId);
         return;
       }
 
-      console.log('Found customerId:', customerId);
-
-      // Get the current sections for this customer
-      const currentSections = plans.type === 'all' 
-        ? plans.data[customerId].sections 
-        : sections;
-
-      // Create updated sections
-      const updatedSections = currentSections.map(section => ({
+      const plan = planDoc.data() as Plan;
+      const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
@@ -587,12 +571,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         })
       }));
 
-      console.log('Updated sections:', updatedSections);
-
       // Update Firestore
-      const planRef = doc(db, 'plans', customerId);
       await updateDoc(planRef, { sections: updatedSections });
-      console.log('Firestore updated');
+      console.log('Firestore updated for plan:', planId);
 
       // Update local state
       if (plans.type === 'all') {
@@ -600,8 +581,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           ...prevPlans,
           data: {
             ...prevPlans.data,
-            [customerId]: {
-              ...prevPlans.data[customerId],
+            [planId]: {
+              ...prevPlans.data[planId],
               sections: updatedSections
             }
           }
@@ -651,10 +632,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     ...section,
     tasks: sortBy === 'dueDate' 
       ? [...section.tasks].sort((a, b) => {
-          // Handle null due dates
+          // Handle null or empty due dates
+          if (!a.dueDate && !b.dueDate) return 0;  // Both null, keep order
           if (!a.dueDate) return 1;  // Move null dates to end
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          if (!b.dueDate) return -1;  // Move null dates to end
+
+          // Compare dates for earliest first
+          const dateA = dayjs(a.dueDate);
+          const dateB = dayjs(b.dueDate);
+          return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
         })
       : section.tasks
   }));
@@ -948,7 +934,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               }
             >
               <Select.Option key="all-paid" value="all-paid">
-                All Paid Customers
+                All Customers
               </Select.Option>
               <Select.Option key="divider" disabled>
                 ──────────────
