@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType } from '../types/PlanTasks';
 import { PlanSection, PlanTask } from '../types/Plan';
 import { usePlanTaskRules } from '../hooks/usePlanTaskRules';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { message, Switch, notification } from 'antd';
@@ -241,12 +241,9 @@ const PlanTaskRulesComponent: React.FC = () => {
       ),
       async onOk() {
         try {
-          console.log('Starting handleApplyToAll for rule:', {
-            ruleId: rule.id,
-            section: rule.section,
-            task: rule.task
-          });
+          console.log('Starting handleApplyToAll for rule:', rule);
 
+          // Get all paid customers and their plans in parallel
           const customersRef = collection(db, 'customers');
           const customersSnapshot = await getDocs(customersRef);
           const paidCustomers = customersSnapshot.docs
@@ -255,18 +252,28 @@ const PlanTaskRulesComponent: React.FC = () => {
           
           console.log('Found paid customers:', paidCustomers.length);
 
-          for (const customer of paidCustomers) {
-            console.log('Processing customer:', customer.id);
-            
-            const planRef = doc(db, 'plans', customer.id);
-            const planDoc = await getDoc(planRef);
-
-            if (!planDoc.exists()) {
-              console.log('No plan exists for customer:', customer.id);
-              continue;
+          // Get all plans in one batch
+          const plansPromises = paidCustomers.map(customer => 
+            getDoc(doc(db, 'plans', customer.id))
+          );
+          const plansSnapshots = await Promise.all(plansPromises);
+          const customerPlans = plansSnapshots.reduce((acc, planDoc, index) => {
+            if (planDoc.exists()) {
+              acc[paidCustomers[index].id] = planDoc.data() as Plan;
             }
+            return acc;
+          }, {} as Record<string, Plan>);
 
-            const plan = planDoc.data() as Plan;
+          // Batch updates
+          const batch = writeBatch(db);
+          let batchCount = 0;
+          const BATCH_LIMIT = 500;
+
+          // Process all customers
+          for (const customer of paidCustomers) {
+            const plan = customerPlans[customer.id];
+            if (!plan) continue;
+
             let needsUpdate = false;
 
             // Find or create section
@@ -315,7 +322,6 @@ const PlanTaskRulesComponent: React.FC = () => {
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               };
-              needsUpdate = true;
             } else {
               console.log('Adding new task:', {
                 id: rule.id,
@@ -339,14 +345,28 @@ const PlanTaskRulesComponent: React.FC = () => {
               });
             }
 
+            console.log('Updated tasks:', {
+              sectionTitle: rule.section,
+              taskCount: currentTasks.length,
+              tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
+            });
+
             // Update section tasks
             plan.sections[sectionIndex].tasks = currentTasks;
             needsUpdate = true;
 
             if (needsUpdate) {
-              console.log('Updating plan for customer:', customer.id);
-              await updateDoc(planRef, { sections: plan.sections });
+              if (batchCount >= BATCH_LIMIT) {
+                await batch.commit();
+                batchCount = 0;
+              }
+              batch.update(doc(db, 'plans', customer.id), { sections: plan.sections });
+              batchCount++;
             }
+          }
+
+          if (batchCount > 0) {
+            await batch.commit();
           }
 
           notification.success({
