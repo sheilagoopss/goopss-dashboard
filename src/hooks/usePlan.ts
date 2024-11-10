@@ -142,12 +142,12 @@ export const usePlan = () => {
   const checkMonthlyProgress = useCallback(async (customerId: string) => {
     const currentMonth = dayjs().format('YYYY-MM');
     
-    console.log('Starting monthly progress check:', customerId);
-    
     const planRef = doc(db, 'plans', customerId);
     const planDoc = await getDoc(planRef);
     
-    if (!planDoc.exists()) return;
+    if (!planDoc.exists()) {
+      return;
+    }
 
     const plan = planDoc.data() as Plan;
     let needsUpdate = false;
@@ -155,19 +155,10 @@ export const usePlan = () => {
     const updatedSections = plan.sections.map(section => ({
       ...section,
       tasks: section.tasks.map(task => {
-        // Check both Monthly and As Needed tasks
         if (task.frequency === 'Monthly' || task.frequency === 'As Needed') {
           const lastUpdateMonth = dayjs(task.updatedAt).format('YYYY-MM');
           
-          console.log('Checking task:', {
-            task: task.task,
-            frequency: task.frequency,
-            lastUpdateMonth,
-            currentMonth
-          });
-          
           if (lastUpdateMonth !== currentMonth) {
-            console.log('Task needs reset:', task.task);
             needsUpdate = true;
             const monthlyHistory = task.monthlyHistory || [];
             monthlyHistory.push({
@@ -192,7 +183,6 @@ export const usePlan = () => {
     }));
 
     if (needsUpdate) {
-      console.log('Updating plan with reset tasks');
       await updateDoc(planRef, {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
