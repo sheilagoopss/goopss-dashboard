@@ -1004,7 +1004,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       editMode={editMode}
                       onEdit={onEdit}
                       customer={customer}
-                      sections={sections}
+                      sections={plans.data[customer.id].sections}
                       updateTask={updateTask}
                     />
                   ))}
