@@ -18,7 +18,8 @@ import {
   Collapse,
   Modal,
   message,
-  Spin
+  Spin,
+  Pagination
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -699,6 +700,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     loadAllPlans();
   }, [customers]); // Only run when customers list changes
 
+  // Add pagination state at the top of the component
+  const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
+  const pageSize = 10;  // Number of tasks per page
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -777,7 +782,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
             <Select
-              style={{ width: '300px' }}
+              style={{ width: '100%' }}
               placeholder="Select a customer"
               value={selectedCustomer ? selectedCustomer.id : plans.type === 'all' ? 'all-paid' : undefined}
               onChange={async (value) => {
@@ -997,7 +1002,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {allTasks.map(({ customer, task }) => (
+                  {allTasks.slice((paginationState[sectionTitle] || 0) * pageSize, ((paginationState[sectionTitle] || 0) + 1) * pageSize).map(({ customer, task }) => (
                     <TaskCard
                       key={`${customer.id}-${task.id}`}
                       task={task}
@@ -1008,6 +1013,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       updateTask={updateTask}
                     />
                   ))}
+                  <Pagination
+                    current={paginationState[sectionTitle] || 1}
+                    total={allTasks.length}
+                    pageSize={pageSize}
+                    onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                    style={{ marginTop: '16px', textAlign: 'right' }}
+                  />
                 </Card>
               );
             } else {
@@ -1030,7 +1042,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {filteredTasks.map((task: PlanTask) => (
+                  {filteredTasks.slice((paginationState[sectionTitle] || 0) * pageSize, ((paginationState[sectionTitle] || 0) + 1) * pageSize).map((task) => (
                     <TaskCard
                       key={task.id}
                       task={task}
@@ -1041,6 +1053,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       updateTask={updateTask}
                     />
                   ))}
+                  <Pagination
+                    current={paginationState[sectionTitle] || 1}
+                    total={section.tasks.length}
+                    pageSize={pageSize}
+                    onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                    style={{ marginTop: '16px', textAlign: 'right' }}
+                  />
                 </Card>
               );
             }
