@@ -339,9 +339,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               <Option value="As Needed">As Needed</Option>
             </Select>
           </Space>
-          {(tempValues.frequency || task.frequency) === 'Monthly' || (tempValues.frequency || task.frequency) === 'As Needed' && (
+          {(task.frequency === 'Monthly' || task.frequency === 'As Needed') && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Space>
+                <Text>Progress:</Text>
                 <Input
                   type="number"
                   value={tempValues.current !== undefined ? tempValues.current : task.current}
