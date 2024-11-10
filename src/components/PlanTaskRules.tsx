@@ -666,11 +666,30 @@ const PlanTaskRulesComponent: React.FC = () => {
                 getFieldValue('requiresGoal') ? (
                   <>
                     <Form.Item
-                      name="defaultGoal"
                       label="Default Goal"
-                      rules={[{ required: true, message: 'Please enter default goal' }]}
+                      name="defaultGoal"
+                      rules={[
+                        {
+                          required: editingRule?.frequency === 'Monthly',  // Use editingRule instead of rule
+                          message: 'Please input the default goal',
+                        }
+                      ]}
                     >
-                      <InputNumber min={1} />
+                      <Input
+                        type="number"
+                        min={0}  // Allow 0 as minimum
+                        disabled={!editingRule?.requiresGoal}  // Use editingRule instead of rule
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? null : parseInt(e.target.value);
+                          setEditingRule(prev => {
+                            if (!prev) return prev;  // Handle null case
+                            return {
+                              ...prev,
+                              defaultGoal: value
+                            };
+                          });
+                        }}
+                      />
                     </Form.Item>
                     <Form.Item
                       name="defaultCurrent"
