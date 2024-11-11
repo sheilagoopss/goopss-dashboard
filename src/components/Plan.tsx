@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, 
   Typography, 
@@ -18,7 +18,9 @@ import {
   Collapse,
   Modal,
   message,
-  Spin
+  Spin,
+  Pagination,
+  Avatar
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -27,14 +29,15 @@ import {
   FileTextOutlined,
   SortAscendingOutlined,
   UserOutlined,
-  WarningOutlined
+  WarningOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
-import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp, setDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 
@@ -56,8 +59,11 @@ const pastelColors = {
 interface TaskCardProps {
   task: PlanTask;
   editMode: boolean;
-  onEdit: (key: string, field: keyof PlanTask, value: string | boolean | number | null) => void;
+  onEdit: (taskId: string, field: keyof PlanTask, value: any, customerId: string) => void;
   customer: ICustomer | null | undefined;
+  sections: PlanSection[];
+  updateTask: (customerId: string, sectionTitle: string, taskId: string, updates: Partial<PlanTask>) => Promise<void>;
+  isOverdue: (dueDate: string | null) => boolean;
 }
 
 const dropdownStyle = {
@@ -65,8 +71,9 @@ const dropdownStyle = {
   fontSize: '16px'
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue }) => {
   const { user } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
   const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
 
@@ -86,42 +93,36 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
   };
 
   const handleEditClick = async () => {
-    if (task.isEditing) {
+    console.log('Edit clicked, isEditing:', isEditing, 'Customer:', customer);
+    
+    if (isEditing) {
       try {
-        await onEdit(task.id, 'progress', tempValues.progress || task.progress);
-        await onEdit(task.id, 'dueDate', tempValues.dueDate || task.dueDate);
-        
-        // Handle completedDate separately since it can be undefined
-        const completedDate = tempValues.completedDate !== undefined 
-          ? tempValues.completedDate 
-          : (task.completedDate || '');  // Use empty string as fallback
-        await onEdit(task.id, 'completedDate', completedDate);
-
-        await onEdit(task.id, 'isActive', tempValues.isActive !== undefined ? tempValues.isActive : task.isActive);
-        await onEdit(task.id, 'frequency', tempValues.frequency || task.frequency);
-        await onEdit(task.id, 'notes', tempValues.notes !== undefined ? tempValues.notes : task.notes);
-        
-        if (tempValues.current !== undefined) {
-          await onEdit(task.id, 'current', tempValues.current);
-        }
-        if (tempValues.goal !== undefined) {
-          await onEdit(task.id, 'goal', tempValues.goal);
+        if (!customer) {
+          console.error('No customer found');
+          return;
         }
 
-        await onEdit(task.id, 'updatedAt', new Date().toISOString());
-        await onEdit(task.id, 'updatedBy', user?.email || '');
-        await onEdit(task.id, 'isEditing', false);
+        console.log('Saving changes for customer:', customer.id);
 
+        const updates = {
+          ...tempValues,
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.email || ''
+        };
+
+        await onEdit(task.id, 'task', updates, customer.id);
+
+        setIsEditing(false);
         setTempValues({});
         message.success('Changes saved successfully');
       } catch (error) {
         console.error('Error saving changes:', error);
-        handleCancel();
         message.error('Failed to save changes');
       }
     } else {
-      setOriginalValues({
-        notes: task.notes,
+      console.log('Starting edit mode for task:', task.id, 'in plan:', customer?.id);
+      setIsEditing(true);
+      setTempValues({
         progress: task.progress,
         dueDate: task.dueDate,
         completedDate: task.completedDate,
@@ -129,19 +130,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
         frequency: task.frequency,
         current: task.current,
         goal: task.goal,
+        notes: task.notes
       });
-      onEdit(task.id, 'isEditing', true);
     }
   };
 
   const handleCancel = () => {
-    if (originalValues.notes !== undefined) {
-      onEdit(task.id, 'notes', originalValues.notes);
-    }
     setTempValues({});
-    onEdit(task.id, 'isEditing', false);
+    setIsEditing(false);
   };
-
   const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
     setTempValues(prev => ({
       ...prev,
@@ -166,65 +163,83 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
           <Space size="middle" style={{ 
             width: '100%', 
             justifyContent: 'space-between', 
-            alignItems: 'center',
-            minHeight: '68px'
+            alignItems: 'flex-start'
           }}>
-            <Space direction="vertical" size={0} style={{ flex: 1 }}>
+            <Space direction="vertical" size={4}>
               <Text strong>{task.task}</Text>
               {customer && (
                 <Space>
-                  <img 
-                    src={customer.logo || '/placeholder.svg'} 
-                    alt={`${customer.store_name} logo`} 
-                    width={16} 
-                    height={16} 
-                    style={{ borderRadius: '50%' }} 
-                  />
-                  <Text type="secondary">{customer.store_owner_name} - {customer.store_name}</Text>
+                  {customer.logo && (
+                    <Avatar
+                      src={customer.logo}
+                      alt={customer.store_name}
+                      size="small"
+                      icon={customer.logo ? undefined : customer.store_name[0]}
+                    />
+                  )}
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {customer.store_name}
+                    {customer.date_joined && (
+                      <span style={{ marginLeft: 8 }}>
+                        <CalendarOutlined /> {dayjs(customer.date_joined).format('MMM DD YYYY')}
+                      </span>
+                    )}
+                  </Text>
+                  {task.notes && <FileTextOutlined style={{ color: '#8c8c8c' }} />}
                 </Space>
               )}
             </Space>
-            <Space align="center" size="large">
-              {task.goal !== undefined && task.frequency === 'Monthly' && (
-                <Space direction="vertical" size={2} align="center">
-                  <Progress 
-                    type="circle" 
-                    percent={Math.round((task.current || 0) / task.goal * 100)} 
-                    width={40}
-                    format={(percent) => `${task.current || 0}/${task.goal}`}
+            <Space>
+              {(task.frequency === 'Monthly' || task.frequency === 'As Needed') && (
+                <Space direction="vertical" size={0} align="center">
+                  <Progress
+                    type="circle"
+                    percent={Math.round((task.current || 0) / (task.goal || 1) * 100)}
+                    size={50}
+                    strokeColor={{
+                      '0%': '#108ee9',
+                      '100%': '#87d068',
+                    }}
+                    format={() => (
+                      <Text style={{ fontSize: '12px' }}>
+                        {task.current || 0}/{task.goal || 0}
+                      </Text>
+                    )}
                   />
-                  <Text type="secondary" style={{ fontSize: '12px' }}>This Month</Text>
-                  
+                  <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px' }}>
+                    This Month
+                  </Text>
                   <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Total to Date: {calculateTotalProgress(task)}
+                    Total: {calculateTotalProgress(task)}
                   </Text>
                 </Space>
               )}
+              <Tag color={pastelColors[task.progress]}>
+                {task.progress}
+              </Tag>
               <Space direction="vertical" size={2}>
-                {task.dueDate ? (
-                  <Space>
-                    <CalendarOutlined /> 
-                    <Text type="secondary">Due: {task.dueDate}</Text>
-                  </Space>
-                ) : (
-                  <Text type="secondary">No due date</Text>
+                {task.dueDate && (
+                  <Tooltip title={isOverdue(task.dueDate) ? 'Overdue' : 'Due date'}>
+                    <Tag color={isOverdue(task.dueDate) ? 'red' : 'blue'}>
+                      <CalendarOutlined /> Due: {dayjs(task.dueDate).format('MMM DD')}
+                    </Tag>
+                  </Tooltip>
                 )}
-                {task.completedDate && (
-                  <Space>
-                    <CheckCircleOutlined style={{ color: '#52c41a' }} /> 
-                    <Text type="secondary">Completed: {task.completedDate}</Text>
-                  </Space>
+                {task.progress === 'Done' && task.completedDate && (
+                  <Tooltip title="Completed date">
+                    <Tag color="green">
+                      <CheckCircleOutlined /> Done: {dayjs(task.completedDate).format('MMM DD')}
+                    </Tag>
+                  </Tooltip>
                 )}
               </Space>
-              {task.notes && <Tooltip title="Has notes"><FileTextOutlined /></Tooltip>}
-              <Tag color={pastelColors[task.progress]}>{task.progress}</Tag>
             </Space>
           </Space>
         }
       >
         <div style={{ marginBottom: '16px' }}>
           <Space>
-            {task.isEditing ? (
+            {isEditing ? (
               <>
                 <Button
                   type="primary"
@@ -261,7 +276,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               style={{ width: 120 }}
               value={tempValues.progress !== undefined ? tempValues.progress : task.progress}
               onChange={handleProgressChange}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             >
               <Option value="To Do">To Do</Option>
               <Option value="Doing">Doing</Option>
@@ -270,17 +285,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <div>
               <Text strong>Due Date:</Text>
               <DatePicker
-                value={tempValues.dueDate ? dayjs(tempValues.dueDate) : dayjs(task.dueDate)}
-                onChange={(date) => handleTempChange('dueDate', date ? date.toISOString().split('T')[0] : '')}
-                disabled={!task.isEditing}
+                value={tempValues.dueDate ? dayjs(tempValues.dueDate) : (task.dueDate ? dayjs(task.dueDate) : null)}
+                onChange={(date) => handleTempChange('dueDate', date ? date.format('YYYY-MM-DD') : '')}
+                disabled={!isEditing}
               />
             </div>
             <div>
               <Text strong>Completed Date:</Text>
               <DatePicker
                 value={tempValues.completedDate ? dayjs(tempValues.completedDate) : (task.completedDate ? dayjs(task.completedDate) : null)}
-                onChange={(date) => handleTempChange('completedDate', date ? date.toISOString().split('T')[0] : '')}
-                disabled={!task.isEditing}
+                onChange={(date) => handleTempChange('completedDate', date ? date.format('YYYY-MM-DD') : '')}
+                disabled={!isEditing}
               />
             </div>
           </Space>
@@ -289,7 +304,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <Switch
               checked={tempValues.isActive !== undefined ? tempValues.isActive : task.isActive}
               onChange={(checked) => handleTempChange('isActive', checked)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             />
           </Space>
           <Space direction="vertical" style={{ width: '100%' }}>
@@ -298,21 +313,22 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
               style={{ width: 120 }}
               value={tempValues.frequency !== undefined ? tempValues.frequency : task.frequency}
               onChange={(value) => handleTempChange('frequency', value)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
             >
               <Option value="Monthly">Monthly</Option>
               <Option value="One Time">One Time</Option>
               <Option value="As Needed">As Needed</Option>
             </Select>
           </Space>
-          {(tempValues.frequency || task.frequency) === 'Monthly' && (
+          {(task.frequency === 'Monthly' || task.frequency === 'As Needed') && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Space>
+                <Text>Progress:</Text>
                 <Input
                   type="number"
                   value={tempValues.current !== undefined ? tempValues.current : task.current}
                   onChange={(e) => handleTempChange('current', parseInt(e.target.value))}
-                  disabled={!task.isEditing}
+                  disabled={!isEditing}
                   style={{ width: 80 }}
                 />
                 <Text>/</Text>
@@ -320,7 +336,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
                   type="number"
                   value={tempValues.goal !== undefined ? tempValues.goal : task.goal}
                   onChange={(e) => handleTempChange('goal', parseInt(e.target.value))}
-                  disabled={!task.isEditing}
+                  disabled={!isEditing}
                   style={{ width: 80 }}
                 />
               </Space>
@@ -332,7 +348,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
             <Input.TextArea
               value={tempValues.notes !== undefined ? tempValues.notes : task.notes}
               onChange={(e) => handleTempChange('notes', e.target.value)}
-              disabled={!task.isEditing}
+              disabled={!isEditing}
               rows={4}
             />
           </Space>
@@ -368,113 +384,188 @@ const LoadingSpinner = () => (
   </div>
 );
 
+// Add type definitions at the top
+type FrequencyFilterType = 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
+
+interface SavedFilters {
+  showActiveOnly: boolean;
+  progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
+  dueDateFilter: 'all' | 'overdue' | 'thisWeek';
+  search: string;
+  searchInput: string;  // Add this for search input
+  sortBy: 'dueDate' | 'none';
+  frequencyFilter: FrequencyFilterType;
+}
+
+// Add helper functions at the top
+const saveFiltersToStorage = (filters: SavedFilters) => {
+  localStorage.setItem('planFilters', JSON.stringify(filters));
+};
+
+const getFiltersFromStorage = (): SavedFilters | null => {
+  const saved = localStorage.getItem('planFilters');
+  return saved ? JSON.parse(saved) : null;
+};
+
+// Add PlansState interface at the top with other interfaces
+interface PlansState {
+  type: 'all' | 'single';
+  selectedCustomer: ICustomer | null;
+  data: { [customerId: string]: Plan };
+}
+
+// Add debounce utility at the top
+const debounce = <T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState<boolean>(false);
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>('none');
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('To Do');
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
-  const [sections, setSections] = useState<PlanSection[]>([]);
-  const [newTaskModal, setNewTaskModal] = useState({
-    visible: false,
-    sectionTitle: '',
-    taskName: ''
-  });
-  const [defaultSections, setDefaultSections] = useState<string[]>([]);
+  const savedFilters = getFiltersFromStorage();
+
+  // Constants
+  const CACHE_DURATION = 2 * 60 * 1000;  // 2 minutes
+  const pageSize = 10;
+
+  // All state declarations
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>(savedFilters?.dueDateFilter ?? 'all');
+  const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
+  const [search, setSearch] = useState(savedFilters?.search ?? '');
+  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
+  const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(savedFilters?.frequencyFilter ?? 'All');
+  const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [plans, setPlans] = useState<{
-    type: 'single' | 'all';
-    selectedCustomer: ICustomer | null;
-    data: { [customerId: string]: Plan };
-  }>({
-    type: 'all',
-    selectedCustomer: null,
-    data: {}
+  const [sections, setSections] = useState<PlanSection[]>([]);
+  const [plans, setPlans] = useState<PlansState>({ 
+    type: 'all',  // Default to 'all' view
+    selectedCustomer: null, 
+    data: {} 
   });
-
-  // Add cache state
   const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
+  const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
+  const [editMode, setEditMode] = useState(false);
+  const [defaultSections, setDefaultSections] = useState<string[]>([]);
+  const [newTaskModal, setNewTaskModal] = useState<{
+    visible: boolean;
+    sectionTitle: string;
+    taskName: string;
+  }>({ visible: false, sectionTitle: '', taskName: '' });
 
-  // Add loading state for sections
-  const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
-
-  // Add new state for due date filter
-  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('thisWeek');
-
-  // Add helper functions for date checks
+  // Helper functions
   const isOverdue = (dueDate: string | null) => {
-    if (!dueDate) return false;  // Tasks with no due date can't be overdue
+    if (!dueDate) return false;
     const today = dayjs().startOf('day');
     const dueDay = dayjs(dueDate).startOf('day');
-    return dueDay.isBefore(today);  // Task is overdue if due date is before today
+    return dueDay.isBefore(today);
   };
 
   const isDueThisWeek = (dueDate: string | null) => {
-    if (!dueDate) return false;  // Tasks with no due date aren't due this week
+    if (!dueDate) return false;
     const today = dayjs().startOf('day');
     const dueDay = dayjs(dueDate).startOf('day');
-    const endOfWeek = today.add(7, 'days').endOf('day');
-    
-    // Task is due this week if:
-    // 1. Due date is today or after today
-    // 2. Due date is before end of week
-    return !dueDay.isBefore(today) && dueDay.isBefore(endOfWeek);
+    return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'));
   };
 
-  useEffect(() => {
-    console.log('Due Date Filter:', dueDateFilter);
-    console.log('Active Only:', showActiveOnly);
-    console.log('Progress Filter:', progressFilter);
-  }, [dueDateFilter, showActiveOnly, progressFilter]);
-
-  // Move loadPlan outside useEffect and make it reusable
-  const loadPlan = async () => {
+  // Single loadAllPlans function
+  const loadAllPlans = async () => {
     try {
-      const customerId = isAdmin ? selectedCustomer?.id : user?.id;
+      setIsLoading(true);
       
-      if (!customerId || !selectedCustomer) {
-        console.log('No customer selected, skipping plan load');
-        return;
-      }
-      
-      console.log('Loading plan for customer:', customerId);
-      
-      // Get the plan
-      const planRef = doc(db, 'plans', customerId);
-      const planDoc = await getDoc(planRef);
-      
-      if (!planDoc.exists()) {
-        console.log('No plan exists, creating new one');
-        const plan = await fetchPlan(customerId);
-        setSections(plan.sections);
+      // Check cache validity
+      const isCacheValid = Date.now() - lastCacheUpdate < CACHE_DURATION;
+      if (isCacheValid && Object.keys(cachedPlans).length > 0) {
+        console.log('Using cached plans');
+        setPlans({
+          type: 'all',
+          selectedCustomer: null,  // No selected customer in all views
+          data: cachedPlans
+        });
+        setIsLoading(false);
         return;
       }
 
-      // Plan exists, get its data
-      const plan = planDoc.data() as Plan;
-      
-      // Check monthly progress
-      await checkMonthlyProgress(customerId);
-      
-      // Get updated plan after monthly check
-      const updatedPlanDoc = await getDoc(planRef);
-      const updatedPlan = updatedPlanDoc.data() as Plan;
-      
-      setSections(updatedPlan.sections);
+      // Fetch fresh data
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(customersRef);
+      const paidCustomers = customersSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
+        .filter(customer => customer.customer_type === 'Paid');
+
+      const plansPromises = paidCustomers.map(customer => 
+        getDoc(doc(db, 'plans', customer.id))
+      );
+      const plansSnapshots = await Promise.all(plansPromises);
+
+      const plansData = plansSnapshots.reduce((acc, planDoc, index) => {
+        if (planDoc.exists()) {
+          acc[paidCustomers[index].id] = planDoc.data() as Plan;
+        }
+        return acc;
+      }, {} as { [customerId: string]: Plan });
+
+      // Update cache
+      setCachedPlans(plansData);
+      setLastCacheUpdate(Date.now());
+
+      // Set plans while preserving selected customer
+      setPlans({
+        type: 'all',
+        selectedCustomer: null,  // No selected customer in all views
+        data: plansData
+      });
     } catch (error) {
-      console.error('Error loading plan:', error);
+      console.error('Error loading plans:', error);
+      message.error('Failed to load plans');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Then useEffects
+  useEffect(() => {
+    console.log('Filters changed:', {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      sortBy,
+      frequencyFilter
+    });
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, sortBy, frequencyFilter]);
+
+  // Add render log
+  console.log('Plan component rendered at:', new Date().toISOString());
+
+  // Add log for selectedCustomer changes
+  useEffect(() => {
+    console.log('selectedCustomer changed:', selectedCustomer?.id);
+  }, [selectedCustomer]);
+
+  // Add log for plans changes
+  useEffect(() => {
+    console.log('plans state changed:', {
+      type: plans.type,
+      customerId: plans.selectedCustomer?.id,
+      numberOfPlans: Object.keys(plans.data).length
+    });
+  }, [plans]);
 
   // Update useEffect to use the new loadPlan function
   useEffect(() => {
     let isMounted = true;
 
     const customerId = isAdmin ? selectedCustomer?.id : user?.id;
-    if (customerId && selectedCustomer) {
+    if (customerId && selectedCustomer && !plans.data[customerId]) {  // Only load if we don't have the data
       loadPlan();
     }
 
@@ -496,65 +587,83 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchDefaultSections();
   }, []);
 
-  const handleCellEdit = async (taskId: string, field: keyof PlanTask, value: any) => {
+  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, planId: string) => {
     try {
-      if (!selectedCustomer) return;
+      console.log('onEdit called:', { taskId, field, planId });
 
-      // Get the plan from Firestore
-      const planRef = doc(db, 'plans', selectedCustomer.id);
+      // Get current plan data
+      const planRef = doc(db, 'plans', planId);
       const planDoc = await getDoc(planRef);
-      
+
       if (!planDoc.exists()) {
-        console.error('Plan not found in Firestore');
+        console.error('Plan not found:', planId);
         return;
       }
 
-      const planData = planDoc.data() as Plan;
-
-      // Update the sections array
-      const updatedSections = planData.sections.map(section => ({
+      const plan = planDoc.data() as Plan;
+      const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
-          if (task.id === taskId) {  // Match by ID field
-            return {
-              ...task,
-              [field]: value
-            };
+          if (task.id === taskId) {
+            if (field === 'task' && typeof value === 'object') {
+              return { ...task, ...value };
+            }
+            return { ...task, [field]: value };
           }
           return task;
         })
       }));
 
-      // Update the entire sections array in Firestore
-      await updateDoc(planRef, {
-        sections: updatedSections
-      });
+      // Update Firestore
+      await updateDoc(planRef, { sections: updatedSections });
+      console.log('Firestore updated for plan:', planId);
 
       // Update local state
+      if (plans.type === 'all') {
+        setPlans((prevPlans: PlansState) => ({
+          ...prevPlans,
+          data: {
+            ...prevPlans.data,
+            [planId]: {
+              ...prevPlans.data[planId],
+              sections: updatedSections
+            }
+          }
+        }));
+      }
       setSections(updatedSections);
-
-      console.log('Task updated successfully');
+      console.log('Local state updated');
 
     } catch (error) {
-      console.error('Error updating task:', error);
-      message.error('Failed to update task');
-      loadPlan();
+      console.error('Error in onEdit:', error);
+      message.error('Failed to save changes');
     }
   };
 
+  // Update the filterTasks function to include frequency filter
   const filterTasks = (task: PlanTask) => {
-    console.log(`Task: ${task.task}, Due Date: ${task.dueDate}`);
-    if (task.dueDate) {
-      console.log('Is Overdue:', isOverdue(task.dueDate));
-      console.log('Is Due This Week:', isDueThisWeek(task.dueDate));
-    }
+    console.log('Filtering task:', {
+      task: task.task,
+      frequency: task.frequency,
+      selectedFilter: frequencyFilter,
+      matches: frequencyFilter === 'All' || 
+        (frequencyFilter === 'Monthly and As Needed' 
+          ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+          : task.frequency === frequencyFilter)
+    });
 
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
       (progressFilter === 'All' || task.progress === progressFilter) &&
       task.task.toLowerCase().includes(search.toLowerCase());
 
-    if (!baseFilters) return false;
+    const frequencyMatches = 
+      frequencyFilter === 'All' || 
+      (frequencyFilter === 'Monthly and As Needed' 
+        ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+        : task.frequency === frequencyFilter);
+
+    if (!baseFilters || !frequencyMatches) return false;
 
     switch (dueDateFilter) {
       case 'overdue':
@@ -577,10 +686,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     ...section,
     tasks: sortBy === 'dueDate' 
       ? [...section.tasks].sort((a, b) => {
-          // Handle null due dates
+          // Handle null or empty due dates
+          if (!a.dueDate && !b.dueDate) return 0;  // Both null, keep order
           if (!a.dueDate) return 1;  // Move null dates to end
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          if (!b.dueDate) return -1;  // Move null dates to end
+
+          // Compare dates for earliest first
+          const dateA = dayjs(a.dueDate);
+          const dateB = dayjs(b.dueDate);
+          return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
         })
       : section.tasks
   }));
@@ -600,17 +714,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       const newTask: PlanTask = {
         id: `custom-${Date.now()}`,
         task: newTaskModal.taskName.trim(),
-        progress: 'To Do',
+        progress: 'To Do' as const,
         isActive: true,
         notes: '',
         frequency: 'One Time',
         dueDate: null,
-        isEditing: false,
+        completedDate: null,
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || '',
         current: 0,
         goal: 0,
-        completedDate: ''
       };
 
       const planRef = doc(db, 'plans', selectedCustomer.id);
@@ -678,40 +791,216 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     });
   }, [plans, selectedCustomer]);
 
-  useEffect(() => {
-    const loadAllPlans = async () => {
-      try {
-        setIsLoading(true);
-        
-        const newPlans: { [customerId: string]: Plan } = {};
-        const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
-        
-        await Promise.all(
-          paidCustomers.map(async (customer) => {
-            const planRef = doc(db, 'plans', customer.id);
-            const planDoc = await getDoc(planRef);
-            
-            if (planDoc.exists()) {
-              newPlans[customer.id] = planDoc.data() as Plan;
-            }
-          })
-        );
-
-        setPlans({
-          type: 'all',
-          selectedCustomer: null,
-          data: newPlans
-        });
-      } catch (error) {
-        console.error('Error loading all plans:', error);
-        message.error('Failed to load plans');
-      } finally {
-        setIsLoading(false);
+  // Add loadPlan function
+  const loadPlan = async () => {
+    try {
+      console.log('loadPlan called for customer:', selectedCustomer?.id);
+      setIsLoading(true);
+      const customerId = selectedCustomer?.id;
+      
+      if (!customerId) {
+        console.log('No customer selected, skipping load');
+        return;
       }
+
+      const planRef = doc(db, 'plans', customerId);
+      console.log('Fetching plan from Firestore');
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        console.log('No plan exists, creating from default rules');
+        
+        // Get default task rules
+        const rulesRef = doc(db, 'planTaskRules', 'default');
+        const rulesDoc = await getDoc(rulesRef);
+        
+        if (rulesDoc.exists()) {
+          const rules = rulesDoc.data();
+          
+          // Create plan sections from rules
+          const newPlan: Plan = {
+            sections: rules.sections.map((sectionTitle: string) => ({
+              title: sectionTitle,
+              tasks: rules.tasks
+                .filter((rule: { section: string }) => rule.section === sectionTitle)
+                .map((rule: { 
+                  id: string; 
+                  task: string; 
+                  isActive: boolean; 
+                  frequency: PlanTask['frequency'];
+                  daysAfterJoin?: number;
+                  defaultCurrent?: number;
+                  defaultGoal?: number;
+                }) => ({
+                  id: rule.id,
+                  task: rule.task,
+                  progress: 'To Do' as const,
+                  isActive: rule.isActive,
+                  notes: '',
+                  frequency: rule.frequency,
+                  dueDate: rule.daysAfterJoin && selectedCustomer.date_joined 
+                    ? dayjs(selectedCustomer.date_joined).add(rule.daysAfterJoin, 'day').format('YYYY-MM-DD')
+                    : null,
+                  completedDate: null,
+                  current: rule.defaultCurrent || 0,
+                  goal: rule.defaultGoal || 0,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || ''
+                }))
+            })),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+
+          // Save new plan to Firestore
+          await setDoc(planRef, newPlan);
+          console.log('Created new plan from default rules');
+          setSections(newPlan.sections);
+          return;
+        }
+      }
+
+      const plan = planDoc.data() as Plan;
+      console.log('Plan loaded successfully');
+      setSections(plan.sections);
+    } catch (error) {
+      console.error('Error loading plan:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add handleResetFilters function
+  const handleResetFilters = () => {
+    setShowActiveOnly(false);
+    setProgressFilter('All');
+    setDueDateFilter('all');
+    setSearch('');
+    setSortBy('none');
+    setFrequencyFilter('All');
+    setPaginationState({});
+  };
+
+  // Add useEffect to save filters
+  useEffect(() => {
+    const filtersToSave = {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      searchInput,
+      sortBy,
+      frequencyFilter
+    };
+    console.log('Saving filters:', filtersToSave);
+    saveFiltersToStorage(filtersToSave);
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, searchInput, sortBy, frequencyFilter]);
+
+  // Update the view switching logic
+  const handleViewChange = async (viewType: 'all' | 'single') => {
+    try {
+      // Save current filter states
+      const currentFilters = {
+        showActiveOnly,
+        progressFilter,
+        dueDateFilter,
+        search,
+        searchInput,
+        sortBy,
+        frequencyFilter
+      };
+      console.log('Preserving filters:', currentFilters);
+
+      if (viewType === 'all') {
+        setSelectedCustomer(null);
+        setPlans(prev => ({
+          ...prev,
+          type: 'all',
+          selectedCustomer: null
+        }));
+        await loadAllPlans();
+
+        // Restore filters after loading
+        setShowActiveOnly(currentFilters.showActiveOnly);
+        setProgressFilter(currentFilters.progressFilter);
+        setDueDateFilter(currentFilters.dueDateFilter);
+        setSearch(currentFilters.search);
+        setSearchInput(currentFilters.searchInput);
+        setSortBy(currentFilters.sortBy);
+        setFrequencyFilter(currentFilters.frequencyFilter);
+      } else {
+        if (selectedCustomer) {
+          setPlans(prev => ({
+            ...prev,
+            type: 'single',
+            selectedCustomer
+          }));
+          await loadPlan();
+
+          // Restore filters after loading
+          setShowActiveOnly(currentFilters.showActiveOnly);
+          setProgressFilter(currentFilters.progressFilter);
+          setDueDateFilter(currentFilters.dueDateFilter);
+          setSearch(currentFilters.search);
+          setSearchInput(currentFilters.searchInput);
+          setSortBy(currentFilters.sortBy);
+          setFrequencyFilter(currentFilters.frequencyFilter);
+        }
+      }
+    } catch (error) {
+      console.error('Error switching views:', error);
+      message.error('Failed to switch views');
+    }
+  };
+
+  // Update initial load to load all plans by default
+  useEffect(() => {
+    if (isAdmin) {
+      loadAllPlans();  // Load all plans on initial mount
+    }
+  }, [isAdmin]);
+
+  // Update customer selection handler
+  const handleCustomerSelect = async (customerId: string | null) => {
+    // Save current filter states
+    const currentFilters = {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      searchInput,
+      sortBy,
+      frequencyFilter
     };
 
-    loadAllPlans();
-  }, [customers]); // Only run when customers list changes
+    const customer = customers.find(c => c.id === customerId) || null;
+    setSelectedCustomer(customer);
+    
+    if (customer) {
+      setPlans(prev => ({
+        ...prev,
+        type: 'single',
+        selectedCustomer: customer
+      }));
+      await loadPlan();
+    } else {
+      setPlans(prev => ({
+        ...prev,
+        type: 'all',
+        selectedCustomer: null
+      }));
+      await loadAllPlans();
+    }
+
+    // Restore filters after loading
+    setShowActiveOnly(currentFilters.showActiveOnly);
+    setProgressFilter(currentFilters.progressFilter);
+    setDueDateFilter(currentFilters.dueDateFilter);
+    setSearch(currentFilters.search);
+    setSearchInput(currentFilters.searchInput);
+    setSortBy(currentFilters.sortBy);
+    setFrequencyFilter(currentFilters.frequencyFilter);
+  };
 
   if (!isAdmin) {
     return (
@@ -738,8 +1027,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               </Select>
               <Search
                 placeholder="Search tasks..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                onSearch={(value) => {
+                  setSearch(value);  // Only apply filter when search button is clicked
+                  console.log('Searching for:', value);
+                }}
+                enterButton  // Add search button
+                allowClear   // Keep clear button
                 style={{ width: 200 }}
               />
               <Select
@@ -760,6 +1055,23 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   </Space>
                 </Option>
               </Select>
+              <Select
+                style={{ width: 200 }}
+                value={frequencyFilter}
+                onChange={setFrequencyFilter}
+                placeholder="Filter by frequency"
+              >
+                <Option value="All">All Frequencies</Option>
+                <Option value="One Time">One Time</Option>
+                <Option value="Monthly">Monthly</Option>
+                <Option value="As Needed">As Needed</Option>
+                <Option value="Monthly and As Needed">Monthly & As Needed</Option>
+              </Select>
+              <Button 
+                icon={<ReloadOutlined />} 
+                onClick={handleResetFilters}
+                title="Reset all filters"
+              />
             </Space>
           </Card>
 
@@ -770,9 +1082,12 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 <TaskCard
                   key={task.id}
                   task={task}
-                  editMode={false}
-                  onEdit={handleCellEdit}
+                  editMode={editMode}
+                  onEdit={onEdit}
                   customer={null}
+                  sections={sections}
+                  updateTask={updateTask}
+                  isOverdue={isOverdue}
                 />
               ))}
             </Card>
@@ -791,14 +1106,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             <Select
               style={{ width: '100%' }}
               placeholder="Select a customer"
-              value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
+              value={selectedCustomer ? selectedCustomer.id : plans.type === 'all' ? 'all-paid' : undefined}
               onChange={async (value) => {
                 try {
                   setIsLoading(true);
                   
                   if (value === 'all-paid') {
-                    setSelectedCustomer(null);  // Clear selected customer
-                    
+                    // Handle all customers view
                     const newPlans: { [customerId: string]: Plan } = {};
                     const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
                     
@@ -818,24 +1132,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       selectedCustomer: null,
                       data: newPlans
                     });
+                    setSelectedCustomer(null);
                   } else {
+                    // Handle individual customer selection
                     const customer = customers
                       .filter(c => c.customer_type === 'Paid')
                       .find((c) => c.id === value);
                     
-                    if (customer) {
-                      const planRef = doc(db, 'plans', customer.id);
-                      const planDoc = await getDoc(planRef);
-                      
-                      if (planDoc.exists()) {
-                        setSelectedCustomer(customer);  // Set selected customer
-                        setPlans({
-                          type: 'single',
-                          selectedCustomer: customer,
-                          data: { [customer.id]: planDoc.data() as Plan }
-                        });
-                      }
-                    }
+                    setSelectedCustomer(customer || null);
+                    setPlans({
+                      type: 'single',
+                      selectedCustomer: customer || null,
+                      data: {}
+                    });
                   }
                 } catch (error) {
                   console.error('Error switching views:', error);
@@ -853,7 +1162,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               }
             >
               <Select.Option key="all-paid" value="all-paid">
-                All Paid Customers
+                All Customers
               </Select.Option>
               <Select.Option key="divider" disabled>
                 ──────────────
@@ -864,7 +1173,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   <Select.Option 
                     key={customer.id} 
                     value={customer.id}
-                    label={`${customer.store_owner_name} - ${customer.store_name}`}
+                    label={`${customer.store_name} - ${customer.store_owner_name}`}
                   >
                     <Space>
                       {customer.logo && (
@@ -874,7 +1183,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                           style={{ width: 20, height: 20, borderRadius: '50%' }} 
                         />
                       )}
-                      {customer.store_owner_name} - {customer.store_name}
+                      {customer.store_name} - {customer.store_owner_name}
                     </Space>
                   </Select.Option>
                 ))}
@@ -928,8 +1237,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             </Select>
             <Search
               placeholder="Search tasks..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onSearch={(value) => {
+                setSearch(value);  // Only apply filter when search button is clicked
+                console.log('Searching for:', value);
+              }}
+              enterButton  // Add search button
+              allowClear   // Keep clear button
               style={{ width: 200 }}
             />
             <Select
@@ -950,6 +1265,23 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 </Space>
               </Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={frequencyFilter}
+              onChange={setFrequencyFilter}
+              placeholder="Filter by frequency"
+            >
+              <Option value="All">All Frequencies</Option>
+              <Option value="One Time">One Time</Option>
+              <Option value="Monthly">Monthly</Option>
+              <Option value="As Needed">As Needed</Option>
+              <Option value="Monthly and As Needed">Monthly & As Needed</Option>
+            </Select>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            />
           </Space>
         </Card>
 
@@ -963,7 +1295,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             });
 
             if (plans.type === 'all') {
-              console.log('🟢 ENTERING ALL PLANS VIEW');
+              console.log('ENTERING ALL PLANS VIEW');
               console.log('Available plans:', Object.keys(plans.data).map(id => {
                 const customer = customers.find(c => c.id === id);
                 return customer?.store_name;
@@ -971,59 +1303,59 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               
               // Get all tasks for this section from all customers
               const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-                console.log(`Processing customer ${customerId}`);
                 const customer = customers.find(c => c.id === customerId);
-                if (!customer) {
-                  console.log('Customer not found');
-                  return [];
-                }
+                if (!customer) return [];
 
-                const section = plan.sections.find((s: PlanSection) => s.title === sectionTitle);
-                if (!section) {
-                  console.log(`Section ${sectionTitle} not found`);
-                  return [];
-                }
+                const section = plan.sections.find(s => s.title === sectionTitle);
+                if (!section) return [];
 
-                console.log(`Found ${section.tasks.length} tasks in section ${sectionTitle}`);
                 return section.tasks
-                  .filter((task: PlanTask) => {
-                    const baseFilters = 
-                      (!showActiveOnly || task.isActive) &&
-                      (progressFilter === 'All' || task.progress === progressFilter) &&
-                      task.task.toLowerCase().includes(search.toLowerCase());
-
-                    switch (dueDateFilter) {
-                      case 'overdue':
-                        return baseFilters && isOverdue(task.dueDate);
-                      case 'thisWeek':
-                        return baseFilters && isDueThisWeek(task.dueDate);
-                      default:
-                        return baseFilters;
-                    }
-                  })
+                  .filter(filterTasks)
                   .map(task => ({ customer, task }));
               });
 
-              console.log(`Total tasks after filtering: ${allTasks.length}`);
+              // Sort tasks by task ID first, then by customer join date (most recent first)
+              const sortedTasks = allTasks.sort((a, b) => {
+                // First sort by task ID
+                if (a.task.id !== b.task.id) {
+                  return a.task.id.localeCompare(b.task.id);
+                }
+                // Then by customer join date (most recent first)
+                const dateA = dayjs(a.customer.date_joined);
+                const dateB = dayjs(b.customer.date_joined);
+                return dateB.isAfter(dateA) ? 1 : dateB.isBefore(dateA) ? -1 : 0;
+              });
 
-              // Only show section if it has tasks after filtering
-              if (allTasks.length === 0) {
-                console.log(`No tasks in section ${sectionTitle} after filtering`);
-                return null;
-              }
+              // Then apply pagination to sorted tasks
+              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
+              const endIndex = startIndex + pageSize;
+              const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
 
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {allTasks.map(({ customer, task }) => (
+                  {paginatedTasks.map(({ customer, task }) => (
                     <TaskCard
                       key={`${customer.id}-${task.id}`}
                       task={task}
-                      editMode={false}
-                      onEdit={handleCellEdit}
+                      editMode={editMode}
+                      onEdit={onEdit}
                       customer={customer}
+                      sections={plans.data[customer.id].sections}
+                      updateTask={updateTask}
+                      isOverdue={isOverdue}
                     />
                   ))}
+                  {allTasks.length > pageSize && (
+                    <Pagination
+                      current={(paginationState[sectionTitle] || 0) + 1}
+                      total={allTasks.length}
+                      pageSize={pageSize}
+                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                      style={{ marginTop: '16px', textAlign: 'right' }}
+                      showTotal={(total) => `Total ${total} tasks`}
+                    />
+                  )}
                 </Card>
               );
             } else {
@@ -1034,57 +1366,103 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               const customerId = customer.id;
               if (!plans.data[customerId]) return null;
 
-              const section = plans.data[customerId].sections
+              const section = (plans.data[customerId] as Plan).sections
                 .find((s: PlanSection) => s.title === sectionTitle);
               
               if (!section) return null;
 
-              const filteredTasks = section.tasks.filter(filterTasks);
+              const filteredTasks = section.tasks.filter(task => 
+                (!showActiveOnly || task.isActive) &&
+                (progressFilter === 'All' || task.progress === progressFilter) &&
+                task.task.toLowerCase().includes(search.toLowerCase()) &&
+                (dueDateFilter === 'all' || 
+                  (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
+                  (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
+                )
+              );
 
               if (filteredTasks.length === 0) return null;
+
+              // Then apply pagination
+              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
+              const endIndex = startIndex + pageSize;
+              const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
 
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
                   <Title level={4}>{sectionTitle}</Title>
-                  {filteredTasks.map((task: PlanTask) => (
+                  {paginatedTasks.map((task) => (
                     <TaskCard
                       key={task.id}
                       task={task}
                       editMode={editMode}
-                      onEdit={handleCellEdit}
+                      onEdit={onEdit}
                       customer={customer}
+                      sections={sections}
+                      updateTask={updateTask}
+                      isOverdue={isOverdue}
                     />
                   ))}
+                  {filteredTasks.length > pageSize && (
+                    <Pagination
+                      current={(paginationState[sectionTitle] || 0) + 1}
+                      total={filteredTasks.length}
+                      pageSize={pageSize}
+                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
+                      style={{ marginTop: '16px', textAlign: 'right' }}
+                      showTotal={(total) => `Total ${total} tasks`}
+                    />
+                  )}
                 </Card>
               );
             }
           })
         ) : (
-          sortedSections.map((section) => (
-            <Card key={section.title} style={{ marginTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          sortedSections.map((section) => {
+            // Apply ALL filters first
+            const filteredTasks = section.tasks.filter(task => 
+              (!showActiveOnly || task.isActive) &&
+              (progressFilter === 'All' || task.progress === progressFilter) &&
+              task.task.toLowerCase().includes(search.toLowerCase()) &&
+              (dueDateFilter === 'all' || 
+                (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
+                (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
+              )
+            );
+
+            // Then paginate
+            const startIndex = (paginationState[section.title] || 0) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+
+            return (
+              <Card key={section.title} style={{ marginTop: 16 }}>
                 <Title level={4}>{section.title}</Title>
-                {plans.type !== 'all' && (
-                  <Button
-                    type="primary"
-                    icon={<EditOutlined />}
-                    onClick={() => handleAddTask(section.title)}
-                  >
-                    Add Task
-                  </Button>
+                {paginatedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    editMode={editMode}
+                    onEdit={onEdit}
+                    customer={selectedCustomer}
+                    sections={sections}
+                    updateTask={updateTask}
+                    isOverdue={isOverdue}
+                  />
+                ))}
+                {filteredTasks.length > pageSize && (
+                  <Pagination
+                    current={(paginationState[section.title] || 0) + 1}
+                    total={filteredTasks.length}
+                    pageSize={pageSize}
+                    onChange={(page) => setPaginationState(prev => ({ ...prev, [section.title]: page - 1 }))}
+                    style={{ marginTop: '16px', textAlign: 'right' }}
+                    showTotal={(total) => `Total ${total} tasks`}
+                  />
                 )}
-              </div>
-              {section.tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  editMode={editMode}
-                  onEdit={handleCellEdit}
-                  customer={selectedCustomer}
-                />
-              ))}
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </Content>
     </Layout>

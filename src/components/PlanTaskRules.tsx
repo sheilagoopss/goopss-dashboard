@@ -4,10 +4,10 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType } from '../types/PlanTasks';
 import { PlanSection, PlanTask } from '../types/Plan';
 import { usePlanTaskRules } from '../hooks/usePlanTaskRules';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
-import { message, Switch } from 'antd';
+import { message, Switch, notification } from 'antd';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { ICustomer } from '../types/Customer';
@@ -52,6 +52,7 @@ const PlanTaskRulesComponent: React.FC = () => {
   }>({ visible: false, changes: [] });
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
 
   const getOrdinalSuffix = (day: number): string => {
     if (day > 3 && day < 21) return 'th';
@@ -213,189 +214,300 @@ const PlanTaskRulesComponent: React.FC = () => {
   };
 
   const handleApplyToAll = async (rule: PlanTaskRule) => {
-    try {
-      // Get all customers
-      const customersRef = collection(db, 'customers');
-      const customersSnapshot = await getDocs(customersRef);
-      const customers = customersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as ICustomer));
+    Modal.confirm({
+      title: 'Apply Changes to All Customers',
+      content: (
+        <div>
+          <p>The following changes will be applied to all customers for task:</p>
+          <p><strong>{rule.task}</strong></p>
+          <ul>
+            {rule.frequency === 'Monthly' && rule.monthlyDueDate ? (
+              <li>Due Date: Every {rule.monthlyDueDate}{getOrdinalSuffix(rule.monthlyDueDate)} of the month</li>
+            ) : rule.daysAfterJoin ? (
+              <li>Due Date: {rule.daysAfterJoin} days after join date</li>
+            ) : null}
+            {rule.frequency && <li>Frequency: {rule.frequency}</li>}
+            {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
+            {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
+          </ul>
+          <p>This will update all customer plans while preserving their:</p>
+          <ul>
+            <li>Progress (To Do/Doing/Done)</li>
+            <li>Notes</li>
+            <li>Completed dates</li>
+            <li>Current values</li>
+          </ul>
+        </div>
+      ),
+      async onOk() {
+        try {
+          console.log('Starting handleApplyToAll for rule:', rule);
 
-      // Show confirmation modal with changes
-      Modal.confirm({
-        title: 'Apply Changes to All Customers',
-        content: (
-          <div>
-            <p>The following changes will be applied to all customers for task:</p>
-            <p><strong>{rule.task}</strong></p>
-            <ul>
-              {rule.frequency === 'Monthly' && rule.monthlyDueDate ? (
-                <li>Due Date: Every {rule.monthlyDueDate}{getOrdinalSuffix(rule.monthlyDueDate)} of the month</li>
-              ) : rule.daysAfterJoin ? (
-                <li>Due Date: {rule.daysAfterJoin} days after join date</li>
-              ) : null}
-              {rule.frequency && <li>Frequency: {rule.frequency}</li>}
-              {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
-              {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
-            </ul>
-            <p>This will update all customer plans while preserving their:</p>
-            <ul>
-              <li>Progress (To Do/Doing/Done)</li>
-              <li>Notes</li>
-              <li>Completed dates</li>
-              <li>Current values</li>
-            </ul>
-          </div>
-        ),
-        okText: 'Apply Changes',
-        cancelText: 'Cancel',
-        onOk: async () => {
-          // Update each customer's plan
-          for (const customer of customers) {
+          // Get all paid customers
+          const customersRef = collection(db, 'customers');
+          const customersSnapshot = await getDocs(customersRef);
+          const paidCustomers = customersSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
+            .filter(customer => customer.customer_type === 'Paid');
+
+          // Batch updates
+          const batch = writeBatch(db);
+          let batchCount = 0;
+          const BATCH_LIMIT = 500;
+
+          // Process all customers
+          for (const customer of paidCustomers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
-            
-            // Skip if customer doesn't have a plan yet
+
             if (!planDoc.exists()) continue;
 
-            const existingPlan = planDoc.data() as Plan;
-            const newSections = existingPlan.sections.map((section: PlanSection) => {
-              if (section.title === rule.section) {
-                const existingTask = section.tasks.find((t: PlanTask) => t.id === rule.id);
-                
-                if (existingTask) {
-                  // Update existing task
-                  return {
-                    ...section,
-                    tasks: section.tasks.map((task: PlanTask) => {
-                      if (task.id === rule.id) {
-                        return {
-                          ...task,
-                          task: rule.task,
-                          dueDate: calculateDueDate(customer, rule),
-                          frequency: rule.frequency,
-                          isActive: rule.isActive,
-                          goal: rule.defaultGoal || task.goal,
-                          updatedAt: new Date().toISOString(),
-                          updatedBy: user?.email || ''
-                        };
-                      }
-                      return task;
-                    })
-                  };
-                }
-                return section;
-              }
-              return section;
-            });
+            const plan = planDoc.data() as Plan;
+            let needsUpdate = false;
 
-            await updateDoc(planRef, {
-              sections: newSections,
-              updatedAt: new Date().toISOString()
-            });
+            // Find or create section
+            let sectionIndex = plan.sections.findIndex(s => s.title === rule.section);
+            if (sectionIndex === -1) {
+              plan.sections.push({
+                title: rule.section,
+                tasks: []
+              });
+              sectionIndex = plan.sections.length - 1;
+              needsUpdate = true;
+            }
+
+            // Get current tasks in this section
+            const currentTasks = [...plan.sections[sectionIndex].tasks];
+
+            // Check if task exists
+            const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
+            if (existingTaskIndex !== -1) {
+              // Update existing task but preserve monthlyHistory
+              const existingTask = currentTasks[existingTaskIndex];
+              currentTasks[existingTaskIndex] = {
+                ...existingTask,  // Keep existing data including monthlyHistory
+                task: rule.task,
+                isActive: rule.isActive,
+                frequency: rule.frequency,
+                dueDate: calculateDueDate(customer, rule),
+                goal: rule.defaultGoal || existingTask.goal,
+                updatedAt: new Date().toISOString(),
+                updatedBy: user?.email || ''
+              };
+            } else {
+              // Add new task without monthlyHistory
+              currentTasks.push({
+                id: rule.id,
+                task: rule.task,
+                progress: 'To Do' as const,
+                isActive: rule.isActive,
+                notes: '',
+                frequency: rule.frequency,
+                dueDate: calculateDueDate(customer, rule),
+                completedDate: null,
+                current: rule.defaultCurrent || 0,
+                goal: rule.defaultGoal || 0,
+                updatedAt: new Date().toISOString(),
+                updatedBy: user?.email || ''
+              });
+            }
+
+            // Update section tasks
+            plan.sections[sectionIndex].tasks = currentTasks;
+            needsUpdate = true;
+
+            if (needsUpdate) {
+              if (batchCount >= BATCH_LIMIT) {
+                await batch.commit();
+                batchCount = 0;
+              }
+              batch.update(planRef, { sections: plan.sections });
+              batchCount++;
+            }
           }
 
-          message.success(`Changes for "${rule.task}" applied to all customers successfully`);
+          // Commit any remaining updates
+          if (batchCount > 0) {
+            await batch.commit();
+          }
+
+          notification.success({
+            message: 'Success',
+            description: 'Task rule has been applied to all customers.',
+          });
+
+        } catch (error) {
+          console.error('Error applying changes:', error);
+          message.error('Failed to apply changes');
         }
-      });
-    } catch (error) {
-      console.error('Error applying changes:', error);
-      message.error('Failed to apply changes');
-    }
+      },
+      onCancel() {
+        setIsApplying(false);
+      }
+    });
   };
 
   const applyToAllCustomers = async () => {
-    try {
-      // Get all customers
-      const customersRef = collection(db, 'customers');
-      const customersSnapshot = await getDocs(customersRef);
-      const customers = customersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as ICustomer));
+    Modal.confirm({
+      title: 'Apply Changes',
+      content: (
+        <div>
+          <p>Are you sure you want to apply these changes to all customers?</p>
+          <p>This will:</p>
+          <ul>
+            <li>Update all task rules</li>
+            <li>Add new tasks</li>
+            <li>Update existing tasks</li>
+          </ul>
+        </div>
+      ),
+      async onOk() {
+        console.log('CLICKED OK - STARTING PROCESS');
+        try {
+          setIsApplying(true);
 
-      // Show confirmation modal with changes
-      Modal.confirm({
-        title: 'Apply Changes to All Customers',
-        content: (
-          <div>
-            <p>The following changes will be applied to all customers for task:</p>
-            <p><strong>{rules[0].task}</strong></p>
-            <ul>
-              {rules[0].frequency === 'Monthly' && rules[0].monthlyDueDate ? (
-                <li>Due Date: Every {rules[0].monthlyDueDate}{getOrdinalSuffix(rules[0].monthlyDueDate)} of the month</li>
-              ) : rules[0].daysAfterJoin ? (
-                <li>Due Date: {rules[0].daysAfterJoin} days after join date</li>
-              ) : null}
-              {rules[0].frequency && <li>Frequency: {rules[0].frequency}</li>}
-              {rules[0].isActive !== undefined && <li>Active Status: {rules[0].isActive ? 'Active' : 'Inactive'}</li>}
-              {rules[0].defaultGoal && <li>Default Goal: {rules[0].defaultGoal}</li>}
-            </ul>
-            <p>This will update all customer plans while preserving their:</p>
-            <ul>
-              <li>Progress (To Do/Doing/Done)</li>
-              <li>Notes</li>
-              <li>Completed dates</li>
-              <li>Current values</li>
-            </ul>
-          </div>
-        ),
-        okText: 'Apply Changes',
-        cancelText: 'Cancel',
-        onOk: async () => {
+          // Get current task rules
+          const rulesRef = doc(db, 'planTaskRules', 'default');
+          const rulesDoc = await getDoc(rulesRef);
+          const rules = rulesDoc.data() as PlanTaskRulesType;
+          console.log('RULES LOADED:', rules);
+
+          // Get all paid customers
+          const customersRef = collection(db, 'customers');
+          const customersSnapshot = await getDocs(customersRef);
+          const paidCustomers = customersSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
+            .filter(customer => customer.customer_type === 'Paid');
+          console.log('PAID CUSTOMERS:', paidCustomers.length);
+
           // Update each customer's plan
-          for (const customer of customers) {
+          for (const customer of paidCustomers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
-            
-            // Skip if customer doesn't have a plan yet
+
             if (!planDoc.exists()) continue;
 
-            const existingPlan = planDoc.data() as Plan;
-            const newSections = existingPlan.sections.map((section: PlanSection) => {
-              if (section.title === rules[0].section) {
-                const existingTask = section.tasks.find((t: PlanTask) => t.id === rules[0].id);
-                
-                if (existingTask) {
-                  // Update existing task
-                  return {
-                    ...section,
-                    tasks: section.tasks.map((task: PlanTask) => {
-                      if (task.id === rules[0].id) {
-                        return {
-                          ...task,
-                          task: rules[0].task,
-                          dueDate: calculateDueDate(customer, rules[0]),
-                          frequency: rules[0].frequency,
-                          isActive: rules[0].isActive,
-                          goal: rules[0].defaultGoal || task.goal,
-                          updatedAt: new Date().toISOString(),
-                          updatedBy: user?.email || ''
-                        };
-                      }
-                      return task;
-                    })
-                  };
-                }
-                return section;
+            const plan = planDoc.data() as Plan;
+            let needsUpdate = false;
+
+            // Process each task rule
+            rules.tasks.forEach((rule: PlanTaskRule) => {
+              console.log('Processing rule:', {
+                ruleId: rule.id,
+                section: rule.section,
+                task: rule.task
+              });
+
+              // Find the section for this task
+              let sectionIndex = plan.sections.findIndex(s => s.title === rule.section);
+              
+              console.log('Section check:', {
+                sectionTitle: rule.section,
+                found: sectionIndex !== -1,
+                sectionIndex
+              });
+
+              // If section doesn't exist, create it
+              if (sectionIndex === -1) {
+                console.log('Creating new section:', rule.section);
+                plan.sections.push({
+                  title: rule.section,
+                  tasks: []
+                });
+                sectionIndex = plan.sections.length - 1;
+                needsUpdate = true;
               }
-              return section;
+
+              // Get current tasks in this section
+              const currentTasks = [...plan.sections[sectionIndex].tasks];
+              console.log('Current tasks in section:', {
+                sectionTitle: rule.section,
+                taskCount: currentTasks.length,
+                tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
+              });
+
+              // Check if task exists
+              const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
+              console.log('Task check:', {
+                ruleId: rule.id,
+                exists: existingTaskIndex !== -1,
+                existingTaskIndex
+              });
+
+              if (existingTaskIndex !== -1) {
+                console.log('Updating existing task:', rule.id);
+                currentTasks[existingTaskIndex] = {
+                  ...currentTasks[existingTaskIndex],
+                  task: rule.task,
+                  isActive: rule.isActive,
+                  frequency: rule.frequency,
+                  dueDate: calculateDueDate(customer, rule),
+                  goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || ''
+                };
+                needsUpdate = true;
+              } else {
+                console.log('Adding new task:', {
+                  id: rule.id,
+                  section: rule.section,
+                  task: rule.task
+                });
+                currentTasks.push({
+                  id: rule.id,
+                  task: rule.task,
+                  progress: 'To Do' as const,
+                  isActive: rule.isActive,
+                  notes: '',
+                  frequency: rule.frequency,
+                  dueDate: calculateDueDate(customer, rule),
+                  completedDate: null,
+                  current: rule.defaultCurrent || 0,
+                  goal: rule.defaultGoal || 0,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || ''
+                });
+              }
+
+              console.log('Updated tasks:', {
+                sectionTitle: rule.section,
+                taskCount: currentTasks.length,
+                tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
+              });
+
+              // Update section tasks
+              plan.sections[sectionIndex].tasks = currentTasks;
+              needsUpdate = true;
             });
 
-            await updateDoc(planRef, {
-              sections: newSections,
-              updatedAt: new Date().toISOString()
-            });
+            if (needsUpdate) {
+              console.log('Updating plan:', {
+                customerId: customer.id,
+                sections: plan.sections.map(s => ({
+                  title: s.title,
+                  taskCount: s.tasks.length,
+                  tasks: s.tasks.map(t => ({ id: t.id, task: t.task }))
+                }))
+              });
+              await updateDoc(planRef, { sections: plan.sections });
+            }
           }
 
-          message.success(`Changes for "${rules[0].task}" applied to all customers successfully`);
+          Modal.success({
+            title: 'Success',
+            content: 'Changes have been applied to all customers.',
+          });
+        } catch (error) {
+          console.error('Error applying changes:', error);
+          Modal.error({
+            title: 'Error',
+            content: 'Failed to apply changes to all customers.',
+          });
+        } finally {
+          setIsApplying(false);
         }
-      });
-    } catch (error) {
-      console.error('Error applying changes:', error);
-      message.error('Failed to apply changes');
-    }
+      }
+    });
   };
 
   const filteredRules = rules.filter(rule => {
@@ -649,11 +761,22 @@ const PlanTaskRulesComponent: React.FC = () => {
             </Form.Item>
 
             <Form.Item
-              name="requiresGoal"
               label="Requires Goal"
+              name="requiresGoal"
               valuePropName="checked"
             >
-              <Switch />
+              <Switch
+                onChange={(checked) => {
+                  setEditingRule(prev => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      requiresGoal: checked,
+                      defaultGoal: checked ? prev.defaultGoal : null  // Keep goal if enabled, null if disabled
+                    };
+                  });
+                }}
+              />
             </Form.Item>
 
             <Form.Item
@@ -666,11 +789,23 @@ const PlanTaskRulesComponent: React.FC = () => {
                 getFieldValue('requiresGoal') ? (
                   <>
                     <Form.Item
-                      name="defaultGoal"
                       label="Default Goal"
-                      rules={[{ required: true, message: 'Please enter default goal' }]}
+                      name="defaultGoal"
+                      rules={[
+                        {
+                          required: getFieldValue('frequency') === 'Monthly',
+                          message: 'Please input the default goal',
+                        }
+                      ]}
                     >
-                      <InputNumber min={1} />
+                      <Input
+                        type="number"
+                        min={0}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? null : parseInt(e.target.value);
+                          form.setFieldsValue({ defaultGoal: value });
+                        }}
+                      />
                     </Form.Item>
                     <Form.Item
                       name="defaultCurrent"
