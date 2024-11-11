@@ -16,6 +16,7 @@ export interface ICustomer {
   current_sales?: number;
   phone?: string;
   contact_email: string;
+  isSuperCustomer?: boolean;
   
   // Store information and social form
   website?: string;
