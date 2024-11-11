@@ -185,6 +185,7 @@ const DesignHubAdmin = () => {
           type="error"
           showIcon
           style={{ padding: "4ch", width: "100%" }}
+          banner
         />
       )}
     </Row>

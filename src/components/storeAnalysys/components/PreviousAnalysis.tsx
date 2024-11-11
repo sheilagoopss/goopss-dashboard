@@ -1,13 +1,12 @@
-import { Button, Col, message, Popconfirm, Row, Table } from "antd";
-import dayjs from "dayjs";
+import { Col, Divider, Image, Row, Tag } from "antd";
 import { IStoreDetail } from "../../../types/StoreDetail";
-import { DeleteFilled, EyeFilled } from "@ant-design/icons";
-import { useStoreAnalysisDelete } from "hooks/useStoreAnalytics";
-import { useState } from "react";
-import ScrapeDataModal from "./ScrapeDataModal";
+import { SCRAPE_DATA, ScrapeDataKeys } from "./ScrapeDataModal";
+import Paragraph from "antd/es/typography/Paragraph";
+import Title from "antd/es/typography/Title";
+import TextArea from "antd/es/input/TextArea";
 
 interface PreviousAnalysisProps {
-  storeDetail: IStoreDetail[];
+  storeDetail: IStoreDetail | undefined;
   loading: boolean;
   refresh: () => void;
 }
@@ -17,91 +16,75 @@ export default function PreviousAnalysis({
   loading,
   refresh,
 }: PreviousAnalysisProps) {
-  const { deleteStoreAnalysis, isDeleting } = useStoreAnalysisDelete();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedAnalysis, setSelectedAnalysis] = useState<
-    IStoreDetail | undefined
-  >(undefined);
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
-    const resp = await deleteStoreAnalysis(id);
-    if (resp) {
-      setDeletingId(null);
-      message.success("Store Analysis deleted successfully");
-      refresh();
-    }
-  };
-
-  const columns = [
-    {
-      title: "Store Name",
-      dataIndex: "storeName",
-      key: "storeName",
-      sorter: (a: IStoreDetail, b: IStoreDetail) =>
-        a.storeName.localeCompare(b.storeName),
-    },
-    {
-      title: "Date",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      sorter: (a: IStoreDetail, b: IStoreDetail) =>
-        dayjs(a.createdAt).isBefore(dayjs(b.createdAt)) ? -1 : 1,
-      render: (value: string) =>
-        value ? dayjs(value).format("MMM DD YYYY HH:mm") : null,
-    },
-    {
-      title: "",
-      key: "actions",
-      render: (_: any, record: IStoreDetail) => (
-        <Row gutter={[16, 2]}>
-          <Col>
-            <Button
-              icon={<EyeFilled />}
-              title="View Detail"
-              onClick={() => setSelectedAnalysis(record)}
-            />
-          </Col>
-          <Col>
-            <Popconfirm
-              title="Are you sure you want to delete this analysis?"
-              onConfirm={() => {
-                if (record.id) handleDelete(record.id);
-              }}
-              okText="Yes"
-              cancelText="No"
-            >
-              <Button
-                icon={<DeleteFilled />}
-                danger
-                loading={isDeleting && record.id === deletingId}
-              />
-            </Popconfirm>
-          </Col>
-        </Row>
-      ),
-    },
-  ];
-
   return (
     <>
-      <Table
-        dataSource={storeDetail}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          showSizeChanger: true,
-        }}
-      />
-      <ScrapeDataModal
-        title={selectedAnalysis?.storeName}
-        open={Boolean(selectedAnalysis)}
-        storeName={selectedAnalysis?.storeName || ""}
-        isLoading={false}
-        scrapedData={selectedAnalysis}
-        onCancel={() => setSelectedAnalysis(undefined)}
-        footer={false}
-      />
+      <Row gutter={[16, 16]}>
+        <Col span={4}>
+          <Title level={5}>Store Section</Title>
+        </Col>
+        <Col span={10}>
+          <Title level={5}>Details</Title>
+        </Col>
+        <Col span={10}>
+          <Title level={5}>Feedback</Title>
+        </Col>
+        {storeDetail && (
+          <Col span={24}>
+            {Object.keys(SCRAPE_DATA).map((key: string, i: number) => (
+              <Row gutter={[16, 6]} key={i}>
+                <Col span={4}>
+                  <Paragraph style={{ fontWeight: "bold" }}>
+                    {SCRAPE_DATA[key as ScrapeDataKeys].label}
+                  </Paragraph>
+                </Col>
+                <Col span={10}>
+                  {SCRAPE_DATA[key as ScrapeDataKeys].type === "text" ? (
+                    <Paragraph>
+                      {storeDetail?.[key as keyof IStoreDetail]
+                        ?.toString()
+                        .replace(/\n/g, "<br>")}
+                    </Paragraph>
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "image" ? (
+                    <Image
+                      src={storeDetail?.[key as keyof IStoreDetail] as string}
+                    />
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "tag" ? (
+                    <Tag
+                      color={
+                        storeDetail?.[key as keyof IStoreDetail] === "yes"
+                          ? "green-inverse"
+                          : "red-inverse"
+                      }
+                    >
+                      {String(
+                        storeDetail?.[key as keyof IStoreDetail],
+                      )?.toUpperCase()}
+                    </Tag>
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "link" ? (
+                    (storeDetail?.[key as keyof IStoreDetail] as string[])?.map(
+                      (link: string, index: number) => (
+                        <>
+                          <a key={index} href={link.trim()}>
+                            {link.trim()}
+                          </a>
+                          <br />
+                        </>
+                      ),
+                    )
+                  ) : null}
+                </Col>
+                <Col span={10}>
+                  <TextArea
+                    value={storeDetail?.feedback?.[key as keyof IStoreDetail]}
+                    rows={4}
+                  />
+                </Col>
+                <Divider />
+              </Row>
+            ))}
+          </Col>
+        )}
+      </Row>
     </>
   );
 }
