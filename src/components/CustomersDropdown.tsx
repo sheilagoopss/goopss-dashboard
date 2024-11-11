@@ -15,15 +15,17 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   setSelectedCustomer,
   isAdmin,
 }) => {
-  const filteredCustomers = isAdmin ? customers : customers.filter(c => c.customer_type === 'Paid');
+  if (!isAdmin) return null;
+
+  const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
 
   return (
     <Select
-      style={{ width: '100%' }}
+      style={{ width: '300px' }}
       placeholder="Select a customer"
       value={selectedCustomer?.id}
       onChange={(value) => {
-        const customer = filteredCustomers.find((c) => c.id === value);
+        const customer = paidCustomers.find((c) => c.id === value);
         setSelectedCustomer(customer || null);
       }}
       size="large"
@@ -34,11 +36,11 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
         (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
       }
     >
-      {filteredCustomers.map((customer) => (
+      {paidCustomers.map((customer) => (
         <Select.Option 
           key={customer.id} 
           value={customer.id}
-          label={`${customer.store_owner_name} - ${customer.store_name}`}
+          label={`${customer.store_name} - ${customer.store_owner_name}`}
         >
           <Space>
             {customer.logo && (
@@ -48,7 +50,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
                 style={{ width: 20, height: 20, borderRadius: '50%' }} 
               />
             )}
-            {customer.store_owner_name} - {customer.store_name}
+            {customer.store_name} - {customer.store_owner_name}
           </Space>
         </Select.Option>
       ))}

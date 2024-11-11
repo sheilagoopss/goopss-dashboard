@@ -20,23 +20,29 @@ export default function TaskList({ tasklists, loading }: TaskListProps) {
           key: "customer",
           render: (customer: ICustomer | null) => (
             <div>
-              <Avatar
-                src={customer?.logo}
-                alt={customer?.store_owner_name || 'Unknown'}
-                size="default"
-                style={{ marginRight: 8 }}
-                icon={customer?.logo ? undefined : (customer?.store_owner_name?.[0] || 'U')}
-              />
-              {customer?.store_owner_name || 'Unknown'}
+              {customer ? (
+                <>
+                  <Avatar
+                    src={customer.logo}
+                    alt={customer.store_owner_name}
+                    size="default"
+                    style={{ marginRight: 8 }}
+                    icon={customer.logo ? undefined : (customer.store_owner_name[0] || 'U')}
+                  />
+                  {customer.store_owner_name}
 
-              <div style={{ marginTop: 4 }}>
-                <Tag color="geekblue">{customer?.store_name || 'Unknown Store'}</Tag>{" "}
-              </div>
+                  <div style={{ marginTop: 4 }}>
+                    <Tag color="geekblue">{customer.store_name}</Tag>
+                  </div>
+                </>
+              ) : (
+                <div>Customer not found</div>
+              )}
             </div>
           ),
           sorter: (a: ITasklist, b: ITasklist) =>
-            (a.customer?.store_owner_name || "").localeCompare(
-              b.customer?.store_owner_name || "",
+            ((a.customer?.store_owner_name || '') || '').localeCompare(
+              ((b.customer?.store_owner_name || '') || '')
             ),
         },
         {
@@ -57,18 +63,35 @@ export default function TaskList({ tasklists, loading }: TaskListProps) {
           title: "Team Member",
           dataIndex: "teamMemberName",
           key: "teamMemberName",
-          render: (teamMember) => (
-            <div>
-              <Avatar
-                size="default"
-                style={{ marginRight: 8 }}
-                icon={teamMember[0]?.toUpperCase()}
-              />
-              {teamMember}
-            </div>
-          ),
+          render: (teamMemberName: string) => {
+            console.log('Team Member Name:', teamMemberName);
+            
+            if (!teamMemberName) {
+              return (
+                <div>
+                  <Avatar
+                    size="default"
+                    style={{ marginRight: 8 }}
+                    icon={'U'}
+                  />
+                  Unknown
+                </div>
+              );
+            }
+
+            return (
+              <div>
+                <Avatar
+                  size="default"
+                  style={{ marginRight: 8 }}
+                  icon={teamMemberName[0].toUpperCase()}
+                />
+                {teamMemberName}
+              </div>
+            );
+          },
           sorter: (a: ITasklist, b: ITasklist) =>
-            (a.teamMemberName || "").localeCompare(b.teamMemberName || ""),
+            a.teamMemberName.localeCompare(b.teamMemberName),
         },
         {
           title: "Date Completed",
