@@ -1,6 +1,6 @@
 { pkgs }: {
   deps = [
-    pkgs.firebase-tools
-    pkgs.cowsay
+    pkgs.nodejs-20_x  
+    pkgs.npm         
   ];
 }

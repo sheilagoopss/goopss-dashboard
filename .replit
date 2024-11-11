@@ -1,8 +1,8 @@
-run = "npm run serve"
-language = "nodejs"
-# build = "npm run build"
-# onstart = "npm run serve"
-entrypoint = "index.html"
+run = "npm install && npm run build && node server.js"
+modules = ["nodejs-20", "web", "nix"]
+
+[nix]
+channel = "stable-24_05"
 
 [env]
 PATH = "/root/.local/share/fnm:$PATH"
