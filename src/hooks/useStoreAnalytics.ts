@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { IStoreDetail } from "../types/StoreDetail";
+import { IAIPrompt, IStoreDetail } from "../types/StoreDetail";
 import { IAPIResponse } from "../types/API";
 import HttpHelper from "../helpers/HttpHelper";
 import { endpoints } from "../constants/endpoints";
@@ -38,7 +38,7 @@ interface UseStoreAnalysisDeleteReturn {
 interface UseGenerateFeedbackReturn {
   generateFeedback: (params: {
     aboutSection: string;
-    FAQ: string;
+    faq: string;
     storeAnnouncement: string;
   }) => Promise<IAPIResponse<{
     aboutSectionFeedback: string;
@@ -46,6 +46,28 @@ interface UseGenerateFeedbackReturn {
     faqFeedback: string;
   }> | null>;
   isGenerating: boolean;
+}
+
+interface UsePromptUpdateReturn {
+  updatePrompt: (params: {
+    about: string;
+    announcement: string;
+    faq: string;
+  }) => Promise<IAPIResponse<IAIPrompt> | null>;
+  isUpdatingPrompt: boolean;
+}
+
+interface UsePromptFetchReturn {
+  fetchPrompt: () => Promise<IAIPrompt[] | null>;
+  isFetchingPrompt: boolean;
+}
+
+interface UseStoreAnalysisUpdateReturn {
+  updateStoreAnalysis: (
+    storeAnalysisId: string,
+    storeAnalysis: IStoreDetail,
+  ) => Promise<boolean>;
+  isUpdatingStoreAnalysis: boolean;
 }
 
 export function useStoreAnalytics(): UseStoreAnalyticsReturn {
@@ -145,6 +167,38 @@ export function useStoreAnalysisCreate(): UseStoreAnalysisCreateReturn {
   return { createStoreAnalysis, isLoading };
 }
 
+export function useStoreAnalysisUpdate(): UseStoreAnalysisUpdateReturn {
+  const [isUpdatingStoreAnalysis, setIsUpdatingStoreAnalysis] = useState(false);
+
+  const updateStoreAnalysis = useCallback(
+    async (
+      storeAnalysisId: string,
+      storeAnalysis: IStoreDetail,
+    ): Promise<boolean> => {
+      setIsUpdatingStoreAnalysis(true);
+      try {
+        const filteredData = filterUndefined(
+          storeAnalysis as unknown as Record<string, string>,
+        );
+        await FirebaseHelper.update(
+          "storeAnalysis",
+          storeAnalysisId,
+          filteredData,
+        );
+      } catch (error) {
+        console.error("Error updating storeAnalysis:", error);
+        return false;
+      } finally {
+        setIsUpdatingStoreAnalysis(false);
+        return true;
+      }
+    },
+    [],
+  );
+
+  return { updateStoreAnalysis, isUpdatingStoreAnalysis };
+}
+
 export function useStoreAnalysisDelete(): UseStoreAnalysisDeleteReturn {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -173,7 +227,7 @@ export function useGenerateFeedback(): UseGenerateFeedbackReturn {
   const generateFeedback = useCallback(
     async (params: {
       aboutSection: string;
-      FAQ: string;
+      faq: string;
       storeAnnouncement: string;
     }): Promise<IAPIResponse<{
       aboutSectionFeedback: string;
@@ -201,4 +255,56 @@ export function useGenerateFeedback(): UseGenerateFeedbackReturn {
   );
 
   return { generateFeedback, isGenerating };
+}
+
+export function usePromptFetch(): UsePromptFetchReturn {
+  const [isFetchingPrompt, setIsFetchingPrompt] = useState(false);
+
+  const fetchPrompt = useCallback(async () => {
+    setIsFetchingPrompt(true);
+    try {
+      const promptData =
+        await FirebaseHelper.find<IAIPrompt>("feedbackPrompts");
+      return promptData;
+    } catch (error) {
+      console.error(error);
+      return null;
+    } finally {
+      setIsFetchingPrompt(false);
+    }
+  }, []);
+
+  return { fetchPrompt, isFetchingPrompt };
+}
+
+export function usePromptUpdate(): UsePromptUpdateReturn {
+  const [isUpdatingPrompt, setIsUpdatingPrompt] = useState(false);
+
+  const updatePrompt = useCallback(
+    async (params: {
+      about: string;
+      announcement: string;
+      faq: string;
+    }): Promise<IAPIResponse<IAIPrompt> | null> => {
+      setIsUpdatingPrompt(true);
+      try {
+        const updatePromptData = await HttpHelper.patch(
+          endpoints.storeAnalytics.setAIPrompt,
+          {
+            data: params,
+          },
+        );
+
+        return updatePromptData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsUpdatingPrompt(false);
+      }
+    },
+    [],
+  );
+
+  return { updatePrompt, isUpdatingPrompt };
 }

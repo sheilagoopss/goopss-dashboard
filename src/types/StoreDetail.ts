@@ -6,15 +6,23 @@ export interface IStoreDetail {
   about?: string;
   faq?: string;
   bannerImage?: string;
-  feeShipping?: boolean;
+  feeShipping?: "yes" | "no";
   socialAccounts?: string[];
-  activeSale?: boolean;
-  starSeller?: boolean;
+  activeSale?: "yes" | "no";
+  starSeller?: "yes" | "no";
   ownerPhoto?: string;
-  featureItems?: boolean;
+  featureItems?: "yes" | "no";
   customerId: string;
   createdAt: string;
+  updatedAt: string;
   feedback?: Partial<
     Record<keyof IStoreDetail, string | undefined>
   >;
+}
+
+export interface IAIPrompt {
+  id: string;
+  about: string;
+  announcement: string;
+  faq: string;
 }
