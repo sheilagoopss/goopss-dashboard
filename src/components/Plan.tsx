@@ -37,7 +37,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
 import { ICustomer } from '../types/Customer'
-import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp, setDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 
@@ -808,8 +808,56 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       const planDoc = await getDoc(planRef);
       
       if (!planDoc.exists()) {
-        console.log('No plan exists');
-        return;
+        console.log('No plan exists, creating from default rules');
+        
+        // Get default task rules
+        const rulesRef = doc(db, 'planTaskRules', 'default');
+        const rulesDoc = await getDoc(rulesRef);
+        
+        if (rulesDoc.exists()) {
+          const rules = rulesDoc.data();
+          
+          // Create plan sections from rules
+          const newPlan: Plan = {
+            sections: rules.sections.map((sectionTitle: string) => ({
+              title: sectionTitle,
+              tasks: rules.tasks
+                .filter((rule: { section: string }) => rule.section === sectionTitle)
+                .map((rule: { 
+                  id: string; 
+                  task: string; 
+                  isActive: boolean; 
+                  frequency: PlanTask['frequency'];
+                  daysAfterJoin?: number;
+                  defaultCurrent?: number;
+                  defaultGoal?: number;
+                }) => ({
+                  id: rule.id,
+                  task: rule.task,
+                  progress: 'To Do' as const,
+                  isActive: rule.isActive,
+                  notes: '',
+                  frequency: rule.frequency,
+                  dueDate: rule.daysAfterJoin && selectedCustomer.date_joined 
+                    ? dayjs(selectedCustomer.date_joined).add(rule.daysAfterJoin, 'day').format('YYYY-MM-DD')
+                    : null,
+                  completedDate: null,
+                  current: rule.defaultCurrent || 0,
+                  goal: rule.defaultGoal || 0,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || ''
+                }))
+            })),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+
+          // Save new plan to Firestore
+          await setDoc(planRef, newPlan);
+          console.log('Created new plan from default rules');
+          setSections(newPlan.sections);
+          return;
+        }
       }
 
       const plan = planDoc.data() as Plan;
@@ -1255,59 +1303,33 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               
               // Get all tasks for this section from all customers
               const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-                console.log(`Processing customer ${customerId}`);
                 const customer = customers.find(c => c.id === customerId);
-                if (!customer) {
-                  console.log('Customer not found');
-                  return [];
-                }
+                if (!customer) return [];
 
-                const section = (plan as Plan).sections.find((s: PlanSection) => s.title === sectionTitle);
-                if (!section) {
-                  console.log(`Section ${sectionTitle} not found`);
-                  return [];
-                }
+                const section = plan.sections.find(s => s.title === sectionTitle);
+                if (!section) return [];
 
-                console.log(`Found ${section.tasks.length} tasks in section ${sectionTitle}`);
                 return section.tasks
-                  .filter((task: PlanTask) => {
-                    const baseFilters = 
-                      (!showActiveOnly || task.isActive) &&
-                      (progressFilter === 'All' || task.progress === progressFilter) &&
-                      task.task.toLowerCase().includes(search.toLowerCase());
-
-                    const frequencyMatches = 
-                      frequencyFilter === 'All' || 
-                      (frequencyFilter === 'Monthly and As Needed' 
-                        ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                        : task.frequency === frequencyFilter);
-
-                    if (!baseFilters || !frequencyMatches) return false;
-
-                    switch (dueDateFilter) {
-                      case 'overdue':
-                        return baseFilters && isOverdue(task.dueDate);
-                      case 'thisWeek':
-                        return baseFilters && isDueThisWeek(task.dueDate);
-                      default:
-                        return baseFilters;
-                    }
-                  })
+                  .filter(filterTasks)
                   .map(task => ({ customer, task }));
               });
 
-              console.log(`Total tasks after filtering: ${allTasks.length}`);
+              // Sort tasks by task ID first, then by customer join date (most recent first)
+              const sortedTasks = allTasks.sort((a, b) => {
+                // First sort by task ID
+                if (a.task.id !== b.task.id) {
+                  return a.task.id.localeCompare(b.task.id);
+                }
+                // Then by customer join date (most recent first)
+                const dateA = dayjs(a.customer.date_joined);
+                const dateB = dayjs(b.customer.date_joined);
+                return dateB.isAfter(dateA) ? 1 : dateB.isBefore(dateA) ? -1 : 0;
+              });
 
-              // Only show section if it has tasks after filtering
-              if (allTasks.length === 0) {
-                console.log(`No tasks in section ${sectionTitle} after filtering`);
-                return null;
-              }
-
-              // Then apply pagination to filtered results
+              // Then apply pagination to sorted tasks
               const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
               const endIndex = startIndex + pageSize;
-              const paginatedTasks = allTasks.slice(startIndex, endIndex);
+              const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
 
               return (
                 <Card key={sectionTitle} style={{ marginTop: 16 }}>
