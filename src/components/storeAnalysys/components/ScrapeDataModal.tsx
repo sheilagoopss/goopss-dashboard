@@ -23,7 +23,7 @@ interface ScrapeDataModalProps extends ModalProps {
 
 export type ScrapeDataKeys = Exclude<
   keyof IStoreDetail,
-  "customerId" | "createdAt" | "id" | "feedback"
+  "customerId" | "createdAt" | "id" | "feedback" | "updatedAt"
 >;
 
 export const SCRAPE_DATA: Record<

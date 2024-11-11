@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import CustomersDropdown from "../CustomersDropdown";
 import { ICustomer } from "../../types/Customer";
 import PreviousAnalysis from "./components/PreviousAnalysis";
-import { Button, Col, message, Popconfirm, Row, Spin } from "antd";
+import { Button, Col, message, Modal, Popconfirm, Row, Spin } from "antd";
 import ScrapeDataModal from "./components/ScrapeDataModal";
 import { IStoreDetail } from "../../types/StoreDetail";
 import {
@@ -12,6 +12,7 @@ import {
   useGenerateFeedback,
   useStoreAnalysisCreate,
   useStoreAnalysisDelete,
+  useStoreAnalysisUpdate,
   useStoreAnalytics,
 } from "../../hooks/useStoreAnalytics";
 import { useCustomerFetchAll } from "hooks/useCustomer";
@@ -19,8 +20,11 @@ import {
   DeleteOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import Setting from "./components/Setting";
+import { FEEDBACKS } from "./constants/feedback";
 
 const StoreAnalysis: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -28,6 +32,8 @@ const StoreAnalysis: React.FC = () => {
   const { isScraping, scrape } = useStoreAnalytics();
   const { createStoreAnalysis, isLoading: isCreatingStoreAnalysis } =
     useStoreAnalysisCreate();
+  const { updateStoreAnalysis, isUpdatingStoreAnalysis } =
+    useStoreAnalysisUpdate();
   const { fetchCustomerStoreAnalytics, isLoading: isFetchingStoreAnalytics } =
     useCustomerStoreAnalyticsFetch();
   const { deleteStoreAnalysis, isDeleting } = useStoreAnalysisDelete();
@@ -43,6 +49,7 @@ const StoreAnalysis: React.FC = () => {
   const [storeAnalytics, setStoreAnalytics] = useState<
     IStoreDetail | undefined
   >(undefined);
+  const [openSetting, setOpenSetting] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -101,6 +108,25 @@ const StoreAnalysis: React.FC = () => {
     }
   };
 
+  const handleUpdate = async () => {
+    if (!storeAnalytics?.id || !selectedCustomer) {
+      return;
+    }
+
+    const dataToSave: IStoreDetail = {
+      ...storeAnalytics,
+      customerId: selectedCustomer?.customer_id,
+      updatedAt: dayjs().toISOString(),
+    };
+
+    const resp = await updateStoreAnalysis(storeAnalytics.id, dataToSave);
+
+    if (resp) {
+      message.success("Feedback saved successfully");
+      refresh();
+    }
+  };
+
   const handleDelete = async (id?: string) => {
     if (!id) {
       return;
@@ -119,7 +145,7 @@ const StoreAnalysis: React.FC = () => {
 
     const feedback = await generateFeedback({
       aboutSection: storeAnalytics?.about || "",
-      FAQ: storeAnalytics?.faq || "",
+      faq: storeAnalytics?.faq || "",
       storeAnnouncement: storeAnalytics?.announcement || "",
     });
 
@@ -131,6 +157,22 @@ const StoreAnalysis: React.FC = () => {
           about: feedback.data?.aboutSectionFeedback,
           announcement: feedback.data?.storeAnnouncementFeedback,
           faq: feedback.data?.faqFeedback,
+          feeShipping:
+            storeAnalytics?.feeShipping === "yes"
+              ? FEEDBACKS.YES.freeShipping
+              : FEEDBACKS.NO.freeShipping,
+          activeSale:
+            storeAnalytics?.activeSale === "yes"
+              ? FEEDBACKS.YES.activeSale
+              : FEEDBACKS.NO.activeSale,
+          starSeller:
+            storeAnalytics?.starSeller === "yes"
+              ? FEEDBACKS.YES.starSeller
+              : FEEDBACKS.NO.starSeller,
+          featureItems:
+            storeAnalytics?.featureItems === "yes"
+              ? FEEDBACKS.YES.featuredItems
+              : FEEDBACKS.NO.featuredItems, 
         },
       });
     }
@@ -148,12 +190,21 @@ const StoreAnalysis: React.FC = () => {
       >
         <h1>Store Analysis</h1>
         {isAdmin && (
-          <CustomersDropdown
-            customers={customers}
-            selectedCustomer={selectedCustomer}
-            setSelectedCustomer={setSelectedCustomer}
-            isAdmin={isAdmin}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "2ch" }}>
+            <Button
+              icon={<SettingOutlined />}
+              size="large"
+              onClick={() => setOpenSetting(true)}
+            >
+              Settings
+            </Button>
+            <CustomersDropdown
+              customers={customers}
+              selectedCustomer={selectedCustomer}
+              setSelectedCustomer={setSelectedCustomer}
+              isAdmin={isAdmin}
+            />
+          </div>
         )}
       </div>
 
@@ -238,7 +289,11 @@ const StoreAnalysis: React.FC = () => {
                     >
                       Generate Feedback
                     </Button>
-                    <Button type="primary" onClick={handleSave}>
+                    <Button
+                      type="primary"
+                      onClick={handleUpdate}
+                      loading={isUpdatingStoreAnalysis}
+                    >
                       Save
                     </Button>
                     <Popconfirm
@@ -262,6 +317,7 @@ const StoreAnalysis: React.FC = () => {
                     loading={isFetchingStoreAnalytics}
                     storeDetail={storeAnalytics}
                     refresh={refresh}
+                    setStoreDetail={setStoreAnalytics}
                   />
                 </Col>
               )}
@@ -290,6 +346,15 @@ const StoreAnalysis: React.FC = () => {
           </>
         )}
       </div>
+      <Modal
+        open={openSetting}
+        onCancel={() => setOpenSetting(false)}
+        title="Settings"
+        width={"60%"}
+        footer={null}
+      >
+        <Setting />
+      </Modal>
     </div>
   );
 };
