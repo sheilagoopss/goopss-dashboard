@@ -1,12 +1,11 @@
-run = "npm start"
-language = "nodejs"
-entrypoint = "index.html"
+run = "npm install && npm run build && node server.js"
+modules = ["nodejs-20", "web", "nix"]
+
+[nix]
+channel = "stable-24_05"
 
 [env]
 PATH = "/root/.local/share/fnm:$PATH"
-
-[nix]
-channel = "stable-23_11"
 
 [deployment]
 deploymentTarget = "static"
