@@ -761,11 +761,22 @@ const PlanTaskRulesComponent: React.FC = () => {
             </Form.Item>
 
             <Form.Item
-              name="requiresGoal"
               label="Requires Goal"
+              name="requiresGoal"
               valuePropName="checked"
             >
-              <Switch />
+              <Switch
+                onChange={(checked) => {
+                  setEditingRule(prev => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      requiresGoal: checked,
+                      defaultGoal: checked ? prev.defaultGoal : null  // Keep goal if enabled, null if disabled
+                    };
+                  });
+                }}
+              />
             </Form.Item>
 
             <Form.Item
@@ -782,24 +793,17 @@ const PlanTaskRulesComponent: React.FC = () => {
                       name="defaultGoal"
                       rules={[
                         {
-                          required: editingRule?.frequency === 'Monthly',  // Use editingRule instead of rule
+                          required: getFieldValue('frequency') === 'Monthly',
                           message: 'Please input the default goal',
                         }
                       ]}
                     >
                       <Input
                         type="number"
-                        min={0}  // Allow 0 as minimum
-                        disabled={!editingRule?.requiresGoal}  // Use editingRule instead of rule
+                        min={0}
                         onChange={(e) => {
                           const value = e.target.value === '' ? null : parseInt(e.target.value);
-                          setEditingRule(prev => {
-                            if (!prev) return prev;  // Handle null case
-                            return {
-                              ...prev,
-                              defaultGoal: value
-                            };
-                          });
+                          form.setFieldsValue({ defaultGoal: value });
                         }}
                       />
                     </Form.Item>

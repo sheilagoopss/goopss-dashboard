@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, 
   Typography, 
@@ -190,7 +190,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               )}
             </Space>
             <Space>
-              {task.frequency === 'Monthly' && (
+              {(task.frequency === 'Monthly' || task.frequency === 'As Needed') && (
                 <Space direction="vertical" size={0} align="center">
                   <Progress
                     type="circle"
@@ -384,75 +384,84 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Add these helper functions at the top of the file, before the component
-const saveFiltersToStorage = (filters: {
+// Add type definitions at the top
+type FrequencyFilterType = 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
+
+interface SavedFilters {
   showActiveOnly: boolean;
   progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
   dueDateFilter: 'all' | 'overdue' | 'thisWeek';
   search: string;
+  searchInput: string;  // Add this for search input
   sortBy: 'dueDate' | 'none';
-}) => {
+  frequencyFilter: FrequencyFilterType;
+}
+
+// Add helper functions at the top
+const saveFiltersToStorage = (filters: SavedFilters) => {
   localStorage.setItem('planFilters', JSON.stringify(filters));
 };
 
-const getFiltersFromStorage = () => {
+const getFiltersFromStorage = (): SavedFilters | null => {
   const saved = localStorage.getItem('planFilters');
-  if (saved) {
-    return JSON.parse(saved);
-  }
-  return null;
+  return saved ? JSON.parse(saved) : null;
+};
+
+// Add PlansState interface at the top with other interfaces
+interface PlansState {
+  type: 'all' | 'single';
+  selectedCustomer: ICustomer | null;
+  data: { [customerId: string]: Plan };
+}
+
+// Add debounce utility at the top
+const debounce = <T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
 };
 
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
+  const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
   const savedFilters = getFiltersFromStorage();
-  
-  // Keep these filter states at the top
+
+  // Constants
+  const CACHE_DURATION = 2 * 60 * 1000;  // 2 minutes
+  const pageSize = 10;
+
+  // All state declarations
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
   const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>(savedFilters?.dueDateFilter ?? 'all');
+  const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
-
-  // Add useEffect to save filters when they change
-  useEffect(() => {
-    saveFiltersToStorage({
-      showActiveOnly,
-      progressFilter,
-      dueDateFilter,
-      search,
-      sortBy
-    });
-  }, [showActiveOnly, progressFilter, dueDateFilter, search, sortBy]);
-
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState<boolean>(false);
-  const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
-  const [sections, setSections] = useState<PlanSection[]>([]);
-  const [newTaskModal, setNewTaskModal] = useState({
-    visible: false,
-    sectionTitle: '',
-    taskName: ''
-  });
-  const [defaultSections, setDefaultSections] = useState<string[]>([]);
+  const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(savedFilters?.frequencyFilter ?? 'All');
+  const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [plans, setPlans] = useState<{
-    type: 'single' | 'all';
-    selectedCustomer: ICustomer | null;
-    data: { [customerId: string]: Plan };
-  }>({
-    type: 'all',
-    selectedCustomer: null,
-    data: {}
+  const [sections, setSections] = useState<PlanSection[]>([]);
+  const [plans, setPlans] = useState<PlansState>({ 
+    type: 'all',  // Default to 'all' view
+    selectedCustomer: null, 
+    data: {} 
   });
-
-  // Add cache state
   const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
+  const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
+  const [editMode, setEditMode] = useState(false);
+  const [defaultSections, setDefaultSections] = useState<string[]>([]);
+  const [newTaskModal, setNewTaskModal] = useState<{
+    visible: boolean;
+    sectionTitle: string;
+    taskName: string;
+  }>({ visible: false, sectionTitle: '', taskName: '' });
 
-  // Add loading state for sections
-  const [loadingSections, setLoadingSections] = useState<{ [key: string]: boolean }>({});
-
-  // Add helper functions for date checks
+  // Helper functions
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false;
     const today = dayjs().startOf('day');
@@ -461,61 +470,95 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   };
 
   const isDueThisWeek = (dueDate: string | null) => {
-    if (!dueDate) return false;  // Tasks with no due date aren't due this week
+    if (!dueDate) return false;
     const today = dayjs().startOf('day');
     const dueDay = dayjs(dueDate).startOf('day');
-    const endOfWeek = today.add(7, 'days').endOf('day');
-    
-    // Task is due this week if:
-    // 1. Due date is today or after today
-    // 2. Due date is before end of week
-    return !dueDay.isBefore(today) && dueDay.isBefore(endOfWeek);
+    return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'));
   };
 
-  useEffect(() => {
-    console.log('Due Date Filter:', dueDateFilter);
-    console.log('Active Only:', showActiveOnly);
-    console.log('Progress Filter:', progressFilter);
-  }, [dueDateFilter, showActiveOnly, progressFilter]);
-
-  // Move loadPlan outside useEffect and make it reusable
-  const loadPlan = async () => {
+  // Single loadAllPlans function
+  const loadAllPlans = async () => {
     try {
-      const customerId = isAdmin ? selectedCustomer?.id : user?.id;
+      setIsLoading(true);
       
-      if (!customerId || !selectedCustomer) {
-        console.log('No customer selected, skipping plan load');
-        return;
-      }
-      
-      console.log('Loading plan for customer:', customerId);
-      
-      // Get the plan
-      const planRef = doc(db, 'plans', customerId);
-      const planDoc = await getDoc(planRef);
-      
-      if (!planDoc.exists()) {
-        console.log('No plan exists, creating new one');
-        const plan = await fetchPlan(customerId);
-        setSections(plan.sections);
+      // Check cache validity
+      const isCacheValid = Date.now() - lastCacheUpdate < CACHE_DURATION;
+      if (isCacheValid && Object.keys(cachedPlans).length > 0) {
+        console.log('Using cached plans');
+        setPlans({
+          type: 'all',
+          selectedCustomer: null,  // No selected customer in all views
+          data: cachedPlans
+        });
+        setIsLoading(false);
         return;
       }
 
-      // Plan exists, get its data
-      const plan = planDoc.data() as Plan;
-      
-      // Check monthly progress
-      await checkMonthlyProgress(customerId);
-      
-      // Get updated plan after monthly check
-      const updatedPlanDoc = await getDoc(planRef);
-      const updatedPlan = updatedPlanDoc.data() as Plan;
-      
-      setSections(updatedPlan.sections);
+      // Fetch fresh data
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(customersRef);
+      const paidCustomers = customersSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
+        .filter(customer => customer.customer_type === 'Paid');
+
+      const plansPromises = paidCustomers.map(customer => 
+        getDoc(doc(db, 'plans', customer.id))
+      );
+      const plansSnapshots = await Promise.all(plansPromises);
+
+      const plansData = plansSnapshots.reduce((acc, planDoc, index) => {
+        if (planDoc.exists()) {
+          acc[paidCustomers[index].id] = planDoc.data() as Plan;
+        }
+        return acc;
+      }, {} as { [customerId: string]: Plan });
+
+      // Update cache
+      setCachedPlans(plansData);
+      setLastCacheUpdate(Date.now());
+
+      // Set plans while preserving selected customer
+      setPlans({
+        type: 'all',
+        selectedCustomer: null,  // No selected customer in all views
+        data: plansData
+      });
     } catch (error) {
-      console.error('Error loading plan:', error);
+      console.error('Error loading plans:', error);
+      message.error('Failed to load plans');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Then useEffects
+  useEffect(() => {
+    console.log('Filters changed:', {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      sortBy,
+      frequencyFilter
+    });
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, sortBy, frequencyFilter]);
+
+  // Add render log
+  console.log('Plan component rendered at:', new Date().toISOString());
+
+  // Add log for selectedCustomer changes
+  useEffect(() => {
+    console.log('selectedCustomer changed:', selectedCustomer?.id);
+  }, [selectedCustomer]);
+
+  // Add log for plans changes
+  useEffect(() => {
+    console.log('plans state changed:', {
+      type: plans.type,
+      customerId: plans.selectedCustomer?.id,
+      numberOfPlans: Object.keys(plans.data).length
+    });
+  }, [plans]);
 
   // Update useEffect to use the new loadPlan function
   useEffect(() => {
@@ -577,7 +620,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
       // Update local state
       if (plans.type === 'all') {
-        setPlans(prevPlans => ({
+        setPlans((prevPlans: PlansState) => ({
           ...prevPlans,
           data: {
             ...prevPlans.data,
@@ -597,19 +640,30 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
+  // Update the filterTasks function to include frequency filter
   const filterTasks = (task: PlanTask) => {
-    console.log(`Task: ${task.task}, Due Date: ${task.dueDate}`);
-    if (task.dueDate) {
-      console.log('Is Overdue:', isOverdue(task.dueDate));
-      console.log('Is Due This Week:', isDueThisWeek(task.dueDate));
-    }
+    console.log('Filtering task:', {
+      task: task.task,
+      frequency: task.frequency,
+      selectedFilter: frequencyFilter,
+      matches: frequencyFilter === 'All' || 
+        (frequencyFilter === 'Monthly and As Needed' 
+          ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+          : task.frequency === frequencyFilter)
+    });
 
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
       (progressFilter === 'All' || task.progress === progressFilter) &&
       task.task.toLowerCase().includes(search.toLowerCase());
 
-    if (!baseFilters) return false;
+    const frequencyMatches = 
+      frequencyFilter === 'All' || 
+      (frequencyFilter === 'Monthly and As Needed' 
+        ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+        : task.frequency === frequencyFilter);
+
+    if (!baseFilters || !frequencyMatches) return false;
 
     switch (dueDateFilter) {
       case 'overdue':
@@ -737,59 +791,167 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     });
   }, [plans, selectedCustomer]);
 
-  useEffect(() => {
-    const loadAllPlans = async () => {
-      try {
-        setIsLoading(true);
-        
-        const newPlans: { [customerId: string]: Plan } = {};
-        const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
-        
-        await Promise.all(
-          paidCustomers.map(async (customer) => {
-            const planRef = doc(db, 'plans', customer.id);
-            const planDoc = await getDoc(planRef);
-            
-            if (planDoc.exists()) {
-              newPlans[customer.id] = planDoc.data() as Plan;
-            }
-          })
-        );
-
-        setPlans({
-          type: 'all',
-          selectedCustomer: null,
-          data: newPlans
-        });
-      } catch (error) {
-        console.error('Error loading all plans:', error);
-        message.error('Failed to load plans');
-      } finally {
-        setIsLoading(false);
+  // Add loadPlan function
+  const loadPlan = async () => {
+    try {
+      console.log('loadPlan called for customer:', selectedCustomer?.id);
+      setIsLoading(true);
+      const customerId = selectedCustomer?.id;
+      
+      if (!customerId) {
+        console.log('No customer selected, skipping load');
+        return;
       }
-    };
 
-    loadAllPlans();
-  }, [customers]); // Only run when customers list changes
+      const planRef = doc(db, 'plans', customerId);
+      console.log('Fetching plan from Firestore');
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        console.log('No plan exists');
+        return;
+      }
 
-  // Add pagination state at the top of the component
-  const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
-  const pageSize = 10;  // Number of tasks per page
+      const plan = planDoc.data() as Plan;
+      console.log('Plan loaded successfully');
+      setSections(plan.sections);
+    } catch (error) {
+      console.error('Error loading plan:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Add useEffect to reset pagination when filters change
-  useEffect(() => {
-    // Reset pagination for all sections when any filter changes
-    setPaginationState({});
-  }, [showActiveOnly, progressFilter, dueDateFilter, search]);
-
-  // Add this function to handle filter reset
+  // Add handleResetFilters function
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
     setDueDateFilter('all');
     setSearch('');
     setSortBy('none');
-    setPaginationState({});  // Also reset pagination
+    setFrequencyFilter('All');
+    setPaginationState({});
+  };
+
+  // Add useEffect to save filters
+  useEffect(() => {
+    const filtersToSave = {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      searchInput,
+      sortBy,
+      frequencyFilter
+    };
+    console.log('Saving filters:', filtersToSave);
+    saveFiltersToStorage(filtersToSave);
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, searchInput, sortBy, frequencyFilter]);
+
+  // Update the view switching logic
+  const handleViewChange = async (viewType: 'all' | 'single') => {
+    try {
+      // Save current filter states
+      const currentFilters = {
+        showActiveOnly,
+        progressFilter,
+        dueDateFilter,
+        search,
+        searchInput,
+        sortBy,
+        frequencyFilter
+      };
+      console.log('Preserving filters:', currentFilters);
+
+      if (viewType === 'all') {
+        setSelectedCustomer(null);
+        setPlans(prev => ({
+          ...prev,
+          type: 'all',
+          selectedCustomer: null
+        }));
+        await loadAllPlans();
+
+        // Restore filters after loading
+        setShowActiveOnly(currentFilters.showActiveOnly);
+        setProgressFilter(currentFilters.progressFilter);
+        setDueDateFilter(currentFilters.dueDateFilter);
+        setSearch(currentFilters.search);
+        setSearchInput(currentFilters.searchInput);
+        setSortBy(currentFilters.sortBy);
+        setFrequencyFilter(currentFilters.frequencyFilter);
+      } else {
+        if (selectedCustomer) {
+          setPlans(prev => ({
+            ...prev,
+            type: 'single',
+            selectedCustomer
+          }));
+          await loadPlan();
+
+          // Restore filters after loading
+          setShowActiveOnly(currentFilters.showActiveOnly);
+          setProgressFilter(currentFilters.progressFilter);
+          setDueDateFilter(currentFilters.dueDateFilter);
+          setSearch(currentFilters.search);
+          setSearchInput(currentFilters.searchInput);
+          setSortBy(currentFilters.sortBy);
+          setFrequencyFilter(currentFilters.frequencyFilter);
+        }
+      }
+    } catch (error) {
+      console.error('Error switching views:', error);
+      message.error('Failed to switch views');
+    }
+  };
+
+  // Update initial load to load all plans by default
+  useEffect(() => {
+    if (isAdmin) {
+      loadAllPlans();  // Load all plans on initial mount
+    }
+  }, [isAdmin]);
+
+  // Update customer selection handler
+  const handleCustomerSelect = async (customerId: string | null) => {
+    // Save current filter states
+    const currentFilters = {
+      showActiveOnly,
+      progressFilter,
+      dueDateFilter,
+      search,
+      searchInput,
+      sortBy,
+      frequencyFilter
+    };
+
+    const customer = customers.find(c => c.id === customerId) || null;
+    setSelectedCustomer(customer);
+    
+    if (customer) {
+      setPlans(prev => ({
+        ...prev,
+        type: 'single',
+        selectedCustomer: customer
+      }));
+      await loadPlan();
+    } else {
+      setPlans(prev => ({
+        ...prev,
+        type: 'all',
+        selectedCustomer: null
+      }));
+      await loadAllPlans();
+    }
+
+    // Restore filters after loading
+    setShowActiveOnly(currentFilters.showActiveOnly);
+    setProgressFilter(currentFilters.progressFilter);
+    setDueDateFilter(currentFilters.dueDateFilter);
+    setSearch(currentFilters.search);
+    setSearchInput(currentFilters.searchInput);
+    setSortBy(currentFilters.sortBy);
+    setFrequencyFilter(currentFilters.frequencyFilter);
   };
 
   if (!isAdmin) {
@@ -817,8 +979,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               </Select>
               <Search
                 placeholder="Search tasks..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                onSearch={(value) => {
+                  setSearch(value);  // Only apply filter when search button is clicked
+                  console.log('Searching for:', value);
+                }}
+                enterButton  // Add search button
+                allowClear   // Keep clear button
                 style={{ width: 200 }}
               />
               <Select
@@ -838,6 +1006,18 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     <span>Due Date</span>
                   </Space>
                 </Option>
+              </Select>
+              <Select
+                style={{ width: 200 }}
+                value={frequencyFilter}
+                onChange={setFrequencyFilter}
+                placeholder="Filter by frequency"
+              >
+                <Option value="All">All Frequencies</Option>
+                <Option value="One Time">One Time</Option>
+                <Option value="Monthly">Monthly</Option>
+                <Option value="As Needed">As Needed</Option>
+                <Option value="Monthly and As Needed">Monthly & As Needed</Option>
               </Select>
               <Button 
                 icon={<ReloadOutlined />} 
@@ -1009,10 +1189,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             </Select>
             <Search
               placeholder="Search tasks..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onSearch={value => setSearch(value)}
-              allowClear
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onSearch={(value) => {
+                setSearch(value);  // Only apply filter when search button is clicked
+                console.log('Searching for:', value);
+              }}
+              enterButton  // Add search button
+              allowClear   // Keep clear button
               style={{ width: 200 }}
             />
             <Select
@@ -1032,6 +1216,18 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   <span>Due Date</span>
                 </Space>
               </Option>
+            </Select>
+            <Select
+              style={{ width: 200 }}
+              value={frequencyFilter}
+              onChange={setFrequencyFilter}
+              placeholder="Filter by frequency"
+            >
+              <Option value="All">All Frequencies</Option>
+              <Option value="One Time">One Time</Option>
+              <Option value="Monthly">Monthly</Option>
+              <Option value="As Needed">As Needed</Option>
+              <Option value="Monthly and As Needed">Monthly & As Needed</Option>
             </Select>
             <Button 
               icon={<ReloadOutlined />} 
@@ -1066,7 +1262,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   return [];
                 }
 
-                const section = plan.sections.find((s: PlanSection) => s.title === sectionTitle);
+                const section = (plan as Plan).sections.find((s: PlanSection) => s.title === sectionTitle);
                 if (!section) {
                   console.log(`Section ${sectionTitle} not found`);
                   return [];
@@ -1079,6 +1275,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       (!showActiveOnly || task.isActive) &&
                       (progressFilter === 'All' || task.progress === progressFilter) &&
                       task.task.toLowerCase().includes(search.toLowerCase());
+
+                    const frequencyMatches = 
+                      frequencyFilter === 'All' || 
+                      (frequencyFilter === 'Monthly and As Needed' 
+                        ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+                        : task.frequency === frequencyFilter);
+
+                    if (!baseFilters || !frequencyMatches) return false;
 
                     switch (dueDateFilter) {
                       case 'overdue':
@@ -1140,7 +1344,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               const customerId = customer.id;
               if (!plans.data[customerId]) return null;
 
-              const section = plans.data[customerId].sections
+              const section = (plans.data[customerId] as Plan).sections
                 .find((s: PlanSection) => s.title === sectionTitle);
               
               if (!section) return null;
