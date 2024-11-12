@@ -190,6 +190,21 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
       message.error('Please enter a new listing ID');
       return;
     }
+
+    const tags = editedTags
+      .split(/,\s*/)
+      .map(tag => tag.trim())
+      .filter(tag => tag !== "");
+
+    if (tags.length > MAX_TAGS) {
+      message.error(`Maximum ${MAX_TAGS} tags allowed`);
+      return;
+    }
+
+    if (tags.length < MAX_TAGS) {
+      message.error(`Please add ${MAX_TAGS} tags`);
+      return;
+    }
     
     setIsPublishing(true);
     try {
@@ -212,7 +227,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
         id: newListingId.trim(),
         listingTitle: optimizedContent.title,
         listingDescription: newlineToBr(optimizedContent.description),
-        listingTags: editedTags,
+        listingTags: tags.join(","),
         listingID: newListingId.trim(),
         bestseller: false,
         totalSales: 0,
@@ -331,27 +346,50 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
 
   const handleAddTag = (newTags: string) => {
     const currentTags = editedTags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag !== "");
+      .split(/,\s*/)
+      .map(tag => tag.trim())
+      .filter(tag => tag !== "");
+
     const tagsToAdd = newTags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag !== "");
+      .split(/,\s*/)
+      .map(tag => tag.trim())
+      .filter(tag => tag !== "");
 
     const availableSlots = MAX_TAGS - currentTags.length;
     const tagsToAddLimited = tagsToAdd.slice(0, availableSlots);
 
-    const updatedTags = [...new Set([...currentTags, ...tagsToAddLimited])];
-    setEditedTags(updatedTags.join(", "));
+    const updatedTags = [...new Set([...currentTags, ...tagsToAddLimited])]
+      .filter(tag => tag !== "")
+      .join(",");
+
+    setEditedTags(updatedTags);
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    const updatedTags = editedTags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag !== tagToRemove);
-    setEditedTags(updatedTags.join(", "));
+    const currentTags = editedTags
+      .split(/,\s*/)
+      .map(tag => tag.trim())
+      .filter(tag => tag !== "");
+
+    const updatedTags = currentTags
+      .filter(tag => tag !== tagToRemove)
+      .join(",");
+
+    console.log('Removing tag:', {
+      tagToRemove,
+      before: currentTags,
+      after: updatedTags.split(',')
+    });
+
+    setEditedTags(updatedTags);
+  };
+
+  const getTagCount = (tags: string): number => {
+    return tags
+      .split(/,\s*/)
+      .map(tag => tag.trim())
+      .filter(tag => tag !== "")
+      .length;
   };
 
   const handleCSVExport = () => {
@@ -621,6 +659,11 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     },
   ];
 
+  // Add this function near other tag handling functions
+  const handleClearAllTags = () => {
+    setEditedTags("");
+  };
+
   return (
     <div style={{ padding: '16px' }}>
       <Tabs 
@@ -789,28 +832,51 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
                                 />
                               </div>
                               <div>
-                                <Space align="center">
-                                  <Text strong>Tags:</Text>
+                                <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                                  <Space>
+                                    <Text strong>Tags:</Text>
+                                    <Button 
+                                      type="text" 
+                                      icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
+                                      onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
+                                    />
+                                    <Text type="secondary">
+                                      ({getTagCount(editedTags)}/{MAX_TAGS} tags)
+                                    </Text>
+                                  </Space>
                                   <Button 
-                                    type="text" 
-                                    icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
-                                    onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
-                                  />
+                                    type="link" 
+                                    danger
+                                    onClick={handleClearAllTags}
+                                    disabled={!editedTags}
+                                  >
+                                    Clear All
+                                  </Button>
                                 </Space>
-                                <div>
-                                  <Space wrap style={{ marginBottom: 8 }}>
-                                    {editedTags.split(',').map((tag, index) => (
+                                <div style={{ 
+                                  marginTop: 8,
+                                  maxHeight: '200px',
+                                  overflowY: 'auto',
+                                  border: '1px solid #f0f0f0',
+                                  padding: '8px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {editedTags
+                                    .split(/,\s*/)
+                                    .map(tag => tag.trim())
+                                    .filter(tag => tag !== "")
+                                    .map((tag, index) => (
                                       <Tag 
-                                        key={index}
+                                        key={`${tag}-${index}`}
                                         closable
-                                        onClose={() => handleRemoveTag(tag.trim())}
+                                        onClose={() => handleRemoveTag(tag)}
+                                        style={{ margin: '0 8px 8px 0' }}
                                       >
-                                        {tag.trim()}
+                                        {tag}
                                       </Tag>
                                     ))}
-                                  </Space>
                                 </div>
-                                <Space>
+                                <Space style={{ marginTop: 8 }}>
                                   <Input
                                     placeholder="Add new tag(s)"
                                     onPressEnter={(e) => {
@@ -820,7 +886,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
                                         e.currentTarget.value = '';
                                       }
                                     }}
-                                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                                    disabled={editedTags.split(/,\s*/).filter(tag => tag.trim() !== '').length >= MAX_TAGS}
                                   />
                                   <Button
                                     onClick={() => {
@@ -831,12 +897,12 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
                                         input.value = '';
                                       }
                                     }}
-                                    disabled={editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS}
+                                    disabled={editedTags.split(/,\s*/).filter(tag => tag.trim() !== '').length >= MAX_TAGS}
                                   >
                                     Add Tag(s)
                                   </Button>
                                 </Space>
-                                {editedTags.split(',').filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
+                                {editedTags.split(/,\s*/).filter(tag => tag.trim() !== '').length >= MAX_TAGS && (
                                   <Text type="danger" style={{ marginTop: 8, display: 'block' }}>
                                     Maximum number of tags (13) reached.
                                   </Text>
