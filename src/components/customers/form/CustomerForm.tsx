@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Col,
   DatePicker,
   Form,
@@ -118,6 +119,11 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
       </Form.Item>
       <Form.Item name="notes" label="Notes">
         <Input.TextArea />
+      </Form.Item>
+      <Form.Item name="isSuperCustomer">
+        <Col span={12}>
+          <Checkbox>Super Customer</Checkbox>
+        </Col>
       </Form.Item>
       <Form.Item>
         <Button type="primary" htmlType="submit" loading={loading}>

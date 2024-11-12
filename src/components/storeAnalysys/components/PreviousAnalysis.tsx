@@ -9,12 +9,14 @@ interface PreviousAnalysisProps {
   storeDetail: IStoreDetail | undefined;
   loading: boolean;
   refresh: () => void;
+  setStoreDetail: (storeDetail: IStoreDetail) => void;
 }
 
 export default function PreviousAnalysis({
   storeDetail,
   loading,
   refresh,
+  setStoreDetail,
 }: PreviousAnalysisProps) {
   return (
     <>
@@ -76,7 +78,21 @@ export default function PreviousAnalysis({
                 <Col span={10}>
                   <TextArea
                     value={storeDetail?.feedback?.[key as keyof IStoreDetail]}
-                    rows={4}
+                    rows={
+                      storeDetail?.feedback?.[key as keyof IStoreDetail]
+                        ? (storeDetail?.feedback?.[key as keyof IStoreDetail]
+                            ?.length || 60) / 60
+                        : 4
+                    }
+                    onChange={(e) => {
+                      setStoreDetail({
+                        ...storeDetail,
+                        feedback: {
+                          ...storeDetail?.feedback,
+                          [key as keyof IStoreDetail]: e.target.value,
+                        },
+                      });
+                    }}
                   />
                 </Col>
                 <Divider />
