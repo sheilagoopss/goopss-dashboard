@@ -1,10 +1,12 @@
-import { Button, Col, Row, Table } from "antd";
-import dayjs from "dayjs";
+import { Col, Divider, Image, Row, Tag } from "antd";
 import { IStoreDetail } from "../../../types/StoreDetail";
-import { DeleteFilled, EyeFilled } from "@ant-design/icons";
+import { SCRAPE_DATA, ScrapeDataKeys } from "./ScrapeDataModal";
+import Paragraph from "antd/es/typography/Paragraph";
+import Title from "antd/es/typography/Title";
+import TextArea from "antd/es/input/TextArea";
 
 interface PreviousAnalysisProps {
-  storeDetail: IStoreDetail[];
+  storeDetail: IStoreDetail | undefined;
   loading: boolean;
   refresh: () => void;
 }
@@ -14,64 +16,75 @@ export default function PreviousAnalysis({
   loading,
   refresh,
 }: PreviousAnalysisProps) {
-  const columns = [
-    {
-      title: "Store Name",
-      dataIndex: "storeName",
-      key: "storeName",
-      sorter: (a: IStoreDetail, b: IStoreDetail) =>
-        a.storeName.localeCompare(b.storeName),
-    },
-    {
-      title: "Date",
-      dataIndex: "storeName",
-      key: "storeName",
-      sorter: (a: IStoreDetail, b: IStoreDetail) =>
-        a.storeName.localeCompare(b.storeName),
-      render: (value: string) => {
-        if (value) {
-          return dayjs(value).format("MMM DD YYYY HH:mm");
-        } else {
-          return value;
-        }
-      },
-    },
-    {
-      title: "",
-      key: "actions",
-      render: (_: any, record: IStoreDetail) => (
-        <Row gutter={[16, 2]}>
-          <Col>
-            <Button
-              // onClick={() => handleEdit(record)}
-              icon={<EyeFilled />}
-              title="View Detail"
-            />
-          </Col>
-          <Col>
-            <Button
-              // onClick={() => handleDelete(record.id)}
-              icon={<DeleteFilled />}
-              danger
-              // loading={isDeleting}
-            />
-          </Col>
-        </Row>
-      ),
-    },
-  ];
-
   return (
     <>
-      <Table
-        dataSource={storeDetail}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          showSizeChanger: true,
-        }}
-      />
+      <Row gutter={[16, 16]}>
+        <Col span={4}>
+          <Title level={5}>Store Section</Title>
+        </Col>
+        <Col span={10}>
+          <Title level={5}>Details</Title>
+        </Col>
+        <Col span={10}>
+          <Title level={5}>Feedback</Title>
+        </Col>
+        {storeDetail && (
+          <Col span={24}>
+            {Object.keys(SCRAPE_DATA).map((key: string, i: number) => (
+              <Row gutter={[16, 6]} key={i}>
+                <Col span={4}>
+                  <Paragraph style={{ fontWeight: "bold" }}>
+                    {SCRAPE_DATA[key as ScrapeDataKeys].label}
+                  </Paragraph>
+                </Col>
+                <Col span={10}>
+                  {SCRAPE_DATA[key as ScrapeDataKeys].type === "text" ? (
+                    <Paragraph>
+                      {storeDetail?.[key as keyof IStoreDetail]
+                        ?.toString()
+                        .replace(/\n/g, "<br>")}
+                    </Paragraph>
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "image" ? (
+                    <Image
+                      src={storeDetail?.[key as keyof IStoreDetail] as string}
+                    />
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "tag" ? (
+                    <Tag
+                      color={
+                        storeDetail?.[key as keyof IStoreDetail] === "yes"
+                          ? "green-inverse"
+                          : "red-inverse"
+                      }
+                    >
+                      {String(
+                        storeDetail?.[key as keyof IStoreDetail],
+                      )?.toUpperCase()}
+                    </Tag>
+                  ) : SCRAPE_DATA[key as ScrapeDataKeys].type === "link" ? (
+                    (storeDetail?.[key as keyof IStoreDetail] as string[])?.map(
+                      (link: string, index: number) => (
+                        <>
+                          <a key={index} href={link.trim()}>
+                            {link.trim()}
+                          </a>
+                          <br />
+                        </>
+                      ),
+                    )
+                  ) : null}
+                </Col>
+                <Col span={10}>
+                  <TextArea
+                    value={storeDetail?.feedback?.[key as keyof IStoreDetail]}
+                    rows={4}
+                  />
+                </Col>
+                <Divider />
+              </Row>
+            ))}
+          </Col>
+        )}
+      </Row>
     </>
   );
 }

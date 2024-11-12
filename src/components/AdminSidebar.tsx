@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu } from "antd";
+import type { MenuProps } from 'antd';
 import { 
   UserOutlined,
   LogoutOutlined,
@@ -25,10 +26,13 @@ interface AdminSidebarProps {
   isAdmin: boolean;
 }
 
+type MenuItem = Required<MenuProps>['items'][number];
+
 const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   const { logout } = useAuth();
   const location = useLocation();
-  const currentPath = location.pathname.split('/')[1] || 'customers';
+  const currentPath = location.pathname;
+  const navigate = useNavigate();
 
   const [socialExpanded, setSocialExpanded] = useState(() => {
     const saved = localStorage.getItem('adminSocialExpanded');
@@ -45,16 +49,49 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     localStorage.setItem('adminSocialExpanded', JSON.stringify(socialExpanded));
   }, [socialExpanded]);
 
-  const items = [
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const saved = localStorage.getItem('adminOpenKeys');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminOpenKeys', JSON.stringify(openKeys));
+  }, [openKeys]);
+
+  const adminMenuItems: MenuItem[] = [
+    {
+      key: 'plan',
+      icon: <PieChartOutlined />,
+      label: <span>Plan</span>,
+      children: [
+        {
+          key: '/plan',
+          icon: <PieChartOutlined />,
+          label: <Link to="/plan">Plan</Link>
+        },
+        {
+          key: '/plan-task-rules',
+          icon: <FormOutlined />,
+          label: <Link to="/plan-task-rules">Plan Task Rules</Link>
+        }
+      ]
+    },
     {
       key: 'customers',
       icon: <UserOutlined />,
-      label: <Link to="/">Customers</Link>,
-    },
-    {
-      key: 'customer-form',
-      icon: <FormOutlined />,
-      label: <Link to="/customer-form">Customer Form</Link>,
+      label: <span>Customers</span>,
+      children: [
+        {
+          key: '/',
+          icon: <UserOutlined />,
+          label: <Link to="/">Customers List</Link>
+        },
+        {
+          key: '/customer-form',
+          icon: <FormOutlined />,
+          label: <Link to="/customer-form">Customer Form</Link>
+        }
+      ]
     },
     {
       key: 'design-hub',
@@ -64,43 +101,49 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
     {
       key: 'listings',
       icon: <FileTextOutlined />,
-      label: <Link to="/listings">Listings</Link>,
+      label: 'Listings',
+      children: [
+        {
+          key: '/listings',
+          label: (
+            <Link to="/listings">
+              Optimization
+            </Link>
+          )
+        },
+        {
+          key: '/listings/duplicate',
+          label: (
+            <Link to="/listings/duplicate">
+              Duplication
+            </Link>
+          )
+        }
+      ]
     },
     {
       key: 'social',
       icon: <MessageOutlined />,
-      label: (
-        <div 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setSocialExpanded(!socialExpanded);
-          }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
-        >
-          <span>Social</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${socialExpanded ? 'rotate-180' : ''}`} />
-        </div>
-      ),
+      label: 'Social',
+      children: [
+        {
+          key: '/social',
+          label: (
+            <Link to="/social">
+              Social Calendar
+            </Link>
+          )
+        },
+        {
+          key: '/social-insights',
+          label: (
+            <Link to="/social-insights">
+              Social Media Insights
+            </Link>
+          )
+        }
+      ]
     },
-    ...(socialExpanded ? [
-      {
-        key: 'social-main',
-        label: (
-          <Link to="/social" style={{ paddingLeft: '32px' }}>
-            Social Calendar
-          </Link>
-        )
-      },
-      {
-        key: 'social-insights',
-        label: (
-          <Link to="/social-insights" style={{ paddingLeft: '32px' }}>
-            Social Media Insights
-          </Link>
-        )
-      }
-    ] : []),
     {
       key: 'pinterest',
       icon: <InstagramOutlined />,
@@ -125,11 +168,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
       key: 'tasks',
       icon: <ProjectOutlined />,
       label: <Link to="/tasks">Tasks Summary</Link>,
-    },
-    {
-      key: 'plan',
-      icon: <PieChartOutlined />,
-      label: <Link to="/plan">Plan</Link>,
     },
     {
       key: 'logout',
@@ -167,6 +205,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
         <Menu
           mode="inline"
           selectedKeys={[currentPath]}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
           style={{ 
             borderRight: 0,
             padding: '8px',
@@ -175,7 +215,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
             flexGrow: 1,
             overflow: 'visible'
           }}
-          items={items}
+          items={adminMenuItems}
           className="admin-sidebar-menu"
         />
       </div>

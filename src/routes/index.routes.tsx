@@ -6,7 +6,7 @@ import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
 import UserDesignHub from "../components/UserDesignHub";
-import Plan from "../components/Plan";
+import PlanComponent from '../components/Plan';
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import LoginPage from "../components/auth/login";
@@ -25,6 +25,9 @@ import DesignHubV2 from "components/designHub/DesignHub";
 import { DesignHub } from "components/DesignHub";
 import { Spin } from 'antd';
 import SocialInsights from "../components/social/SocialInsights";
+import ListingDuplication from "../components/ListingDuplication";
+import PlanTaskRules from "../components/PlanTaskRules";
+import { CustomerPlan } from '../components/CustomerPlan';
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -155,11 +158,11 @@ export default function AppRoutes() {
               path="customer-form"
               element={<StoreInformation customerId="" isAdmin={true} />}
             />
-            {/* <Route path="design-hub" element={<DesignHubV2 />} /> */}
-            <Route 
+            <Route path="design-hub" element={<DesignHubV2 />} />
+            {/* <Route 
               path="design-hub" 
               element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            /> 
+            />  */}
             <Route
               path="listings"
               element={
@@ -193,6 +196,39 @@ export default function AppRoutes() {
                 </div>
               }
             />
+            <Route
+              path="listings/duplicate"
+              element={
+                <div style={{ paddingTop: "16px" }}>
+                  <div
+                    style={{
+                      marginBottom: "24px",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <div style={{ width: "300px" }}>
+                      <CustomersDropdown
+                        customers={customers}
+                        selectedCustomer={selectedCustomer}
+                        setSelectedCustomer={setSelectedCustomer}
+                        isAdmin={true}
+                      />
+                    </div>
+                  </div>
+                  {selectedCustomer ? (
+                    <ListingDuplication
+                      customerId={selectedCustomer.id}
+                      storeName={selectedCustomer.store_name}
+                    />
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "20px" }}>
+                      Please select a customer to view their listings
+                    </div>
+                  )}
+                </div>
+              }
+            />
             <Route path="social" element={<Social />} />
             <Route 
               path="social-insights" 
@@ -215,7 +251,7 @@ export default function AppRoutes() {
               path="plan"
               element={
                 <div style={{ paddingTop: "16px" }}>
-                  <Plan
+                  <PlanComponent
                     customers={customers}
                     selectedCustomer={selectedCustomer}
                     setSelectedCustomer={setSelectedCustomer}
@@ -223,6 +259,7 @@ export default function AppRoutes() {
                 </div>
               }
             />
+            <Route path="plan-task-rules" element={<PlanTaskRules />} />
           </>
         ) : (
           <>
@@ -252,16 +289,16 @@ export default function AppRoutes() {
                 <StoreInformation customerId={user?.id || ""} isAdmin={false} />
               }
             />
-            {/* <Route
+            <Route
               path="design-hub"
               element={
                 userType === "Free" ? <UpgradeNotice /> : <DesignHubV2 />
               }
-            /> */}
-            <Route
+            />
+            {/* <Route
               path="design-hub"
               element={userType === "Free" ? <UpgradeNotice /> : <UserDesignHub customerId={user?.id || ''} />}
-            />
+            /> */}
             <Route
               path="listings"
               element={
@@ -313,6 +350,14 @@ export default function AppRoutes() {
                 >
                   Coming Soon
                 </div>
+              }
+            />
+            <Route
+              path="plan"
+              element={
+                userType === "Free" ? 
+                <UpgradeNotice /> : 
+                <CustomerPlan />
               }
             />
           </>

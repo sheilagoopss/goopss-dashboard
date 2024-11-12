@@ -29,6 +29,7 @@ import {
   Space,
   Image,
   Divider,
+  message,
 } from "antd";
 import FacebookLoginPopup from "./FacebookLoginPopup";
 import FacebookButton from "./common/FacebookButton";
@@ -64,13 +65,18 @@ const PostCreationModal: React.FC<{
   onCancel: () => void;
 }> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">(
-    "facebook",
-  );
+  const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
 
-  const generateContentWithAI = async (platform: "facebook" | "instagram") => {
+  useEffect(() => {
+    setScheduledDate(null);
+    setPlatform("facebook");
+    setFacebookContent("");
+    setInstagramContent("");
+  }, [isOpen, listing, customerId]);
+
+  const handleGenerateContent = async () => {
     try {
       // First fetch customer data
       const customerDoc = await getDoc(doc(db, 'customers', customerId));
@@ -84,30 +90,31 @@ const PostCreationModal: React.FC<{
 
       // Structure listing data with only the fields we need
       const listingInfo = {
-        title: listingData?.optimizedTitle || listingData?.listingTitle || '',
-        description: listingData?.optimizedDescription || listingData?.listingDescription || '',
-        primaryImage: listingData?.primaryImage || '',
-        etsyLink: listingData?.etsyLink || ''
+        title: listingData?.optimizedTitle || listingData?.listingTitle || '', //listing title
+        description: listingData?.optimizedDescription || listingData?.listingDescription || '', //listing description
+        primaryImage: listingData?.primaryImage || '', //listing image lin
+        etsyLink: listingData?.etsyLink || '', //listing link
+        store_name: listingData?.store_name || '' //store name
       };
 
       const customerData = customerDoc.data();
       
       // Get all the required customer fields
       const customerInfo = {
-        website: customerData.website || '',
-        industry: customerData.industry || '',
-        about: customerData.about || '',
-        target_audience: customerData.target_audience || '',
-        content_tone: customerData.content_tone || '',
-        etsy_store_url: customerData.etsy_store_url || '',
-        past_facebook_posts: customerData.past_facebook_posts || '',
-        past_instagram_posts: customerData.past_instagram_posts || '',
-        content_guideline: customerData.content_guideline || '',
-        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || '',
-        competitor_social: customerData.competitor_social || ''
+        industry: customerData.industry || '', // industry
+        about: customerData.about || '', // store about
+        target_audience: customerData.target_audience || '', // target audience
+        content_tone: customerData.content_tone || '', // content tone
+        etsy_store_url: customerData.etsy_store_url || '', // etsy store url
+        past_facebook_posts: customerData.past_facebook_posts || '', // past facebook posts
+        past_instagram_posts: customerData.past_instagram_posts || '', // past instagram posts
+        content_guideline: customerData.content_guideline || '', // content guideline or restriction like what not to post or use first person etc
+        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || '', // instagram hashtags that goopss will use 
+        competitor_social: customerData.competitor_social || '' // competitor social
       };
 
       const payload = [{
+<<<<<<< HEAD
           image_path: listingInfo.primaryImage || '',
           store_name: listingInfo.store_name || '',
           about: customerInfo.about || '',
@@ -122,6 +129,19 @@ const PostCreationModal: React.FC<{
       }];
 
 
+=======
+        image_path: listingInfo.primaryImage || '',
+        store_name: listingInfo.store_name || '',
+        about: customerInfo.about || '',
+        description: listingInfo.description || '',
+        url: listingInfo.etsyLink || '',
+        content_tone: customerInfo.content_tone || '', // new field to incorporate to prompt
+        target_audience: customerInfo.target_audience || '', // new field to incorporate to prompt
+        goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // new field to incorporate to prompt 
+        past_facebook_posts: customerInfo.past_facebook_posts || '', // new field to incorporate to prompt
+        past_instagram_posts: customerInfo.past_instagram_posts || '', // new field to incorporate to prompt
+      }];
+>>>>>>> 48942f4eb7dd85bb9942130dae634cd7942f4b80
 
       const API_URL = 'https://goopss.onrender.com/gen_posts_dashboard';
 
@@ -138,26 +158,26 @@ const PostCreationModal: React.FC<{
         throw new Error("Failed to generate content");
       }
 
-      // Fallback content if the AI fails
       const data = await response.json();
+<<<<<<< HEAD
 
       return data.result;
+=======
+      
+      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+        const firstResult = data.result[0];
+        
+        // Always set both contents regardless of platform selection
+        setFacebookContent(firstResult.facebook_post || '');
+        setInstagramContent(firstResult.instagram_post || '');
+        
+      } else {
+        throw new Error("Failed to generate content. Please try again.");
+      }
+>>>>>>> 48942f4eb7dd85bb9942130dae634cd7942f4b80
     } catch (error) {
-      console.error("Error generating content with AI:", error);
-      return platform === "facebook"
-        ? `Check out our ${listing?.listingTitle}! 🛍️ Perfect for your home or as a gift. Shop now on our Etsy store! #Handmade #EtsyFind`
-        : `✨ New arrival! ${listing?.listingTitle} 🛒 Tap the link in bio to shop. #Etsy #Handmade #ShopSmall`;
-    }
-  };
-
-  const handleGenerateContent = async () => {
-    if (platform === "both" || platform === "facebook") {
-      const fbContent = await generateContentWithAI("facebook");
-      setFacebookContent(fbContent);
-    }
-    if (platform === "both" || platform === "instagram") {
-      const igContent = await generateContentWithAI("instagram");
-      setInstagramContent(igContent);
+      console.error("Error generating content:", error);
+      message.error("Failed to generate content. Please try again.");
     }
   };
 
@@ -216,13 +236,21 @@ const PostCreationModal: React.FC<{
     onSave(postsToSave);
   };
 
+  const handleCancel = () => {
+    setScheduledDate(null);
+    setPlatform("facebook");
+    setFacebookContent("");
+    setInstagramContent("");
+    onCancel();
+  };
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
       visible={isOpen}
-      onCancel={onCancel}
+      onCancel={handleCancel}
       footer={[
-        <Button key="cancel" onClick={onCancel}>
+        <Button key="cancel" onClick={handleCancel}>
           Cancel
         </Button>,
         <Button key="save" type="primary" onClick={handleSave}>
@@ -246,21 +274,31 @@ const PostCreationModal: React.FC<{
         <Button onClick={handleGenerateContent} type="default">
           Generate Content
         </Button>
+        
         {(platform === "facebook" || platform === "both") && (
-          <TextArea
-            value={facebookContent}
-            onChange={(e) => setFacebookContent(e.target.value)}
-            placeholder="Facebook content"
-            autoSize={{ minRows: 3, maxRows: 5 }}
-          />
+          <div>
+            <Text strong>Facebook Content:</Text>
+            <TextArea
+              value={facebookContent}
+              onChange={(e) => setFacebookContent(e.target.value)}
+              placeholder="Facebook content"
+              autoSize={{ minRows: 3, maxRows: 5 }}
+              style={{ whiteSpace: 'pre-line' }}
+            />
+          </div>
         )}
+        
         {(platform === "instagram" || platform === "both") && (
-          <TextArea
-            value={instagramContent}
-            onChange={(e) => setInstagramContent(e.target.value)}
-            placeholder="Instagram content"
-            autoSize={{ minRows: 3, maxRows: 5 }}
-          />
+          <div>
+            <Text strong>Instagram Content:</Text>
+            <TextArea
+              value={instagramContent}
+              onChange={(e) => setInstagramContent(e.target.value)}
+              placeholder="Instagram content"
+              autoSize={{ minRows: 3, maxRows: 5 }}
+              style={{ whiteSpace: 'pre-line' }}
+            />
+          </div>
         )}
       </Space>
     </Modal>
@@ -871,10 +909,7 @@ const Social: React.FC = () => {
                       {post.platform}
                     </span>
                   </div>
-                  <p>
-                    <strong>Content:</strong>
-                  </p>
-                  <p>{post.content}</p>
+                  <p style={{ whiteSpace: 'pre-line' }}>{post.content}</p>
                 </div>
               ))
             ) : (

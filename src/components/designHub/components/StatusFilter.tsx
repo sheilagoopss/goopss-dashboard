@@ -16,8 +16,8 @@ const StatusFilter: React.FC<StatusFilterProps> = ({
     <Segmented
       block
       options={[
-        { label: "For Revision", value: "revision" },
         { label: "To Approve", value: "pending" },
+        { label: "For Revision", value: "revision" },
         { label: "Approved", value: "approved" },
         { label: "All Images", value: "all" },
       ]}

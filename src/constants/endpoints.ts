@@ -5,6 +5,7 @@ export const endpoints = {
     scrape: `${API_URL}/api/v1/storeAnalytics/scrape`,
     getStoreAnalytics: (storeName: string) =>
       `${API_URL}/api/v1/storeAnalytics/${storeName}`,
+    generateFeedback: `${API_URL}/api/v1/storeAnalytics/generateFeedback`,
   },
   facebook: {
     getUserData: `${API_URL}/api/v1/facebook/userData`,
@@ -16,6 +17,7 @@ export const endpoints = {
   listingImage: {
     download: (imageId: string) =>
       `${API_URL}/api/v1/listingImage/${imageId}/download`,
+    downloadMultiple: `${API_URL}/api/v1/listingImage/downloadMultiple`,
   },
   tagify: {
     generateTags: `${API_URL}/api/v1/tagify/generate-tags`,

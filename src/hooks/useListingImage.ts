@@ -54,6 +54,7 @@ interface UseUploadRevision {
 
 interface UseDownloadImage {
   downloadImage: (imageId: string) => Promise<IServiceReturn | null>;
+  downloadMultipleImages: (imageIds: string[]) => Promise<IServiceReturn | null>;
   isDownloading: boolean;
 }
 
@@ -243,7 +244,26 @@ export const useDownloadImage = (): UseDownloadImage => {
     [],
   );
 
-  return { downloadImage, isDownloading };
+  const downloadMultipleImages = useCallback(
+    async (imageIds: string[]): Promise<IServiceReturn | null> => {
+      setIsDownloading(true);
+      try {
+        const response = await HttpHelper.post(
+          endpoints.listingImage.downloadMultiple,
+          { data: { imageIds } },
+        );
+        return response?.data;
+      } catch (error) {
+        console.error("Error downloading images:", error);
+        return null;
+      } finally {
+        setIsDownloading(false);
+      }
+    },
+    [],
+  );
+
+  return { downloadImage, downloadMultipleImages, isDownloading };
 };
 
 export const useUploadListingImages = (): UseUploadListingImages => {

@@ -1,24 +1,43 @@
+import { FieldValue } from 'firebase/firestore';
+
+interface DuplicateInfo {
+  listingId: string;
+  createdAt: Date;
+}
+
 export interface Listing {
+  // Base fields
   id: string;
-  title: string;
+  title?: string;
+  customer_id: string;
   listingID: string;
   listingTitle: string;
   listingDescription: string;
   primaryImage: string;
   listingTags: string;
-  optimizationStatus: boolean;
-  optimizedAt: Date | null;
   bestseller: boolean;
   totalSales: number;
   dailyViews: number;
-  optimizedTitle?: string;
-  optimizedDescription?: string;
-  optimizedTags?: string;
   createdAt?: string;
   uploadedImages?: ListingImage[];
   hasImage?: boolean;
-  contact_email?: string;
-  etsyLink?: string;
+  section?: string;
+  etsyLink: string;
+  store_name: string;
+
+  // Optimization fields
+  optimizationStatus: boolean;
+  optimizedAt?: Date | null;
+  optimizedTitle?: string;
+  optimizedDescription?: string;
+  optimizedTags?: string;
+
+  // Duplication fields
+  duplicationStatus?: boolean;
+  duplicatedAt?: Date | null;
+  duplicatedFrom?: string;
+  duplicates?: DuplicateInfo[];
+
 }
 
 export interface ListingImage {
@@ -29,4 +48,5 @@ export interface ListingImage {
   customer_id: string;
   statusChangeDate?: Date;
   revisionNote?: string;
+  date?: Date;
 }

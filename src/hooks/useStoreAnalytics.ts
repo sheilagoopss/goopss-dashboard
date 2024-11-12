@@ -3,18 +3,52 @@ import { IStoreDetail } from "../types/StoreDetail";
 import { IAPIResponse } from "../types/API";
 import HttpHelper from "../helpers/HttpHelper";
 import { endpoints } from "../constants/endpoints";
+import { db } from "../firebase/config";
+import {
+  collection,
+  getDocs,
+  query,
+  Timestamp,
+  where,
+} from "firebase/firestore";
+import { filterUndefined } from "utils/filterUndefined";
+import FirebaseHelper from "helpers/FirebaseHelper";
+import dayjs from "dayjs";
 
 interface UseStoreAnalyticsReturn {
   scrape: (storeName: string) => Promise<IAPIResponse<IStoreDetail> | null>;
-  fetchStoreAnalytics: (
-    storeName: string,
-  ) => Promise<IAPIResponse<IStoreDetail[]>>;
-  isLoading: boolean;
   isScraping: boolean;
 }
 
+interface UseCustomerStoreAnalyticsFetchReturn {
+  fetchCustomerStoreAnalytics: (customerId: string) => Promise<IStoreDetail[]>;
+  isLoading: boolean;
+}
+
+interface UseStoreAnalysisCreateReturn {
+  createStoreAnalysis: (storeAnalysis: IStoreDetail) => Promise<boolean>;
+  isLoading: boolean;
+}
+
+interface UseStoreAnalysisDeleteReturn {
+  deleteStoreAnalysis: (storeAnalysisId: string) => Promise<boolean>;
+  isDeleting: boolean;
+}
+
+interface UseGenerateFeedbackReturn {
+  generateFeedback: (params: {
+    aboutSection: string;
+    FAQ: string;
+    storeAnnouncement: string;
+  }) => Promise<IAPIResponse<{
+    aboutSectionFeedback: string;
+    storeAnnouncementFeedback: string;
+    faqFeedback: string;
+  }> | null>;
+  isGenerating: boolean;
+}
+
 export function useStoreAnalytics(): UseStoreAnalyticsReturn {
-  const [isLoading, setIsLoading] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
 
   const scrape = useCallback(
@@ -42,21 +76,40 @@ export function useStoreAnalytics(): UseStoreAnalyticsReturn {
     [],
   );
 
-  const fetchStoreAnalytics = useCallback(
-    async (storeName: string): Promise<IAPIResponse<IStoreDetail[]>> => {
+  return { scrape, isScraping };
+}
+
+export function useCustomerStoreAnalyticsFetch(): UseCustomerStoreAnalyticsFetchReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchCustomerStoreAnalytics = useCallback(
+    async (customerId: string): Promise<IStoreDetail[]> => {
       setIsLoading(true);
       try {
-        const scrapeData = await HttpHelper.get(
-          endpoints.storeAnalytics.getStoreAnalytics(storeName),
+        const dbQuery = query(
+          collection(db, "storeAnalysis"),
+          where("customerId", "==", customerId),
         );
-
-        return scrapeData?.data;
-      } catch (error: any) {
-        console.error(error);
-        return {
-          message: error.message,
-          data: [],
-        };
+        const analysis = await getDocs(dbQuery);
+        const analysisData = analysis.docs.map((storeAnalysisDoc) => ({
+          ...(storeAnalysisDoc.data() as IStoreDetail),
+          id: storeAnalysisDoc.id,
+          createdAt: (storeAnalysisDoc.data().createdAt as Timestamp)?.seconds
+            ? dayjs(
+                new Date(
+                  (storeAnalysisDoc.data().createdAt as Timestamp)?.seconds *
+                    1000 +
+                    (storeAnalysisDoc.data().createdAt as Timestamp)
+                      ?.nanoseconds /
+                      1000000,
+                ),
+              ).toISOString()
+            : (storeAnalysisDoc.data().createdAt as string),
+        }));
+        return analysisData as IStoreDetail[];
+      } catch (error) {
+        console.error("Error fetching store analysis:", error);
+        return [];
       } finally {
         setIsLoading(false);
       }
@@ -64,5 +117,88 @@ export function useStoreAnalytics(): UseStoreAnalyticsReturn {
     [],
   );
 
-  return { fetchStoreAnalytics, scrape, isLoading, isScraping };
+  return { fetchCustomerStoreAnalytics, isLoading };
+}
+
+export function useStoreAnalysisCreate(): UseStoreAnalysisCreateReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const createStoreAnalysis = useCallback(
+    async (storeAnalysis: IStoreDetail): Promise<boolean> => {
+      setIsLoading(true);
+      try {
+        const filteredData = filterUndefined(
+          storeAnalysis as unknown as Record<string, string>,
+        );
+        await FirebaseHelper.create("storeAnalysis", filteredData);
+      } catch (error) {
+        console.error("Error creating storeAnalysis:", error);
+        return false;
+      } finally {
+        setIsLoading(false);
+        return true;
+      }
+    },
+    [],
+  );
+
+  return { createStoreAnalysis, isLoading };
+}
+
+export function useStoreAnalysisDelete(): UseStoreAnalysisDeleteReturn {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const deleteStoreAnalysis = useCallback(
+    async (storeAnalysisId: string): Promise<boolean> => {
+      setIsDeleting(true);
+      try {
+        await FirebaseHelper.delete("storeAnalysis", storeAnalysisId);
+        return true;
+      } catch (error) {
+        console.error("Error deleting storeAnalysis:", error);
+        return false;
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [],
+  );
+
+  return { deleteStoreAnalysis, isDeleting };
+}
+
+export function useGenerateFeedback(): UseGenerateFeedbackReturn {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const generateFeedback = useCallback(
+    async (params: {
+      aboutSection: string;
+      FAQ: string;
+      storeAnnouncement: string;
+    }): Promise<IAPIResponse<{
+      aboutSectionFeedback: string;
+      storeAnnouncementFeedback: string;
+      faqFeedback: string;
+    }> | null> => {
+      setIsGenerating(true);
+      try {
+        const scrapeData = await HttpHelper.post(
+          endpoints.storeAnalytics.generateFeedback,
+          {
+            data: params,
+          },
+        );
+
+        return scrapeData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [],
+  );
+
+  return { generateFeedback, isGenerating };
 }

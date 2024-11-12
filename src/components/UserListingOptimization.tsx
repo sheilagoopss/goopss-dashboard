@@ -18,6 +18,8 @@ interface Listing {
   optimizedAt: Date | null;
   optimizationStatus: boolean;
   uploadedImages?: { id: string; url: string; statusChangeDate: Date | null }[];
+  duplicatedFrom?: string;
+  createdAt?: Date | null;
 }
 
 const LISTINGS_PER_PAGE = 10; // Changed from 5 to 10
@@ -288,6 +290,211 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
   );
 };
 
+// Add DuplicationCard component
+const DuplicationCard = ({ listing }: { listing: Listing }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [originalListing, setOriginalListing] = useState<Listing | null>(null);
+
+  // Fetch original listing data when expanded
+  useEffect(() => {
+    const fetchOriginalListing = async () => {
+      if (!isExpanded || !listing.duplicatedFrom) return;
+      
+      try {
+        const listingsRef = collection(db, 'listings');
+        const q = query(listingsRef, where('listingID', '==', listing.duplicatedFrom));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const data = querySnapshot.docs[0].data();
+          setOriginalListing({
+            ...data,
+            id: querySnapshot.docs[0].id,
+          } as Listing);
+        }
+      } catch (error) {
+        console.error('Error fetching original listing:', error);
+      }
+    };
+
+    fetchOriginalListing();
+  }, [isExpanded, listing.duplicatedFrom]);
+
+  // Get optimization types for badges
+  const getOptimizationTypes = (listing: Listing): OptimizationType[] => {
+    const types: OptimizationType[] = [];
+    types.push('Title');
+    types.push('Description');
+    types.push('Tags');
+    types.push('Images');
+    types.push('Attributes');
+    types.push('Alt text');
+    return types;
+  };
+
+  const sanitizeHtml = (html: string) => {
+    const sanitized = DOMPurify.sanitize(html, { ALLOWED_TAGS: ['br'] });
+    return sanitized.split(/<br\s*\/?>/i).map((line, index) => (
+      <React.Fragment key={index}>
+        {line}
+        {index !== sanitized.split(/<br\s*\/?>/i).length - 1 && <br />}
+      </React.Fragment>
+    ));
+  };
+
+  return (
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      marginBottom: '16px',
+      overflow: 'hidden',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      transition: 'all 0.3s ease'
+    }}>
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          padding: '16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}
+      >
+        <img 
+          src={listing.primaryImage} 
+          alt={listing.listingTitle}
+          style={{
+            width: '64px',
+            height: '64px',
+            objectFit: 'cover',
+            borderRadius: '4px'
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
+            {listing.listingTitle}
+          </h3>
+          <div style={{ fontSize: '14px', color: '#666' }}>
+            Listing ID: {listing.listingID}
+          </div>
+          <div style={{ fontSize: '14px', color: '#666' }}>
+            Original Listing ID: {listing.duplicatedFrom}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {getOptimizationTypes(listing).map((type) => (
+            <span
+              key={type}
+              style={{
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 500,
+                backgroundColor: pastelColors[type].bg,
+                color: pastelColors[type].text
+              }}
+            >
+              {type}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
+          {/* Title */}
+          <section style={{ marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ width: '4px', height: '24px', backgroundColor: '#f9a8d4', marginRight: '8px', borderRadius: '2px' }}></span>
+              Title
+            </h4>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Original Title:</div>
+                <div>{originalListing?.listingTitle || 'Loading...'}</div>
+              </div>
+              <ArrowRight style={{ marginTop: '24px', color: '#666' }} />
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Duplicated Title:</div>
+                <div>{listing.listingTitle}</div>
+              </div>
+            </div>
+          </section>
+
+          {/* Description */}
+          <section style={{ marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ width: '4px', height: '24px', backgroundColor: '#93c5fd', marginRight: '8px', borderRadius: '2px' }}></span>
+              Description
+            </h4>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Original Description:</div>
+                <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {sanitizeHtml(originalListing?.listingDescription || 'Loading...')}
+                </div>
+              </div>
+              <ArrowRight style={{ marginTop: '24px', color: '#666' }} />
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Duplicated Description:</div>
+                <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {sanitizeHtml(listing.listingDescription)}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Tags */}
+          <section style={{ marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ width: '4px', height: '24px', backgroundColor: '#86efac', marginRight: '8px', borderRadius: '2px' }}></span>
+              Tags
+            </h4>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Original Tags:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {originalListing?.listingTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ 
+                      backgroundColor: '#f3f4f6', 
+                      padding: '4px 8px', 
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}>
+                      {tag.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <ArrowRight style={{ marginTop: '24px', color: '#666' }} />
+              <div style={{ flex: 1, padding: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                <div style={{ fontWeight: 500, marginBottom: '8px' }}>Duplicated Tags:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {listing.listingTags.split(',').map((tag, index) => (
+                    <span key={index} style={{ 
+                      backgroundColor: '#f3f4f6', 
+                      padding: '4px 8px', 
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}>
+                      {tag.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Date information */}
+          <div style={{ fontSize: '14px', color: '#666', marginTop: '16px' }}>
+            Created on: {formatDate(listing.createdAt ? new Date(listing.createdAt) : null)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function UserListingOptimization() {
   const { customerData } = useAuth();
   const [activeTab, setActiveTab] = useState('optimized');
@@ -299,6 +506,7 @@ export default function UserListingOptimization() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<"optimizedAt" | null>("optimizedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [duplicatedListings, setDuplicatedListings] = useState<Listing[]>([]);
 
   const tabs = [
     { 
@@ -323,43 +531,85 @@ export default function UserListingOptimization() {
       setIsLoading(true);
       try {
         const listingsRef = collection(db, 'listings');
-        const q = query(
-          listingsRef,
-          where('customer_id', '==', customerData.id),
-          where('optimizationStatus', '==', true)
-        );
-        const querySnapshot = await getDocs(q);
-        const fetchedListings = await Promise.all(querySnapshot.docs.map(async doc => {
-          const data = doc.data();
-          let images: ListingImage[] = [];
-          
-          // Check hasImage flag first
-          if (data.hasImage === true) {  // Explicitly check for true
-            // Then fetch images using the listing's ID
-            images = await fetchImagesForListing(doc.id);
-          }
-
-          return {
-            id: doc.id,
-            ...data,
-            optimizedAt: data.optimizedAt ? data.optimizedAt.toDate() : null,
-            uploadedImages: images
-          } as Listing;
-        }));
-
-        const filteredListings = fetchedListings.filter(listing => 
-          listing.optimizedTitle || listing.optimizedDescription || listing.optimizedTags
-        );
-
-        // Sort listings by optimizedAt date before setting state
-        const sortedListings = [...filteredListings].sort((a, b) => {
-          const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
-          const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
-          return dateB - dateA;  // Sort in descending order (newest first)
-        });
         
-        setAllListings(sortedListings);
-        setFilteredListings(sortedListings);
+        if (activeTab === 'optimized') {
+          // Existing optimized listings query
+          const q = query(
+            listingsRef,
+            where('customer_id', '==', customerData.id),
+            where('optimizationStatus', '==', true)
+          );
+          const querySnapshot = await getDocs(q);
+          const fetchedListings = await Promise.all(querySnapshot.docs.map(async doc => {
+            const data = doc.data();
+            let images: ListingImage[] = [];
+            
+            // Check hasImage flag first
+            if (data.hasImage === true) {  // Explicitly check for true
+              // Then fetch images using the listing's ID
+              images = await fetchImagesForListing(doc.id);
+            }
+
+            return {
+              id: doc.id,
+              ...data,
+              optimizedAt: data.optimizedAt ? data.optimizedAt.toDate() : null,
+              uploadedImages: images
+            } as Listing;
+          }));
+
+          const filteredListings = fetchedListings.filter(listing => 
+            listing.optimizedTitle || listing.optimizedDescription || listing.optimizedTags
+          );
+
+          // Sort listings by optimizedAt date before setting state
+          const sortedListings = [...filteredListings].sort((a, b) => {
+            const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
+            const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
+            return dateB - dateA;  // Sort in descending order (newest first)
+          });
+          
+          setAllListings(sortedListings);
+          setFilteredListings(sortedListings);
+        } else {
+          // Query for duplicated listings
+          const q = query(
+            listingsRef,
+            where('customer_id', '==', customerData.id),
+            where('duplicatedFrom', '!=', null)
+          );
+          const querySnapshot = await getDocs(q);
+          const fetchedDuplicates = await Promise.all(querySnapshot.docs.map(async doc => {
+            const data = doc.data();
+            
+            // Fetch the original listing data
+            const originalListingQuery = query(
+              listingsRef,
+              where('listingID', '==', data.duplicatedFrom)
+            );
+            const originalListingSnapshot = await getDocs(originalListingQuery);
+            const originalListingData = originalListingSnapshot.docs[0]?.data();
+
+            return {
+              id: doc.id,
+              listingID: data.listingID,
+              primaryImage: data.primaryImage,
+              listingTitle: data.listingTitle,
+              listingDescription: data.listingDescription,
+              listingTags: data.listingTags,
+              optimizedTitle: data.optimizedTitle || '',
+              optimizedDescription: data.optimizedDescription || '',
+              optimizedTags: data.optimizedTags || '',
+              optimizedAt: data.optimizedAt ? data.optimizedAt.toDate() : null,
+              optimizationStatus: data.optimizationStatus || false,
+              createdAt: data.createdAt ? data.createdAt.toDate() : null,
+              uploadedImages: data.uploadedImages || [],
+              duplicatedFrom: data.duplicatedFrom || '',  // Original listing ID
+            } as Listing;
+          }));
+
+          setDuplicatedListings(fetchedDuplicates);
+        }
       } catch (error) {
         console.error('Error fetching listings:', error);
       } finally {
@@ -368,7 +618,7 @@ export default function UserListingOptimization() {
     };
 
     fetchListings();
-  }, [customerData]);
+  }, [customerData, activeTab]);
 
   useEffect(() => {
     const filtered = allListings.filter(listing => 
@@ -580,30 +830,39 @@ export default function UserListingOptimization() {
             </div>
           </>
         ) : (
-          // Duplicated listings tab content (empty state)
-          <div style={{ 
-            maxWidth: '1600px', 
-            margin: '0 auto',
-            textAlign: 'center',
-            padding: '4rem',
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ 
-              fontSize: '1.25rem',
-              color: '#6B7280',
-              marginBottom: '1rem'
-            }}>
-              No duplicated listings available yet.
-            </div>
-            <p style={{ 
-              color: '#9CA3AF',
-              maxWidth: '600px',
-              margin: '0 auto'
-            }}>
-              We'll show your duplicated listings here once they're available. Check back soon!
-            </p>
+          <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+            {duplicatedListings.length > 0 ? (
+              <>
+                {duplicatedListings.map(listing => (
+                  <DuplicationCard key={listing.id} listing={listing} />
+                ))}
+              </>
+            ) : (
+              <div style={{ 
+                maxWidth: '1600px', 
+                margin: '0 auto',
+                textAlign: 'center',
+                padding: '4rem',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ 
+                  fontSize: '1.25rem',
+                  color: '#6B7280',
+                  marginBottom: '1rem'
+                }}>
+                  No duplicated listings available yet.
+                </div>
+                <p style={{ 
+                  color: '#9CA3AF',
+                  maxWidth: '600px',
+                  margin: '0 auto'
+                }}>
+                  We'll show your duplicated listings here once they're available. Check back soon!
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -9,12 +9,15 @@ import {
   Pagination,
   Row,
   Spin,
+  Typography,
 } from "antd";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useAuth } from "contexts/AuthContext";
 import { CSSProperties, useState } from "react";
 import { Listing, ListingImage } from "types/Listing";
+import dayjs from "dayjs";
 import ImageCard from "./ImageCard";
+import { useDownloadImage } from "hooks/useListingImage";
 
 interface ListingsTableProps {
   listings: Listing[];
@@ -47,9 +50,39 @@ const ListingsTable = ({
   handleUploadListingImages,
 }: ListingsTableProps) => {
   const { isAdmin } = useAuth();
+  const { downloadMultipleImages, isDownloading } = useDownloadImage();
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [newListingImages, setNewListingImages] = useState<string[]>([]);
+
+  const handleDownload = async (listingImages: ListingImage[]) => {
+    try {
+      const imageData = await downloadMultipleImages(
+        listingImages.map((v) => v.id),
+      );
+
+      if (!imageData?.data) {
+        throw new Error("Network response was not ok");
+      }
+
+      const base64Data = imageData.data;
+      const zipBlob = new Blob(
+        [Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))],
+        { type: "application/zip" },
+      );
+      const url = URL.createObjectURL(zipBlob);
+      const anchorElement = document.createElement("a");
+      anchorElement.href = url;
+      anchorElement.download = `${listingImages?.at(0)?.listing_id}-${new Date().getTime()}.zip`;
+      document.body.appendChild(anchorElement);
+      anchorElement.click();
+      anchorElement.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
 
   const handlePageChange = (page: number, pageSize?: number) => {
     setCurrentPage(page);
@@ -66,7 +99,26 @@ const ListingsTable = ({
   ) =>
     paginatedListings.map((listing) => ({
       key: listing.listingID,
-      label: listing.listingTitle,
+      label: (
+        <>
+          {listing.listingTitle}
+          <Typography.Text type="secondary" style={{ display: "block" }}>
+            ID: {listing.listingID}
+          </Typography.Text>
+        </>
+      ),
+      extra: (
+        <Typography.Text type="secondary">
+          {listingImages.find((img) => img.listing_id === listing.listingID)
+            ?.date
+            ? dayjs(
+                listingImages.find(
+                  (img) => img.listing_id === listing.listingID,
+                )?.date,
+              ).format("MMM DD, YYYY HH:mm")
+            : ""}
+        </Typography.Text>
+      ),
       children: (
         <Row
           gutter={[16, 16]}
@@ -76,6 +128,26 @@ const ListingsTable = ({
             borderRadius: "5px",
           }}
         >
+          {isAdmin && (
+            <Col
+              span={24}
+              style={{ display: "flex", justifyContent: "flex-end" }}
+            >
+              <Button
+                loading={isDownloading}
+                onClick={() =>
+                  handleDownload(
+                    listingImages.filter(
+                      (v) => v.listing_id === listing.listingID,
+                    ),
+                  )
+                }
+                type="primary"
+              >
+                Download All
+              </Button>
+            </Col>
+          )}
           {isAdmin && (
             <DragDropUpload
               handleUpload={(data) => {
