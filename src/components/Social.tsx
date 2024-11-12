@@ -114,7 +114,6 @@ const PostCreationModal: React.FC<{
       };
 
       const payload = [{
-<<<<<<< HEAD
           image_path: listingInfo.primaryImage || '',
           store_name: listingInfo.store_name || '',
           about: customerInfo.about || '',
@@ -127,21 +126,6 @@ const PostCreationModal: React.FC<{
           past_facebook_posts: customerInfo.past_facebook_posts || '', // new field to incorporate to prompt
           past_instagram_posts: customerInfo.past_instagram_posts || '' // new field to incorporate to prompt
       }];
-
-
-=======
-        image_path: listingInfo.primaryImage || '',
-        store_name: listingInfo.store_name || '',
-        about: customerInfo.about || '',
-        description: listingInfo.description || '',
-        url: listingInfo.etsyLink || '',
-        content_tone: customerInfo.content_tone || '', // new field to incorporate to prompt
-        target_audience: customerInfo.target_audience || '', // new field to incorporate to prompt
-        goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // new field to incorporate to prompt 
-        past_facebook_posts: customerInfo.past_facebook_posts || '', // new field to incorporate to prompt
-        past_instagram_posts: customerInfo.past_instagram_posts || '', // new field to incorporate to prompt
-      }];
->>>>>>> 48942f4eb7dd85bb9942130dae634cd7942f4b80
 
       const API_URL = 'https://goopss.onrender.com/gen_posts_dashboard';
 
