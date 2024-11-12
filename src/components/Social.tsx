@@ -736,7 +736,7 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {user && (user as ICustomer)?.isSuperCustomer && (
+      {user && ((user as ICustomer)?.isSuperCustomer || isAdmin) && (
         <>
           <div
             style={{
