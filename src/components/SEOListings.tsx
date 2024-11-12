@@ -612,6 +612,11 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setCurrentPage(1);  // Reset to first page when filters change
   }, [searchTerm, showNonBestsellers, hideOptimized, allListings]);
 
+  // Add this function near other tag handling functions
+  const handleClearAllTags = () => {
+    setEditedTags("");
+  };
+
   return (
     <div>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -796,16 +801,26 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                             />
                           </div>
                           <div>
-                            <Space align="center">
-                              <Text strong>Tags:</Text>
+                            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                              <Space>
+                                <Text strong>Tags:</Text>
+                                <Button 
+                                  type="text" 
+                                  icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
+                                  onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
+                                />
+                                <Text type="secondary">
+                                  ({getTagCount(editedTags)}/{MAX_TAGS} tags)
+                                </Text>
+                              </Space>
                               <Button 
-                                type="text" 
-                                icon={copiedField === `tags-${record.id}` ? <Check /> : <Copy />}
-                                onClick={() => copyToClipboard(editedTags, `tags-${record.id}`)}
-                              />
-                              <Text type="secondary">
-                                ({getTagCount(editedTags)}/{MAX_TAGS} tags)
-                              </Text>
+                                type="link" 
+                                danger
+                                onClick={handleClearAllTags}
+                                disabled={!editedTags}
+                              >
+                                Clear All
+                              </Button>
                             </Space>
                             <div style={{ 
                               marginTop: 8,
