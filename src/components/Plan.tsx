@@ -20,7 +20,10 @@ import {
   message,
   Spin,
   Pagination,
-  Avatar
+  Avatar,
+  Form,
+  Checkbox,
+  InputNumber
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -30,7 +33,8 @@ import {
   SortAscendingOutlined,
   UserOutlined,
   WarningOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  PlusOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
@@ -460,6 +464,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     sectionTitle: string;
     taskName: string;
   }>({ visible: false, sectionTitle: '', taskName: '' });
+  const [newCustomTaskModal, setNewCustomTaskModal] = useState(false);
+  const [customTaskForm] = Form.useForm();
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -1002,6 +1008,96 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setFrequencyFilter(currentFilters.frequencyFilter);
   };
 
+  // Add interface for form values
+  interface CustomTaskFormValues {
+    task: string;
+    section: string;
+    frequency: 'Monthly' | 'One Time' | 'As Needed';
+    dueDate?: dayjs.Dayjs;
+    monthlyDueDate?: number;
+    requiresGoal: boolean;
+    defaultGoal?: number;
+    defaultCurrent?: number;
+  }
+
+  // Add this function before the return statement
+  const handleCustomTaskSave = async (values: CustomTaskFormValues) => {
+    try {
+      if (!selectedCustomer) {
+        message.error('No customer selected');
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Calculate due date based on frequency
+      let dueDate: string | null = null;
+      if (values.frequency === 'Monthly' && values.monthlyDueDate) {
+        dueDate = dayjs().date(values.monthlyDueDate).format('YYYY-MM-DD');
+      } else if ((values.frequency === 'One Time' || values.frequency === 'As Needed') && values.dueDate) {
+        dueDate = values.dueDate.format('YYYY-MM-DD');
+      }
+
+      // Create new task
+      const newTask: PlanTask = {
+        id: `custom-${Date.now()}`,
+        task: values.task,
+        progress: 'To Do',
+        isActive: true,
+        notes: '',
+        frequency: values.frequency,
+        dueDate,
+        completedDate: null,
+        current: values.defaultCurrent || 0,
+        goal: values.requiresGoal ? (values.defaultGoal || 0) : 0,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || ''
+      };
+
+      // Get current plan
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        throw new Error('Plan not found');
+      }
+
+      // Find or create Other Tasks section
+      const updatedSections = [...sections];
+      const sectionIndex = updatedSections.findIndex(s => s.title === 'Other Tasks');
+      
+      if (sectionIndex === -1) {
+        // Create Other Tasks section if it doesn't exist
+        updatedSections.push({
+          title: 'Other Tasks',
+          tasks: [newTask]
+        });
+      } else {
+        // Add to existing Other Tasks section
+        updatedSections[sectionIndex].tasks.push(newTask);
+      }
+
+      // Update Firestore
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state
+      setSections(updatedSections);
+
+      message.success('Custom task added successfully');
+      setNewCustomTaskModal(false);
+      customTaskForm.resetFields();
+
+    } catch (error) {
+      console.error('Error adding custom task:', error);
+      message.error('Failed to add custom task');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -1055,18 +1151,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   </Space>
                 </Option>
               </Select>
-              <Select
-                style={{ width: 200 }}
-                value={frequencyFilter}
-                onChange={setFrequencyFilter}
-                placeholder="Filter by frequency"
-              >
-                <Option value="All">All Frequencies</Option>
-                <Option value="One Time">One Time</Option>
-                <Option value="Monthly">Monthly</Option>
-                <Option value="As Needed">As Needed</Option>
-                <Option value="Monthly and As Needed">Monthly & As Needed</Option>
-              </Select>
+              {plans.type === 'single' && (
+                <Button
+                  icon={<PlusOutlined />}
+                  onClick={() => setNewCustomTaskModal(true)}
+                  style={{ marginRight: 8 }}
+                >
+                  Add Custom Task
+                </Button>
+              )}
               <Button 
                 icon={<ReloadOutlined />} 
                 onClick={handleResetFilters}
@@ -1240,11 +1333,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               onSearch={(value) => {
-                setSearch(value);  // Only apply filter when search button is clicked
+                setSearch(value);
                 console.log('Searching for:', value);
               }}
-              enterButton  // Add search button
-              allowClear   // Keep clear button
+              enterButton
+              allowClear
               style={{ width: 200 }}
             />
             <Select
@@ -1282,13 +1375,22 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               onClick={handleResetFilters}
               title="Reset all filters"
             />
+            {selectedCustomer && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setNewCustomTaskModal(true)}
+              >
+                Add Custom Task
+              </Button>
+            )}
           </Space>
         </Card>
 
         {isLoading && <LoadingSpinner />}
 
         {!selectedCustomer && plans.type === 'all' ? (
-          defaultSections.map(sectionTitle => {
+          defaultSections.concat(['Other Tasks']).map(sectionTitle => {
             console.log(`Rendering section ${sectionTitle}:`, {
               viewType: plans.type,
               hasPlans: Object.keys(plans.data).length > 0
@@ -1465,6 +1567,144 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           })
         )}
       </Content>
+
+      {/* Add Custom Task Modal */}
+      <Modal
+        title="Add Custom Task"
+        open={newCustomTaskModal}
+        onOk={customTaskForm.submit}
+        onCancel={() => {
+          setNewCustomTaskModal(false);
+          customTaskForm.resetFields();
+        }}
+      >
+        <Form
+          form={customTaskForm}
+          layout="vertical"
+          onFinish={handleCustomTaskSave}
+          initialValues={{
+            isActive: true,
+            frequency: 'One Time',
+            requiresGoal: false,
+            section: 'Other Tasks'
+          }}
+        >
+          <Form.Item
+            name="task"
+            label="Task Name"
+            rules={[{ required: true, message: 'Please enter task name' }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            name="section"
+            label="Section"
+            initialValue="Other Tasks"
+          >
+            <Select 
+              disabled 
+              value="Other Tasks"
+            >
+              <Option value="Other Tasks">Other Tasks</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="frequency"
+            label="Frequency"
+            rules={[{ required: true, message: 'Please select frequency' }]}
+          >
+            <Select>
+              <Option value="One Time">One Time</Option>
+              <Option value="Monthly">Monthly</Option>
+              <Option value="As Needed">As Needed</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => 
+              prevValues.frequency !== currentValues.frequency
+            }
+          >
+            {({ getFieldValue }) => {
+              const frequency = getFieldValue('frequency');
+              if (frequency === 'Monthly') {
+                return (
+                  <Form.Item
+                    name="monthlyDueDate"
+                    label="Monthly Due Date"
+                    rules={[{ required: true, message: 'Please select monthly due date' }]}
+                  >
+                    <Select>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                        <Option key={day} value={day}>Day {day}</Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                );
+              }
+              if (frequency === 'One Time' || frequency === 'As Needed') {
+                return (
+                  <Form.Item
+                    name="dueDate"
+                    label="Due Date"
+                    rules={[{ required: true, message: 'Please select a due date' }]}
+                  >
+                    <DatePicker 
+                      style={{ width: '100%' }}
+                      disabledDate={(current) => current && current < dayjs().startOf('day')}
+                    />
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+
+          <Form.Item
+            label="Requires Goal"
+            name="requiresGoal"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => 
+              prevValues.requiresGoal !== currentValues.requiresGoal
+            }
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('requiresGoal') ? (
+                <>
+                  <Form.Item
+                    label="Default Goal"
+                    name="defaultGoal"
+                    rules={[
+                      {
+                        required: getFieldValue('frequency') === 'Monthly',
+                        message: 'Please input the default goal',
+                      }
+                    ]}
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                  <Form.Item
+                    name="defaultCurrent"
+                    label="Default Current"
+                    initialValue={0}
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                </>
+              ) : null
+            }
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 };
