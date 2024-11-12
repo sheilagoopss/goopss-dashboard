@@ -107,19 +107,23 @@ const PostCreationModal: React.FC<{
         competitor_social: customerData.competitor_social || ''
       };
 
-          const payload = [
-      {
-        image_path: customerInfo.etsy_store_url || '',  // Adjust as needed, using the store URL as an image path placeholder
-        store_name: customerInfo.website || '',
-        about: customerInfo.about || '',
-        description: customerInfo.content_guideline || '',  // Assuming content guideline serves as a description
-        url: customerInfo.etsy_store_url || ''  // URL to link back to the Etsy store
-      }
-    ];
+      const payload = [{
+          image_path: listingInfo.primaryImage || '',
+          store_name: listingInfo.store_name || '',
+          about: customerInfo.about || '',
+          description: listingInfo.description || '',
+          url: listingInfo.etsyLink || '',
+          content_guideline: customerData.content_guideline,
+          content_tone: customerInfo.content_tone || '', // new field to incorporate to prompt
+          target_audience: customerInfo.target_audience || '', // new field to incorporate to prompt
+          goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // new field to incorporate to prompt
+          past_facebook_posts: customerInfo.past_facebook_posts || '', // new field to incorporate to prompt
+          past_instagram_posts: customerInfo.past_instagram_posts || '' // new field to incorporate to prompt
+      }];
 
 
 
-      const API_URL = 'https://goopss.onrender.com/gen_posts';
+      const API_URL = 'https://goopss.onrender.com/gen_posts_dashboard';
 
       // Make the POST request
       const response = await fetch(API_URL, {
@@ -136,7 +140,7 @@ const PostCreationModal: React.FC<{
 
       // Fallback content if the AI fails
       const data = await response.json();
-      
+
       return data.result;
     } catch (error) {
       console.error("Error generating content with AI:", error);
