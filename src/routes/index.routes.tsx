@@ -28,6 +28,7 @@ import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
 import { CustomerPlan } from '../components/CustomerPlan';
+import { PlanSimpleView } from "../components/plan-simple-view";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -260,6 +261,18 @@ export default function AppRoutes() {
               }
             />
             <Route path="plan-task-rules" element={<PlanTaskRules />} />
+            <Route 
+              path="plan-simple-view" 
+              element={
+                <div style={{ paddingTop: "16px" }}>
+                  <PlanSimpleView 
+                    customers={customers}
+                    selectedCustomer={selectedCustomer}
+                    setSelectedCustomer={setSelectedCustomer}
+                  />
+                </div>
+              } 
+            />
           </>
         ) : (
           <>
