@@ -29,6 +29,7 @@ import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
 import { CustomerPlan } from '../components/CustomerPlan';
 import { PlanSimpleView } from "../components/plan-simple-view";
+import UserHomepage from "../components/UserHomepage";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -283,16 +284,7 @@ export default function AppRoutes() {
                 userType === "Free" ? (
                   <UpgradeNotice />
                 ) : (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "40px",
-                      fontSize: "18px",
-                      color: "#666",
-                    }}
-                  >
-                    Welcome to Goopss Dashboard
-                  </div>
+                  <UserHomepage />
                 )
               }
             />
