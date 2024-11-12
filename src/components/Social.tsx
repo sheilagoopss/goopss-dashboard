@@ -119,7 +119,7 @@ const PostCreationModal: React.FC<{
           about: customerInfo.about || '',
           description: listingInfo.description || '',
           url: listingInfo.etsyLink || '',
-          content_guideline: customerData.content_guideline,
+          content_guideline: customerInfo.content_guideline || '',
           content_tone: customerInfo.content_tone || '', // new field to incorporate to prompt
           target_audience: customerInfo.target_audience || '', // new field to incorporate to prompt
           goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // new field to incorporate to prompt
@@ -143,10 +143,6 @@ const PostCreationModal: React.FC<{
       }
 
       const data = await response.json();
-<<<<<<< HEAD
-
-      return data.result;
-=======
       
       if (data.result && Array.isArray(data.result) && data.result.length > 0) {
         const firstResult = data.result[0];
@@ -158,7 +154,6 @@ const PostCreationModal: React.FC<{
       } else {
         throw new Error("Failed to generate content. Please try again.");
       }
->>>>>>> 48942f4eb7dd85bb9942130dae634cd7942f4b80
     } catch (error) {
       console.error("Error generating content:", error);
       message.error("Failed to generate content. Please try again.");
