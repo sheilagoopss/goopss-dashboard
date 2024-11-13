@@ -753,6 +753,8 @@ const Social: React.FC = () => {
               </>
             )}
           </div>
+        </>
+      )}
 
       <Card style={{ marginBottom: "20px" }}>
         <Title level={4}>Listings</Title>
