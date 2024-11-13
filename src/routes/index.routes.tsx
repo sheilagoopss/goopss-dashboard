@@ -31,6 +31,8 @@ import { CustomerPlan } from '../components/CustomerPlan';
 import { PlanSimpleView } from "../components/plan-simple-view";
 import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
+import ROASCalculator from "../components/ROASCalculator";
+
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -275,6 +277,16 @@ export default function AppRoutes() {
                 </div>
               } 
             />
+            <Route
+              path="roas-calculator"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <ROASCalculator />
+                )
+              }
+            />
           </>
         ) : (
           <>
@@ -373,6 +385,16 @@ export default function AppRoutes() {
                   <UpgradeNotice />
                 ) : (
                   <MeetingBooking />
+                )
+              }
+            />
+            <Route
+              path="roas-calculator"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <ROASCalculator />
                 )
               }
             />

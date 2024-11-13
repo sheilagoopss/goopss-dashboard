@@ -16,6 +16,7 @@ import {
   User,
   File,
   ClipboardList,
+  Calculator,
 } from "lucide-react";
 import { MessageOutlined } from "@ant-design/icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -237,6 +238,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           key: "tagify",
           icon: <Tag className="h-6 w-6" />,
           label: <Link to="/tagify">Tagify</Link>,
+        },
+        {
+          key: "roas-calculator",
+          icon: <Calculator className="h-6 w-6" />,
+          label: <Link to="/roas-calculator">ROAS Calculator</Link>,
         },
         {
           key: "description-hero",
