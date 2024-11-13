@@ -82,6 +82,58 @@ export const defaultPlanTaskRules: PlanTaskRules = {
       updatedAt: new Date().toISOString(),
       updatedBy: 'admin@goopss.com'
     },
+    {
+      id: '1731330908550',
+      task: 'Create Facebook Posts',
+      section: 'Social',
+      daysAfterJoin: 7,
+      frequency: 'Monthly',
+      isActive: true,
+      requiresGoal: true,
+      defaultGoal: 10,
+      defaultCurrent: 0,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
+    },
+    {
+      id: '1731384174953',
+      task: 'Create Facebook group posts',
+      section: 'Social',
+      daysAfterJoin: 7,
+      frequency: 'Monthly',
+      isActive: true,
+      requiresGoal: true,
+      defaultGoal: 10,
+      defaultCurrent: 0,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
+    },
+    {
+      id: '1731330952320',
+      task: 'Create Instagram Posts',
+      section: 'Social',
+      daysAfterJoin: 7,
+      frequency: 'Monthly',
+      isActive: true,
+      requiresGoal: true,
+      defaultGoal: 10,
+      defaultCurrent: 0,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
+    },
+    {
+      id: '1731330999362',
+      task: 'Create Pinterest Posts',
+      section: 'Social',
+      daysAfterJoin: 7,
+      frequency: 'Monthly',
+      isActive: true,
+      requiresGoal: true,
+      defaultGoal: 10,
+      defaultCurrent: 0,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'admin@goopss.com'
+    },
 
     // Store Page Section
     {

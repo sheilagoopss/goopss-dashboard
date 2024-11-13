@@ -1,55 +1,41 @@
 import React from 'react';
 import { Button, message, Layout, Typography, Card, Space } from 'antd';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { defaultPlanTaskRules } from '../data/defaultPlanTaskRules';
 import { useAuth } from '../contexts/AuthContext';
-import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 
 const { Header, Content } = Layout;
 const { Title, Text } = Typography;
 
 const InitializePlanTaskRules: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleInitialize = async () => {
     try {
+      console.log('Starting initialization...');
       const rulesRef = doc(db, 'planTaskRules', 'default');
-      const rulesDoc = await getDoc(rulesRef);
       
-      if (!rulesDoc.exists()) {
-        console.log('Initializing plan task rules...');
-        
-        // Set monthly tasks to be due on the 1st of each month
-        const tasksWithMonthlyDates = defaultPlanTaskRules.tasks.map(task => {
-          if (task.frequency === 'Monthly') {
-            // Get first day of next month
-            const nextMonth = dayjs().add(1, 'month').startOf('month');
-            return {
-              ...task,
-              dueDate: nextMonth.format('YYYY-MM-DD')  // Will be like "2024-04-01"
-            };
-          }
-          return task;
-        });
+      await setDoc(rulesRef, {
+        sections: defaultPlanTaskRules.sections,
+        tasks: defaultPlanTaskRules.tasks,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || ''
+      });
 
-        const planTaskRules = {
-          ...defaultPlanTaskRules,
-          tasks: tasksWithMonthlyDates,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || ''
-        };
-        
-        await setDoc(rulesRef, planTaskRules);
-        console.log('Plan task rules initialized successfully');
-        message.success('Plan task rules initialized successfully');
-      } else {
-        message.info('Plan task rules already exist');
-      }
+      console.log('Rules initialized successfully');
+      message.success('Default rules initialized successfully');
+      
+      // Add delay before navigation
+      setTimeout(() => {
+        navigate('/plan-task-rules', { replace: true });
+      }, 1000);
     } catch (error) {
       console.error('Error:', error);
-      message.error('Failed to initialize rules');
+      message.error('Failed to initialize default rules');
     }
   };
 
@@ -62,11 +48,11 @@ const InitializePlanTaskRules: React.FC = () => {
         <Card>
           <Space direction="vertical" size="large">
             <Text>
-              This will initialize the default task rules and sections in Firestore. 
+              This will initialize the default plan task rules in Firestore.
               This should only be done once.
             </Text>
             <Button type="primary" onClick={handleInitialize}>
-              Initialize Plan Task Rules
+              Initialize Default Rules
             </Button>
           </Space>
         </Card>
