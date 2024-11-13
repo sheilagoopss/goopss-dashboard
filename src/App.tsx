@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AuthProvider } from "./contexts/AuthContext";
 import Routes from "./routes/index.routes";
 import ErrorBoundary from './components/ErrorBoundary';
 import { useLocation } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 
+
 function App() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const redirectPath = new URLSearchParams(window.location.search).get("redirect");
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [navigate]);
 
   return (
     <ConfigProvider
