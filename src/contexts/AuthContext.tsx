@@ -18,7 +18,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../firebase/config";
 import { IAdmin, ICustomer } from "../types/Customer";
-import { message, Spin } from "antd";
+import { message } from "antd";
 import {
   clientSetCookie,
   getClientCookie,
@@ -27,6 +27,8 @@ import {
 } from "../utils/cookies";
 import FirebaseHelper from "../helpers/FirebaseHelper";
 import dayjs from "dayjs";
+import { serverTimestamp, Timestamp } from "firebase/firestore";
+import { IUserActivity } from "types/UserActivityLog";
 
 interface AuthContextType {
   user: ICustomer | IAdmin | null | undefined;
@@ -57,7 +59,9 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<ICustomer | IAdmin | null | undefined>(undefined);
+  const [user, setUser] = useState<ICustomer | IAdmin | null | undefined>(
+    undefined,
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
@@ -65,6 +69,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [customerData, setCustomerData] = useState<ICustomer | null>(null);
 
   const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
+
+  const userActivityLog = async (user: ICustomer) => {
+    const userActivityData: IUserActivity = {
+      customer_id: user.id,
+      activity: "login",
+      timestamp: serverTimestamp() as Timestamp,
+    };
+    await FirebaseHelper.create("userActivity", userActivityData);
+  };
 
   const handleLoginUser = async (user: UserCredential) => {
     const token = await user.user.getIdToken();
@@ -77,6 +90,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setUser(customerDoc);
       setCustomerData(customerDoc);
       setIsAdmin(false);
+      await userActivityLog(customerDoc);
     } else {
       const admins = await FirebaseHelper.find<IAdmin>("admin");
       const admin = admins.find(
@@ -96,22 +110,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         const created = await FirebaseHelper.create("customers", {
           id: user.user.uid,
           customer_id: user.user.uid,
-          email: user.user.email || '',
-          contact_email: user.user.email || '',
+          email: user.user.email || "",
+          contact_email: user.user.email || "",
           date_joined: dayjs().toISOString(),
           customer_type: "Free",
-          store_owner_name: user.user.displayName || '',
-          store_name: '',
+          store_owner_name: user.user.displayName || "",
+          store_name: "",
           logo: user.user.photoURL,
         } as ICustomer);
         const customer = await FirebaseHelper.findOne<ICustomer>(
           "customers",
           created,
         );
-
-        setUser(customer);
-        setCustomerData(customer);
-        setIsAdmin(false);
+        if (customer) {
+          await userActivityLog(customer);
+          setUser(customer);
+          setCustomerData(customer);
+          setIsAdmin(false);
+        }
       }
     }
     setLoading(false);
