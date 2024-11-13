@@ -30,6 +30,7 @@ import PlanTaskRules from "../components/PlanTaskRules";
 import { CustomerPlan } from '../components/CustomerPlan';
 import { PlanSimpleView } from "../components/plan-simple-view";
 import UserHomepage from "../components/UserHomepage";
+import MeetingBooking from "../components/MeetingBooking";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -363,6 +364,16 @@ export default function AppRoutes() {
                 userType === "Free" ? 
                 <UpgradeNotice /> : 
                 <CustomerPlan />
+              }
+            />
+            <Route
+              path="meeting-booking"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <MeetingBooking />
+                )
               }
             />
           </>

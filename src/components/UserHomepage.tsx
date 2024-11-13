@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
 import { ICustomer } from '../types/Customer';
+import { useNavigate } from 'react-router-dom';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -56,6 +57,7 @@ const teamMembers: TeamMember[] = [
 
 const UserHomepage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [customerData, setCustomerData] = useState<ICustomer | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -76,14 +78,18 @@ const UserHomepage: React.FC = () => {
   const firstName = customerData?.store_owner_name?.split(' ')[0] || 'there';
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#fafafa' }}>
+    <Layout style={{ 
+      minHeight: '100vh', 
+      background: '#fafafa', 
+      fontFamily: 'Poppins, -apple-system, BlinkMacSystemFont, sans-serif' 
+    }}>
       <Content style={{ padding: '64px 32px' }}>
         {/* Header Section */}
         <div style={{ marginBottom: 48 }}>
-          <Title style={{ fontSize: 48, marginBottom: 16 }}>
+          <Title style={{ fontSize: 24, marginBottom: 16 }}>
             Hi {firstName} <span style={{ display: 'inline-block', animation: 'wave 2s infinite' }}>👋</span>
           </Title>
-          <Title level={2} style={{ fontWeight: 'normal', color: '#666' }}>
+          <Title level={2} style={{ fontSize: 16, fontWeight: 'normal', color: '#666' }}>
             Here are the main things happening with your store.
           </Title>
         </div>
@@ -98,23 +104,30 @@ const UserHomepage: React.FC = () => {
                 borderRadius: 48,
                 background: '#FFB6E1',
                 border: 'none',
-                minHeight: 480,
+                minHeight: 400,
                 padding: 48,
                 transition: 'all 0.3s ease',
-                transform: 'translateY(0)',
               }}
-              bodyStyle={{ height: '100%', padding: 0 }}
+              bodyStyle={{ 
+                height: '100%', 
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+              }}
             >
               <div style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 height: '100%',
-                alignItems: 'center'
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}>
-                <UnorderedListOutlined style={{ fontSize: 128, marginBottom: 48 }} />
-                <div style={{ flex: 1 }}>
+                <UnorderedListOutlined style={{ fontSize: 64, marginBottom: 48 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <Title level={2} style={{ fontSize: 32, marginBottom: 16 }}>LISTINGS</Title>
-                  <Text style={{ fontSize: 20 }}>Track your product listings and performance</Text>
+                  <Text style={{ fontSize: 20 }}>Manage and track your Etsy listings</Text>
                 </div>
                 <Button
                   type="primary"
@@ -141,23 +154,30 @@ const UserHomepage: React.FC = () => {
                 borderRadius: 48,
                 background: '#809CFF',
                 border: 'none',
-                minHeight: 480,
+                minHeight: 400,
                 padding: 48,
                 transition: 'all 0.3s ease',
-                transform: 'translateY(0)',
               }}
-              bodyStyle={{ height: '100%', padding: 0 }}
+              bodyStyle={{ 
+                height: '100%', 
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+              }}
             >
               <div style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 height: '100%',
-                alignItems: 'center'
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}>
-                <EditOutlined style={{ fontSize: 128, marginBottom: 48 }} />
-                <div style={{ flex: 1 }}>
+                <EditOutlined style={{ fontSize: 64, marginBottom: 48 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <Title level={2} style={{ fontSize: 32, marginBottom: 16 }}>DESIGN HUB</Title>
-                  <Text style={{ fontSize: 20 }}>Access your design assets and templates</Text>
+                  <Text style={{ fontSize: 20 }}>Create and manage your designs</Text>
                 </div>
                 <Button
                   type="primary"
@@ -184,23 +204,30 @@ const UserHomepage: React.FC = () => {
                 borderRadius: 48,
                 background: '#98FF98',
                 border: 'none',
-                minHeight: 480,
+                minHeight: 400,
                 padding: 48,
                 transition: 'all 0.3s ease',
-                transform: 'translateY(0)',
               }}
-              bodyStyle={{ height: '100%', padding: 0 }}
+              bodyStyle={{ 
+                height: '100%', 
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+              }}
             >
               <div style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 height: '100%',
-                alignItems: 'center'
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}>
-                <LikeOutlined style={{ fontSize: 128, marginBottom: 48 }} />
-                <div style={{ flex: 1 }}>
+                <LikeOutlined style={{ fontSize: 64, marginBottom: 48 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <Title level={2} style={{ fontSize: 32, marginBottom: 16 }}>SOCIAL</Title>
-                  <Text style={{ fontSize: 20 }}>Manage your social media presence</Text>
+                  <Text style={{ fontSize: 20 }}>Manage your social presence</Text>
                 </div>
                 <Button
                   type="primary"
@@ -286,6 +313,7 @@ const UserHomepage: React.FC = () => {
                           type="primary"
                           icon={<VideoCameraOutlined />}
                           size="large"
+                          onClick={() => navigate('/meeting-booking')}
                           style={{
                             background: '#000',
                             borderRadius: 28,
