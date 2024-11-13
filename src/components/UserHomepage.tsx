@@ -77,6 +77,12 @@ const UserHomepage: React.FC = () => {
 
   const firstName = customerData?.store_owner_name?.split(' ')[0] || 'there';
 
+  const openIntercomMessenger = () => {
+    if (window.Intercom) {
+      window.Intercom('show');
+    }
+  };
+
   return (
     <Layout style={{ 
       minHeight: '100vh', 
@@ -301,6 +307,7 @@ const UserHomepage: React.FC = () => {
                           type="primary"
                           icon={<MessageFilled />}
                           size="large"
+                          onClick={openIntercomMessenger}
                           style={{
                             background: '#000',
                             borderRadius: 28,
