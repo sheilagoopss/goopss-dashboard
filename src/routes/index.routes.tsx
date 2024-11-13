@@ -279,13 +279,7 @@ export default function AppRoutes() {
             />
             <Route
               path="roas-calculator"
-              element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <ROASCalculator />
-                )
-              }
+              element={<ROASCalculator />}
             />
           </>
         ) : (
@@ -390,13 +384,7 @@ export default function AppRoutes() {
             />
             <Route
               path="roas-calculator"
-              element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <ROASCalculator />
-                )
-              }
+              element={<ROASCalculator />}
             />
           </>
         )}
