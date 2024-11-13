@@ -29,6 +29,10 @@ import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
 import { CustomerPlan } from '../components/CustomerPlan';
 import { PlanSimpleView } from "../components/plan-simple-view";
+import UserHomepage from "../components/UserHomepage";
+import MeetingBooking from "../components/MeetingBooking";
+import ROASCalculator from "../components/ROASCalculator";
+
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -273,6 +277,16 @@ export default function AppRoutes() {
                 </div>
               } 
             />
+            <Route
+              path="roas-calculator"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <ROASCalculator />
+                )
+              }
+            />
           </>
         ) : (
           <>
@@ -283,16 +297,7 @@ export default function AppRoutes() {
                 userType === "Free" ? (
                   <UpgradeNotice />
                 ) : (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "40px",
-                      fontSize: "18px",
-                      color: "#666",
-                    }}
-                  >
-                    Welcome to Goopss Dashboard
-                  </div>
+                  <UserHomepage />
                 )
               }
             />
@@ -371,6 +376,26 @@ export default function AppRoutes() {
                 userType === "Free" ? 
                 <UpgradeNotice /> : 
                 <CustomerPlan />
+              }
+            />
+            <Route
+              path="meeting-booking"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <MeetingBooking />
+                )
+              }
+            />
+            <Route
+              path="roas-calculator"
+              element={
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <ROASCalculator />
+                )
               }
             />
           </>
