@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Layout, Typography, Card, Button, Avatar, Space, Row, Col, Tooltip 
 } from 'antd';
@@ -14,6 +14,10 @@ import {
   VideoCameraOutlined,
   UpOutlined
 } from '@ant-design/icons';
+import { useAuth } from '../contexts/AuthContext';
+import { db } from '../firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
+import { ICustomer } from '../types/Customer';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -51,7 +55,25 @@ const teamMembers: TeamMember[] = [
 ];
 
 const UserHomepage: React.FC = () => {
+  const { user } = useAuth();
+  const [customerData, setCustomerData] = useState<ICustomer | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (user?.id) {
+        const customerRef = doc(db, 'customers', user.id);
+        const customerDoc = await getDoc(customerRef);
+        if (customerDoc.exists()) {
+          setCustomerData(customerDoc.data() as ICustomer);
+        }
+      }
+    };
+
+    fetchCustomerData();
+  }, [user]);
+
+  const firstName = customerData?.store_owner_name?.split(' ')[0] || 'there';
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#fafafa' }}>
@@ -59,7 +81,7 @@ const UserHomepage: React.FC = () => {
         {/* Header Section */}
         <div style={{ marginBottom: 48 }}>
           <Title style={{ fontSize: 48, marginBottom: 16 }}>
-            Hi Erez <span style={{ display: 'inline-block', animation: 'wave 2s infinite' }}>👋</span>
+            Hi {firstName} <span style={{ display: 'inline-block', animation: 'wave 2s infinite' }}>👋</span>
           </Title>
           <Title level={2} style={{ fontWeight: 'normal', color: '#666' }}>
             Here are the main things happening with your store.
