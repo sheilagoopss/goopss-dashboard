@@ -16,6 +16,7 @@ import {
   User,
   File,
   ClipboardList,
+  Calculator,
 } from "lucide-react";
 import { MessageOutlined } from "@ant-design/icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -44,10 +45,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   const currentPath = location.pathname.split("/")[1] || "home";
   const navigate = useNavigate();
 
-  const [homeExpanded, setHomeExpanded] = useState(() => {
-    return currentPath === "my-info";
-  });
-
   const [socialExpanded, setSocialExpanded] = useState(() => {
     return currentPath === "social" || currentPath === "social-insights";
   });
@@ -56,6 +53,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
 
   // Add loading state for customer data
   const [isCustomerDataLoading, setIsCustomerDataLoading] = useState(true);
+
+  const [homeExpanded, setHomeExpanded] = useState(() => {
+    return currentPath === "my-info";
+  });
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -82,12 +83,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   }, [user]);
 
   useEffect(() => {
-    if (homeExpanded) {
-      localStorage.setItem("homeExpanded", JSON.stringify(homeExpanded));
-    }
-  }, [homeExpanded]);
-
-  useEffect(() => {
     if (socialExpanded) {
       localStorage.setItem("socialExpanded", JSON.stringify(socialExpanded));
     }
@@ -99,17 +94,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     }
   }, [currentPath]);
 
+  useEffect(() => {
+    if (homeExpanded) {
+      localStorage.setItem("homeExpanded", JSON.stringify(homeExpanded));
+    }
+  }, [homeExpanded]);
+
   const menuItems = [
     {
       key: "home",
       icon: <Home className="h-6 w-6" />,
       label: (
         <div
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setHomeExpanded(!homeExpanded);
-          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -117,9 +113,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
             width: "100%",
           }}
         >
-          <span>Home</span>
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/home');
+            }}
+            style={{ flex: 1, cursor: 'pointer' }}
+          >
+            Home
+          </div>
           <ChevronDown
             className={`h-4 w-4 transition-transform ${homeExpanded ? "rotate-180" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setHomeExpanded(!homeExpanded);
+            }}
           />
         </div>
       ),
@@ -230,6 +238,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           key: "tagify",
           icon: <Tag className="h-6 w-6" />,
           label: <Link to="/tagify">Tagify</Link>,
+        },
+        {
+          key: "roas-calculator",
+          icon: <Calculator className="h-6 w-6" />,
+          label: <Link to="/roas-calculator">ROAS Calculator</Link>,
         },
         {
           key: "description-hero",

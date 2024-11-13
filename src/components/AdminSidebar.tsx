@@ -16,6 +16,7 @@ import {
   PieChartOutlined,
   InstagramOutlined,
   FormOutlined,
+  TableOutlined,
 } from '@ant-design/icons';
 import { ChevronDown } from 'lucide-react';
 import logo from '../assets/images/logo.png';
@@ -67,7 +68,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
         {
           key: '/plan',
           icon: <PieChartOutlined />,
-          label: <Link to="/plan">Plan</Link>
+          label: <Link to="/plan">Default View</Link>
+        },
+        {
+          key: '/plan-simple-view',
+          icon: <TableOutlined />,
+          label: <Link to="/plan-simple-view">Simple View</Link>
         },
         {
           key: '/plan-task-rules',
