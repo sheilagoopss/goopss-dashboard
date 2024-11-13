@@ -736,22 +736,23 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {/* Only show social buttons for admin */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          gap: "2ch",
-          marginBottom: "1ch",
-        }}
-      >
-        <FacebookButton />
-        {isAdmin && (
-          <>
-            <PinterestButton />
-          </>
-        )}
-      </div>
+      {user && ((user as ICustomer)?.isSuperCustomer || isAdmin) && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              gap: "2ch",
+              marginBottom: "1ch",
+            }}
+          >
+            <FacebookButton />
+            {isAdmin && (
+              <>
+                <PinterestButton />
+              </>
+            )}
+          </div>
 
       <Card style={{ marginBottom: "20px" }}>
         <Title level={4}>Listings</Title>

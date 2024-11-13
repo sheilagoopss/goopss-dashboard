@@ -9,7 +9,7 @@ import { useDownloadImage } from "hooks/useListingImage";
 import { ColumnsType } from "antd/es/table";
 
 interface ListingsTableProps {
-  listings: (Listing & { imageCount: number })[];
+  listings: (Listing & { uploadedImages: number; totalImages: number })[];
   listingImages: ListingImage[];
   loading: boolean;
   refresh: () => void;
@@ -83,7 +83,9 @@ const ListingsTable = ({
     currentPage * pageSize,
   );
 
-  const columns: ColumnsType<Listing & { imageCount: number }> = [
+  const columns: ColumnsType<
+    Listing & { uploadedImages: number; totalImages: number }
+  > = [
     {
       title: "Listing ID",
       dataIndex: "listingID",
@@ -95,13 +97,20 @@ const ListingsTable = ({
       sorter: (a, b) => a.listingTitle.localeCompare(b.listingTitle),
     },
     {
-      title: "Image Count",
-      dataIndex: "imageCount",
-      sorter: (a, b) => a.imageCount - b.imageCount,
+      title: "Uploaded Images",
+      dataIndex: "uploadedImages",
+      sorter: (a, b) => (a.uploadedImages || 0) - (b.uploadedImages || 0),
+    },
+    {
+      title: "Total Images",
+      dataIndex: "totalImages",
+      sorter: (a, b) => (a.totalImages || 0) - (b.totalImages || 0),
     },
   ];
 
-  const expandedRowRender = (listing: Listing & { imageCount: number }) => {
+  const expandedRowRender = (
+    listing: Listing & { uploadedImages: number; totalImages: number },
+  ) => {
     return (
       <Row
         gutter={[16, 16]}

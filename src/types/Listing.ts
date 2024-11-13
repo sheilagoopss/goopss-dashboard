@@ -24,6 +24,7 @@ export interface Listing {
   section?: string;
   etsyLink: string;
   store_name: string;
+  imageCount?: number;
 
   // Optimization fields
   optimizationStatus: boolean;

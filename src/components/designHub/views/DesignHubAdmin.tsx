@@ -16,7 +16,7 @@ import {
 } from "hooks/useCustomer";
 import { useEffect, useState } from "react";
 import { ICustomer } from "types/Customer";
-import StatusFilter, { StatusFilterType } from "../components/StatusFilter";
+import { StatusFilterType } from "../components/StatusFilter";
 import { SearchOutlined } from "@ant-design/icons";
 import { Listing, ListingImage } from "types/Listing";
 // import ListingsTable from "../components/ListingsTable";
@@ -93,6 +93,39 @@ const DesignHubAdmin = () => {
     setFilteredListings(filteredListings);
   };
 
+  const filterListings = (
+    filteredListings: Listing[],
+  ): (Listing & { uploadedImages: number; totalImages: number })[] => {
+    const listingsWithImages = filteredListings.filter((listing) => {
+      const listingsWithImages = listingImages.some(
+        (image) => image.listing_id === listing.id,
+      );
+      if (statusFilter !== "all") {
+        return listingImages
+          .filter((image) => image.status === statusFilter)
+          .some((image) => image.listing_id === listing.id);
+      } else if (searchTerm === "") {
+        return listingsWithImages;
+      }
+      return listing;
+    });
+    const listingsWithImageCount = listingsWithImages.map((listing) => ({
+      ...listing,
+      uploadedImages: listingImages.filter(
+        (image) => image.listing_id === listing.id,
+      ).length,
+      totalImages:
+        (listingImages.filter((image) => image.listing_id === listing.id)
+          .length || 0) + (listing.imageCount || 0),
+    })) as (Listing & { uploadedImages: number; totalImages: number })[];
+    return listingsWithImageCount.filter((listing) => {
+      if (includeBestSellers) {
+        return true;
+      }
+      return !listing.bestseller;
+    });
+  };
+
   useEffect(() => {
     fetchAllCustomers().then((customers) => setCustomers(customers));
   }, []);
@@ -133,12 +166,12 @@ const DesignHubAdmin = () => {
 
       {selectedCustomer ? (
         <>
-          <Col span={24}>
+          {/* <Col span={24}>
             <StatusFilter
               statusFilter={statusFilter}
               setStatusFilter={setStatusFilter}
             />
-          </Col>
+          </Col> */}
 
           <Col
             span={24}
@@ -160,6 +193,17 @@ const DesignHubAdmin = () => {
                 ]}
                 onChange={(value) => handleSort(value as "newest" | "oldest")}
               />
+              <Select
+                placeholder="Status"
+                value={statusFilter}
+                options={[
+                  { label: "To Approve", value: "pending" },
+                  { label: "For Revision", value: "revision" },
+                  { label: "Approved", value: "approved" },
+                  { label: "All Images", value: "all" },
+                ]}
+                onChange={(value) => setStatusFilter(value as StatusFilterType)}
+              />
               <Checkbox
                 checked={includeBestSellers}
                 onChange={(e) => setIncludeBestSellers(e.target.checked)}
@@ -171,32 +215,7 @@ const DesignHubAdmin = () => {
           </Col>
           <Col span={24}>
             <ListingsTableV2
-              listings={filteredListings
-                .filter((listing) => {
-                  const listingsWithImages = listingImages.some(
-                    (image) => image.listing_id === listing.id,
-                  );
-                  if (statusFilter !== "all") {
-                    return listingImages
-                      .filter((image) => image.status === statusFilter)
-                      .some((image) => image.listing_id === listing.id);
-                  } else if (searchTerm === "") {
-                    return listingsWithImages;
-                  }
-                  return listing;
-                })
-                .map((listing) => ({
-                  ...listing,
-                  imageCount: listingImages.filter(
-                    (image) => image.listing_id === listing.id,
-                  ).length,
-                }))
-                .filter((listing) => {
-                  if (includeBestSellers) {
-                    return true;
-                  }
-                  return !listing.bestseller;
-                })}
+              listings={filterListings(listings)}
               listingImages={listingImages.filter(
                 (image) =>
                   statusFilter === "all" || image.status === statusFilter,
