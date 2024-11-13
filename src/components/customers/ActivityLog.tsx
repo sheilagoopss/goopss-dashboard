@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Col, Row, Table, Typography } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { Card, Col, Input, Row, Table, Typography } from "antd";
 import { Layout } from "antd";
 import { Content, Header } from "antd/es/layout/layout";
 import { ColumnType } from "antd/es/table";
@@ -11,11 +12,18 @@ import {
 import { useEffect, useState } from "react";
 import { ICustomer } from "types/Customer";
 import { IUserActivity } from "types/UserActivityLog";
+import { caseInsensitiveSearch } from "utils/caseInsensitveMatch";
 
 const ActivityLog = () => {
   const { fetchCustomerUserActivityAll } = useCustomerUserActivityFetchAll();
   const { fetchAllCustomers, isLoading } = useCustomerFetchAll();
   const [customers, setCustomers] = useState<
+    (ICustomer & {
+      last_login_date: Date | undefined;
+      userActivities: IUserActivity[];
+    })[]
+  >([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<
     (ICustomer & {
       last_login_date: Date | undefined;
       userActivities: IUserActivity[];
@@ -45,6 +53,7 @@ const ActivityLog = () => {
             }, undefined) || undefined,
       })) || [];
     setCustomers(customersWithActivities);
+    setFilteredCustomers(customersWithActivities);
   };
 
   useEffect(() => {
@@ -77,6 +86,23 @@ const ActivityLog = () => {
     );
   };
 
+  const handleSearch = (searchTerm?: string) => {
+    const filterColumns: (keyof ICustomer)[] = [
+      "package_type",
+      "email",
+      "phone",
+      "date_joined",
+      "store_name",
+      "store_owner_name",
+    ];
+    const filtered = customers?.filter((val) =>
+      filterColumns.some((v) =>
+        caseInsensitiveSearch(val[v] || "", searchTerm),
+      ),
+    );
+    setFilteredCustomers(filtered);
+  };
+
   const columns: ColumnType<
     ICustomer & {
       userActivities: IUserActivity[];
@@ -87,7 +113,7 @@ const ActivityLog = () => {
       title: "Customer",
       dataIndex: "store_owner_name",
       render: (_, record) => (
-        <div className="flex flex-col">
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <Typography.Text strong>{record.store_owner_name}</Typography.Text>
           <Typography.Text type="secondary">
             {record.customer_id}
@@ -121,10 +147,27 @@ const ActivityLog = () => {
       <Header style={{ background: "#fff", padding: 0 }}>
         <h1>Activity Log</h1>
       </Header>
+      <Card>
+        <Input
+          placeholder="Search store owners"
+          prefix={<SearchOutlined />}
+          onChange={(e) => handleSearch(e.target.value)}
+          style={{ width: "40ch" }}
+          allowClear
+        />
+      </Card>
       <Content>
         <Table
           columns={columns}
-          dataSource={customers}
+          dataSource={filteredCustomers.sort((a, b) => {
+            const dateA = a.last_login_date
+              ? dayjs(a.last_login_date)
+              : dayjs(0);
+            const dateB = b.last_login_date
+              ? dayjs(b.last_login_date)
+              : dayjs(0);
+            return dateA.isAfter(dateB) ? -1 : 1;
+          })}
           loading={isLoading}
           rowKey="id"
           expandable={{
