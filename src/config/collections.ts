@@ -11,4 +11,5 @@ export enum COLLECTIONS {
   storeAnalysis = "storeAnalysis",
   tasklists = "tasklists",
   trafficAnalysis = "trafficAnalysis",
+  userActivity = "userActivity",
 }
