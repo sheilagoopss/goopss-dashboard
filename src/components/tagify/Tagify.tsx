@@ -14,21 +14,19 @@ import {
   Row,
   Tag,
   Typography,
-  UploadFile,
 } from "antd";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useGenerateTags } from "hooks/useTagify";
 import { useState } from "react";
 
 const Tagify = () => {
-  const { generateTags, isGeneratingTags } = useGenerateTags();
-  const [images, setImages] = useState<File[]>([]);
+  const { generateTagsBase64, isGeneratingTags } = useGenerateTags();
+  const [images, setImages] = useState<string[]>([]);
   const [description, setDescription] = useState<string>("");
   const [generatedTags, setGeneratedTags] = useState<string[]>([]);
 
-  const handleUpload = (data: UploadFile<File>[]) => {
-    console.log(data);
-    setImages([...images, ...data.map((file) => file.originFileObj as File)]);
+  const handleUpload = (data: string[]) => {
+    setImages([...images, ...data]);
   };
 
   const removeImage = (index: number) => {
@@ -36,11 +34,7 @@ const Tagify = () => {
   };
 
   const handleGenerateTags = async () => {
-    const resp = await generateTags(
-      images.map((image) => image),
-      description,
-    );
-
+    const resp = await generateTagsBase64(images, description);
     if (resp?.data?.tags) {
       message.success("Tags generated successfully");
       setGeneratedTags(resp?.data?.tags || []);
@@ -96,16 +90,13 @@ const Tagify = () => {
                 >
                   <Typography.Text strong>Upload Images</Typography.Text>
                   <DragDropUpload
-                    rawFile
                     multiple
-                    handleUpload={(data) =>
-                      handleUpload(data as UploadFile<File>[])
-                    }
+                    handleUpload={(data) => handleUpload(data as string[])}
                     placeholder="Click to upload or drag and drop PNG, JPG or GIF"
                   />
                   <Row gutter={[16, 16]}>
                     {images.map((image, index) => (
-                      <Col span={8}>
+                      <Col span={8} key={index}>
                         <div
                           style={{
                             display: "flex",
@@ -125,7 +116,7 @@ const Tagify = () => {
                               marginRight: "-2ch",
                             }}
                           />
-                          <Image src={URL.createObjectURL(image)} />
+                          <Image src={image} />
                         </div>
                       </Col>
                     ))}

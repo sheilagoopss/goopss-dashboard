@@ -30,10 +30,18 @@ import {
   Image,
   Divider,
   message,
+  Popconfirm,
+  Avatar,
+  Col,
+  Row,
 } from "antd";
 import FacebookLoginPopup from "./FacebookLoginPopup";
 import FacebookButton from "./common/FacebookButton";
 import PinterestButton from "./common/PinterestButton";
+import { locale } from "dayjs";
+import { useFacebookSchedule } from "hooks/useSocial";
+import { FacebookFilled } from "@ant-design/icons";
+import { useCustomerUpdate } from "hooks/useCustomer";
 
 interface EtsyListing {
   id: string;
@@ -67,7 +75,9 @@ const PostCreationModal: React.FC<{
   onCancel: () => void;
 }> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">("facebook");
+  const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">(
+    "facebook",
+  );
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
 
@@ -81,55 +91,60 @@ const PostCreationModal: React.FC<{
   const handleGenerateContent = async () => {
     try {
       // First fetch customer data
-      const customerDoc = await getDoc(doc(db, 'customers', customerId));
+      const customerDoc = await getDoc(doc(db, "customers", customerId));
       if (!customerDoc.exists()) {
         throw new Error("Customer not found");
       }
 
       // Fetch only specific listing fields
-      const listingDoc = await getDoc(doc(db, 'listings', listing?.id || ''));
+      const listingDoc = await getDoc(doc(db, "listings", listing?.id || ""));
       const listingData = listingDoc.exists() ? listingDoc.data() : null;
 
       // Structure listing data with only the fields we need
       const listingInfo = {
-        title: listingData?.optimizedTitle || listingData?.listingTitle || '', //listing title
-        description: listingData?.optimizedDescription || listingData?.listingDescription || '', //listing description
-        primaryImage: listingData?.primaryImage || '', //listing image lin
-        etsyLink: listingData?.etsyLink || '', //listing link
-        store_name: listingData?.store_name || '' //store name
+        title: listingData?.optimizedTitle || listingData?.listingTitle || "", //listing title
+        description:
+          listingData?.optimizedDescription ||
+          listingData?.listingDescription ||
+          "", //listing description
+        primaryImage: listingData?.primaryImage || "", //listing image lin
+        etsyLink: listingData?.etsyLink || "", //listing link
+        store_name: listingData?.store_name || "", //store name
       };
 
       const customerData = customerDoc.data();
-      
+
       // Get all the required customer fields
       const customerInfo = {
-        industry: customerData.industry || '', // industry
-        about: customerData.about || '', // store about
-        target_audience: customerData.target_audience || '', // target audience
-        content_tone: customerData.content_tone || '', // content tone
-        etsy_store_url: customerData.etsy_store_url || '', // etsy store url
-        past_facebook_posts: customerData.past_facebook_posts || '', // past facebook posts
-        past_instagram_posts: customerData.past_instagram_posts || '', // past instagram posts
-        content_guideline: customerData.content_guideline || '', // content guideline or restriction like what not to post or use first person etc
-        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || '', // instagram hashtags that goopss will use 
-        competitor_social: customerData.competitor_social || '' // competitor social
+        industry: customerData.industry || "", // industry
+        about: customerData.about || "", // store about
+        target_audience: customerData.target_audience || "", // target audience
+        content_tone: customerData.content_tone || "", // content tone
+        etsy_store_url: customerData.etsy_store_url || "", // etsy store url
+        past_facebook_posts: customerData.past_facebook_posts || "", // past facebook posts
+        past_instagram_posts: customerData.past_instagram_posts || "", // past instagram posts
+        content_guideline: customerData.content_guideline || "", // content guideline or restriction like what not to post or use first person etc
+        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || "", // instagram hashtags that goopss will use
+        competitor_social: customerData.competitor_social || "", // competitor social
       };
 
-      const payload = [{
-        image_path: listingInfo.primaryImage || '', // listing image link
-        store_name: listingInfo.store_name || '', // store name
-        about: customerInfo.about || '', // store about
-        description: listingInfo.description || '', // listing description
-        url: listingInfo.etsyLink || '', // listing link
-        content_tone: customerInfo.content_tone || '', // content tone
-        target_audience: customerInfo.target_audience || '', // target audience
-        goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // ig hashtags 
-        past_facebook_posts: customerInfo.past_facebook_posts || '', // facebook post reference
-        past_instagram_posts: customerInfo.past_instagram_posts || '', // ig post reference
-        content_guideline: customerInfo.content_guideline || '' // additional instructions from customer
-      }];
+      const payload = [
+        {
+          image_path: listingInfo.primaryImage || "", // listing image link
+          store_name: listingInfo.store_name || "", // store name
+          about: customerInfo.about || "", // store about
+          description: listingInfo.description || "", // listing description
+          url: listingInfo.etsyLink || "", // listing link
+          content_tone: customerInfo.content_tone || "", // content tone
+          target_audience: customerInfo.target_audience || "", // target audience
+          goopss_hashtags: customerInfo.instagram_hashtags_goopss || "", // ig hashtags
+          past_facebook_posts: customerInfo.past_facebook_posts || "", // facebook post reference
+          past_instagram_posts: customerInfo.past_instagram_posts || "", // ig post reference
+          content_guideline: customerInfo.content_guideline || "", // additional instructions from customer
+        },
+      ];
 
-      const API_URL = 'https://goopss.onrender.com/gen_posts';
+      const API_URL = "https://goopss.onrender.com/gen_posts";
 
       // Make the POST request
       const response = await fetch(API_URL, {
@@ -145,14 +160,13 @@ const PostCreationModal: React.FC<{
       }
 
       const data = await response.json();
-      
+
       if (data.result && Array.isArray(data.result) && data.result.length > 0) {
         const firstResult = data.result[0];
-        
+
         // Always set both contents regardless of platform selection
-        setFacebookContent(firstResult.facebook_post || '');
-        setInstagramContent(firstResult.instagram_post || '');
-        
+        setFacebookContent(firstResult.facebook_post || "");
+        setInstagramContent(firstResult.instagram_post || "");
       } else {
         throw new Error("Failed to generate content. Please try again.");
       }
@@ -228,19 +242,33 @@ const PostCreationModal: React.FC<{
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
-      visible={isOpen}
+      open={isOpen}
       onCancel={handleCancel}
       footer={[
         <Button key="cancel" onClick={handleCancel}>
           Cancel
         </Button>,
-        <Button key="save" type="primary" onClick={handleSave}>
-          Save
-        </Button>,
+        platform === "facebook" || platform === "both" ? (
+          <Popconfirm
+            title="Are you sure you want to schedule this post?"
+            onConfirm={handleSave}
+            okText="Yes"
+            cancelText="No"
+          >
+            <Button key="save" type="primary">
+              Save
+            </Button>
+          </Popconfirm>
+        ) : (
+          <Button key="save" type="primary" onClick={handleSave}>
+            Save
+          </Button>
+        ),
       ]}
     >
       <Space direction="vertical" style={{ width: "100%" }}>
         <DatePicker
+          showTime
           style={{ width: "100%" }}
           onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
         />
@@ -255,7 +283,7 @@ const PostCreationModal: React.FC<{
         <Button onClick={handleGenerateContent} type="default">
           Generate Content
         </Button>
-        
+
         {(platform === "facebook" || platform === "both") && (
           <div>
             <Text strong>Facebook Content:</Text>
@@ -264,11 +292,11 @@ const PostCreationModal: React.FC<{
               onChange={(e) => setFacebookContent(e.target.value)}
               placeholder="Facebook content"
               autoSize={{ minRows: 3, maxRows: 5 }}
-              style={{ whiteSpace: 'pre-line' }}
+              style={{ whiteSpace: "pre-line" }}
             />
           </div>
         )}
-        
+
         {(platform === "instagram" || platform === "both") && (
           <div>
             <Text strong>Instagram Content:</Text>
@@ -277,7 +305,7 @@ const PostCreationModal: React.FC<{
               onChange={(e) => setInstagramContent(e.target.value)}
               placeholder="Instagram content"
               autoSize={{ minRows: 3, maxRows: 5 }}
-              style={{ whiteSpace: 'pre-line' }}
+              style={{ whiteSpace: "pre-line" }}
             />
           </div>
         )}
@@ -288,6 +316,8 @@ const PostCreationModal: React.FC<{
 
 const Social: React.FC = () => {
   const { isAdmin, user } = useAuth();
+  const { schedulePosts, isScheduling } = useFacebookSchedule();
+  const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -324,25 +354,29 @@ const Social: React.FC = () => {
       title: "Listing ID",
       dataIndex: "listingID",
       key: "listingID",
-      sorter: (a: EtsyListing, b: EtsyListing) => a.listingID.localeCompare(b.listingID),
+      sorter: (a: EtsyListing, b: EtsyListing) =>
+        a.listingID.localeCompare(b.listingID),
     },
     {
       title: "Title",
       dataIndex: "listingTitle",
       key: "listingTitle",
-      sorter: (a: EtsyListing, b: EtsyListing) => a.listingTitle.localeCompare(b.listingTitle),
+      sorter: (a: EtsyListing, b: EtsyListing) =>
+        a.listingTitle.localeCompare(b.listingTitle),
     },
     {
       title: "Total Sales",
       dataIndex: "totalSales",
       key: "totalSales",
-      sorter: (a: EtsyListing, b: EtsyListing) => (a.totalSales || 0) - (b.totalSales || 0),
+      sorter: (a: EtsyListing, b: EtsyListing) =>
+        (a.totalSales || 0) - (b.totalSales || 0),
     },
     {
       title: "Daily Views",
       dataIndex: "dailyViews",
       key: "dailyViews",
-      sorter: (a: EtsyListing, b: EtsyListing) => (a.dailyViews || 0) - (b.dailyViews || 0),
+      sorter: (a: EtsyListing, b: EtsyListing) =>
+        (a.dailyViews || 0) - (b.dailyViews || 0),
     },
     {
       title: "Scheduled Date",
@@ -353,7 +387,9 @@ const Social: React.FC = () => {
       title: "Actions",
       key: "actions",
       render: (_: any, record: EtsyListing) => (
-        <Button onClick={() => handleSchedulePost(record)}>Schedule Post</Button>
+        <Button onClick={() => handleSchedulePost(record)}>
+          Schedule Post
+        </Button>
       ),
     },
   ];
@@ -374,7 +410,7 @@ const Social: React.FC = () => {
 
         const querySnapshot = await getDocs(q);
         const customersList = querySnapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as ICustomer),
+          (doc) => ({ id: doc.id, ...doc.data() }) as ICustomer,
         );
         setCustomers(customersList);
 
@@ -397,20 +433,21 @@ const Social: React.FC = () => {
         const q = query(
           listingsCollection,
           where("customer_id", "==", selectedCustomer.customer_id),
-          orderBy("listingID")
+          orderBy("listingID"),
         );
 
         const listingsSnapshot = await getDocs(q);
         const listingsList = listingsSnapshot.docs.map(
-          (doc) => ({
-            id: doc.id,
-            listingID: doc.data().listingID,
-            listingTitle: doc.data().listingTitle,
-            scheduled_post_date: doc.data().scheduled_post_date,
-            primaryImage: doc.data().primaryImage,
-            totalSales: doc.data().totalSales || 0,
-            dailyViews: doc.data().dailyViews || 0,
-          } as EtsyListing),
+          (doc) =>
+            ({
+              id: doc.id,
+              listingID: doc.data().listingID,
+              listingTitle: doc.data().listingTitle,
+              scheduled_post_date: doc.data().scheduled_post_date,
+              primaryImage: doc.data().primaryImage,
+              totalSales: doc.data().totalSales || 0,
+              dailyViews: doc.data().dailyViews || 0,
+            }) as EtsyListing,
         );
 
         setListings(listingsList);
@@ -497,7 +534,18 @@ const Social: React.FC = () => {
           scheduled_post_date: savedPosts[0].scheduledDate.toISOString(),
         });
       }
+      const schedulePostPromises = savedPosts.map((post) =>
+        schedulePosts({
+          customerId: selectedCustomer.id,
+          postId: post.id,
+        }),
+      );
+      const schedulePostResponses = await Promise.all(schedulePostPromises);
+      console.log("Schedule post responses:", schedulePostResponses);
 
+      if (schedulePostResponses.some((response) => !response?.data)) {
+        console.error("Error scheduling posts:", schedulePostResponses);
+      }
       // Update local state
       setPosts((prevPosts) => [...prevPosts, ...savedPosts]);
       setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
@@ -533,7 +581,7 @@ const Social: React.FC = () => {
               ...doc.data(),
               scheduledDate: doc.data().scheduledDate.toDate(),
               dateCreated: doc.data().dateCreated.toDate(),
-            } as Post),
+            }) as Post,
         );
         console.log("Fetched posts:", postsList);
         setPosts(postsList);
@@ -713,12 +761,31 @@ const Social: React.FC = () => {
 
   const handleSearch = (value: string) => {
     const searchValue = value.toLowerCase();
-    const filtered = listings.filter(listing => 
-      listing.listingID.toLowerCase().includes(searchValue) ||
-      listing.listingTitle.toLowerCase().includes(searchValue)
+    const filtered = listings.filter(
+      (listing) =>
+        listing.listingID.toLowerCase().includes(searchValue) ||
+        listing.listingTitle.toLowerCase().includes(searchValue),
     );
     setFilteredListings(filtered);
     setCurrentPage(1);
+  };
+
+  const handleDisconnect = async () => {
+    if (!selectedCustomer) return;
+    const updatedCustomer = await updateCustomer(selectedCustomer.id, {
+      facebook: {
+        is_connected: false,
+      },
+    });
+
+    if (updatedCustomer) {
+      setSelectedCustomer({
+        ...selectedCustomer,
+        facebook: {
+          is_connected: false,
+        },
+      });
+    }
   };
 
   return (
@@ -750,9 +817,59 @@ const Social: React.FC = () => {
               flexDirection: "row",
               gap: "2ch",
               marginBottom: "1ch",
+              alignItems: "center",
             }}
           >
-            <FacebookButton />
+            {selectedCustomer?.facebook?.is_connected ? (
+              <Card
+                style={{
+                  width: "fit-content",
+                }}
+              >
+                <Row gutter={16} style={{ alignItems: "center" }}>
+                  <Col>
+                    <FacebookFilled
+                      style={{ fontSize: "2rem", color: "#1877F2" }}
+                    />
+                  </Col>
+                  <Col>
+                    <Avatar
+                      src={selectedCustomer?.facebook?.profile_picture_url}
+                      size={64}
+                    />
+                  </Col>
+                  <Col>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <Typography.Text>
+                        {selectedCustomer?.facebook?.page_name}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        {selectedCustomer?.facebook?.user_email}
+                      </Typography.Text>
+                    </div>
+                  </Col>
+                  <Col>
+                    <Popconfirm
+                      title="Are you sure you want to disconnect?"
+                      onConfirm={handleDisconnect}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button
+                        type="primary"
+                        danger
+                        loading={isUpdatingCustomer}
+                      >
+                        Disconnect
+                      </Button>
+                    </Popconfirm>
+                  </Col>
+                </Row>
+              </Card>
+            ) : (
+              <FacebookButton />
+            )}
+
             {isAdmin && (
               <>
                 <PinterestButton />
@@ -910,7 +1027,7 @@ const Social: React.FC = () => {
                       {post.platform}
                     </span>
                   </div>
-                  <p style={{ whiteSpace: 'pre-line' }}>{post.content}</p>
+                  <p style={{ whiteSpace: "pre-line" }}>{post.content}</p>
                 </div>
               ))
             ) : (

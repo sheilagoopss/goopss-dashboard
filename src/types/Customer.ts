@@ -1,3 +1,13 @@
+export interface ISocialMedia {
+  user_id?: string;
+  page_name?: string;
+  user_email?: string;
+  profile_picture_url?: string;
+  access_token?: string;
+  last_connected_at?: string;
+  is_connected: boolean;
+}
+
 export interface ICustomer {
   id: string;
   customer_id: string;
@@ -17,7 +27,10 @@ export interface ICustomer {
   phone?: string;
   contact_email: string;
   isSuperCustomer?: boolean;
-  
+  facebook?: ISocialMedia;
+  instagram?: ISocialMedia;
+  pinterest?: ISocialMedia;
+
   // Store information and social form
   website?: string;
   industry?: string;
@@ -53,13 +66,13 @@ export interface IAdmin {
 }
 
 export const packageTypes = {
-  acceleratorBasic: 'Accelerator - Basic',
-  acceleratorStandard: 'Accelerator - Standard',
-  acceleratorPro: 'Accelerator - Pro',
-  extendedMaintenance: 'Extended Maintenance',
-  regularMaintenance: 'Regular Maintenance',
-  social: 'Social',
-  free: 'Free'
+  acceleratorBasic: "Accelerator - Basic",
+  acceleratorStandard: "Accelerator - Standard",
+  acceleratorPro: "Accelerator - Pro",
+  extendedMaintenance: "Extended Maintenance",
+  regularMaintenance: "Regular Maintenance",
+  social: "Social",
+  free: "Free",
 } as const;
 
-export type PackageType = typeof packageTypes[keyof typeof packageTypes];
+export type PackageType = (typeof packageTypes)[keyof typeof packageTypes];
