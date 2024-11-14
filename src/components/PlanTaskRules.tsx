@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType } from '../types/PlanTasks';
 import { PlanSection, PlanTask } from '../types/Plan';
 import { usePlanTaskRules } from '../hooks/usePlanTaskRules';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { message, Switch, notification } from 'antd';
@@ -12,6 +12,17 @@ import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { ICustomer } from '../types/Customer';
 import type { Plan } from '../types/Plan';
+import { defaultPlanTaskRules } from '../data/defaultPlanTaskRules';
+
+const packageTypes = {
+  acceleratorBasic: 'Accelerator - Basic',
+  acceleratorStandard: 'Accelerator - Standard',
+  acceleratorPro: 'Accelerator - Pro',
+  extendedMaintenance: 'Extended Maintenance',
+  regularMaintenance: 'Regular Maintenance',
+  social: 'Social',
+  default: 'Default'
+} as const;
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
@@ -53,6 +64,7 @@ const PlanTaskRulesComponent: React.FC = () => {
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<string>('default');
 
   const getOrdinalSuffix = (day: number): string => {
     if (day > 3 && day < 21) return 'th';
@@ -73,6 +85,28 @@ const PlanTaskRulesComponent: React.FC = () => {
     const fetchedSections = await fetchSections();
     setRules(fetchedRules);
     setSections(fetchedSections);
+  };
+
+  const loadPackageRules = async (packageId: string) => {
+    try {
+      const rulesRef = doc(db, 'planTaskRules', packageId);
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (rulesDoc.exists()) {
+        const data = rulesDoc.data();
+        setRules(data.tasks || []);
+        setSections(data.sections || []);
+      } else {
+        // Clear the rules and sections
+        setRules([]);
+        setSections([]);
+        // Show alert message
+        message.warning(`No rules found for ${packageTypes[packageId as keyof typeof packageTypes]}. Please initialize rules for this package.`);
+      }
+    } catch (error) {
+      console.error('Error loading package rules:', error);
+      message.error('Failed to load package rules');
+    }
   };
 
   const columns = [
@@ -123,60 +157,68 @@ const PlanTaskRulesComponent: React.FC = () => {
 
   const handleEdit = (rule: PlanTaskRule) => {
     setEditingRule(rule);
-    
-    // Convert monthlyDueDate to dayjs object if it exists
-    const formValues = {
-      ...rule,
-      monthlyDueDate: rule.monthlyDueDate ? 
-        dayjs().date(rule.monthlyDueDate) : // Convert number to dayjs object
-        null
-    };
-    
-    form.setFieldsValue(formValues);
+    form.setFieldsValue({
+      task: rule.task,
+      section: rule.section,
+      frequency: rule.frequency,
+      daysAfterJoin: rule.daysAfterJoin,
+      monthlyDueDate: rule.monthlyDueDate ? dayjs().date(rule.monthlyDueDate) : undefined,
+      requiresGoal: rule.requiresGoal,
+      defaultGoal: rule.defaultGoal,
+      defaultCurrent: rule.defaultCurrent
+    });
     setIsModalVisible(true);
   };
 
-  const handleDelete = async (rule: PlanTaskRule) => {
+  const handleDelete = async (ruleToDelete: PlanTaskRule) => {
     try {
-      const rulesRef = doc(db, 'planTaskRules', 'default');
+      // Get the correct package ID based on selected package
+      const packageId = Object.keys(packageTypes).find(
+        key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
+      ) || 'default';
+
+      const rulesRef = doc(db, 'planTaskRules', packageId);
       const rulesDoc = await getDoc(rulesRef);
       
       if (rulesDoc.exists()) {
-        const currentRules = rulesDoc.data() as PlanTaskRulesType;
-        
-        // Filter out the rule to be deleted
-        const updatedTasks = currentRules.tasks.filter(task => task.id !== rule.id);
+        const currentRules = rulesDoc.data();
+        // Filter out the task from the selected package's rules
+        const updatedTasks = currentRules.tasks.filter((task: PlanTaskRule) => 
+          task.id !== ruleToDelete.id
+        );
 
-        // Update the document with the filtered tasks
-        await updateDoc(rulesRef, {
+        // Update the selected package's document
+        await setDoc(rulesRef, {
+          ...currentRules,
           tasks: updatedTasks,
-          updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || ''
+          updatedAt: new Date().toISOString()
         });
 
-        message.success(`Task rule "${rule.task}" deleted successfully`);
-        loadData();  // Refresh the data
+        message.success(`Rule deleted from ${selectedPackage} rules`);
+        loadPackageRules(packageId);  // Reload rules for this package
       }
     } catch (error) {
-      console.error('Error deleting task rule:', error);
-      message.error('Failed to delete task rule');
+      console.error('Error deleting rule:', error);
+      message.error('Failed to delete rule');
     }
   };
 
   const handleSubmit = async (values: any) => {
     try {
-      const rulesRef = doc(db, 'planTaskRules', 'default');
+      const packageId = Object.keys(packageTypes).find(
+        key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
+      ) || 'default';
+
+      const rulesRef = doc(db, 'planTaskRules', packageId);
       const rulesDoc = await getDoc(rulesRef);
       
       if (rulesDoc.exists()) {
-        const currentRules = rulesDoc.data() as PlanTaskRulesType;
-        let updatedTasks = [...currentRules.tasks];
-
+        const currentRules = rulesDoc.data();
         const newTask: PlanTaskRule = {
           id: editingRule?.id || `${Date.now()}`,
           task: values.task,
           section: values.section,
-          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,  // Ensure 0 becomes null
+          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,
           monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           frequency: values.frequency,
           isActive: true,
@@ -187,25 +229,19 @@ const PlanTaskRulesComponent: React.FC = () => {
           updatedBy: user?.email || ''
         };
 
-        if (editingRule) {
-          // Update existing rule
-          updatedTasks = updatedTasks.map(task => 
-            task.id === editingRule.id ? newTask : task
-          );
-        } else {
-          // Add new rule
-          updatedTasks.push(newTask);
-        }
+        const updatedTasks = editingRule 
+          ? currentRules.tasks.map((task: PlanTaskRule) => task.id === editingRule.id ? newTask : task)
+          : [...currentRules.tasks, newTask];
 
-        await updateDoc(rulesRef, {
+        await setDoc(rulesRef, {
+          ...currentRules,
           tasks: updatedTasks,
-          updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || ''
+          updatedAt: new Date().toISOString()
         });
 
-        message.success(`Task rule ${editingRule ? 'updated' : 'added'} successfully`);
+        message.success(`Rule ${editingRule ? 'updated' : 'added'} in ${selectedPackage} rules`);
         setIsModalVisible(false);
-        loadData();  // Refresh the data
+        loadPackageRules(packageId);
       }
     } catch (error) {
       console.error('Error saving task rule:', error);
@@ -218,7 +254,7 @@ const PlanTaskRulesComponent: React.FC = () => {
       title: 'Apply Changes to All Customers',
       content: (
         <div>
-          <p>The following changes will be applied to all customers for task:</p>
+          <p>The following changes will be applied to all <strong>{selectedPackage}</strong> customers for task:</p>
           <p><strong>{rule.task}</strong></p>
           <ul>
             {rule.frequency === 'Monthly' && rule.monthlyDueDate ? (
@@ -230,7 +266,7 @@ const PlanTaskRulesComponent: React.FC = () => {
             {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
             {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
           </ul>
-          <p>This will update all customer plans while preserving their:</p>
+          <p>This will update all {selectedPackage} customer plans while preserving their:</p>
           <ul>
             <li>Progress (To Do/Doing/Done)</li>
             <li>Notes</li>
@@ -241,22 +277,45 @@ const PlanTaskRulesComponent: React.FC = () => {
       ),
       async onOk() {
         try {
-          console.log('Starting handleApplyToAll for rule:', rule);
+          console.log('Selected Package:', selectedPackage);
 
-          // Get all paid customers
+          // Get all paid customers with the selected package type
           const customersRef = collection(db, 'customers');
-          const customersSnapshot = await getDocs(customersRef);
-          const paidCustomers = customersSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
-            .filter(customer => customer.customer_type === 'Paid');
+          const q = query(customersRef, 
+            where('customer_type', '==', 'Paid'),
+            where('package_type', '==', selectedPackage)  // Use the display name directly
+          );
+          
+          console.log('Query conditions:', {
+            customerType: 'Paid',
+            packageType: selectedPackage  // Using display name instead of key
+          });
 
-          // Batch updates
+          const customersSnapshot = await getDocs(q);
+          
+          console.log('Found customers:', customersSnapshot.docs.length);
+          
+          const customers = customersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            console.log('Customer data:', {
+              id: doc.id,
+              packageType: data.package_type,
+              customerType: data.customer_type
+            });
+            return { id: doc.id, ...data } as ICustomer;
+          });
+
+          if (customers.length === 0) {
+            message.warning(`No customers found with package type: ${selectedPackage}`);
+            return;
+          }
+
+          // Rest of the function remains the same...
           const batch = writeBatch(db);
           let batchCount = 0;
           const BATCH_LIMIT = 500;
 
-          // Process all customers
-          for (const customer of paidCustomers) {
+          for (const customer of customers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
 
@@ -333,7 +392,7 @@ const PlanTaskRulesComponent: React.FC = () => {
 
           notification.success({
             message: 'Success',
-            description: 'Task rule has been applied to all customers.',
+            description: `Task rule has been applied to all ${selectedPackage} customers.`,
           });
 
         } catch (error) {
@@ -341,9 +400,6 @@ const PlanTaskRulesComponent: React.FC = () => {
           message.error('Failed to apply changes');
         }
       },
-      onCancel() {
-        setIsApplying(false);
-      }
     });
   };
 
@@ -649,6 +705,29 @@ const PlanTaskRulesComponent: React.FC = () => {
                   <Option key={section} value={section}>{section}</Option>
                 ))}
               </Select>
+              <Select
+                style={{ width: 200 }}
+                placeholder="Select Package"
+                value={selectedPackage}
+                onChange={(value) => {
+                  setSelectedPackage(value);
+                  // Get the document ID from the packageTypes object
+                  const packageId = Object.entries(packageTypes).find(
+                    ([key, displayName]) => displayName === value
+                  )?.[0];  // This gets the key (e.g., 'regularMaintenance')
+
+                  if (packageId) {
+                    console.log('Loading rules for package:', packageId);
+                    loadPackageRules(packageId);
+                  }
+                }}
+              >
+                {Object.entries(packageTypes).map(([key, displayName]) => (
+                  <Option key={key} value={displayName}>
+                    {displayName}
+                  </Option>
+                ))}
+              </Select>
               <Button 
                 type="primary" 
                 icon={<PlusOutlined />}
@@ -660,6 +739,39 @@ const PlanTaskRulesComponent: React.FC = () => {
               >
                 Add New Rule
               </Button>
+              {/* Commented out Initialize buttons
+              {Object.entries(packageTypes).map(([key, displayName]) => (
+                <Button 
+                  key={key}
+                  type="primary"
+                  onClick={async () => {
+                    try {
+                      const rulesRef = doc(db, 'planTaskRules', key);
+                      
+                      await setDoc(rulesRef, {
+                        sections: defaultPlanTaskRules.sections,
+                        tasks: defaultPlanTaskRules.tasks,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: user?.email || ''
+                      });
+
+                      message.success(`${displayName} rules initialized successfully`);
+                      
+                      // If currently viewing this package, reload it
+                      if (selectedPackage === displayName) {
+                        loadPackageRules(key);
+                      }
+                    } catch (error) {
+                      console.error('Error:', error);
+                      message.error(`Failed to initialize ${displayName} rules`);
+                    }
+                  }}
+                >
+                  Initialize {displayName} Rules
+                </Button>
+              ))}
+              */}
             </Space>
           </Space>
           <Table 

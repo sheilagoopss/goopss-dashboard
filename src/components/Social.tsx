@@ -40,7 +40,9 @@ interface EtsyListing {
   listingID: string;
   listingTitle: string;
   scheduled_post_date?: string;
-  primaryImage?: string; // Added primaryImage field
+  primaryImage?: string;
+  totalSales?: number;
+  dailyViews?: number;
 }
 
 interface Post {
@@ -51,7 +53,7 @@ interface Post {
   platform: "facebook" | "instagram";
   listingId: string;
   customerId: string;
-  imageUrl?: string; // Added imageUrl field
+  imageUrl?: string;
 }
 
 const { TextArea } = Input;
@@ -315,17 +317,32 @@ const Social: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const columns = [
     {
       title: "Listing ID",
       dataIndex: "listingID",
       key: "listingID",
+      sorter: (a: EtsyListing, b: EtsyListing) => a.listingID.localeCompare(b.listingID),
     },
     {
       title: "Title",
       dataIndex: "listingTitle",
       key: "listingTitle",
+      sorter: (a: EtsyListing, b: EtsyListing) => a.listingTitle.localeCompare(b.listingTitle),
+    },
+    {
+      title: "Total Sales",
+      dataIndex: "totalSales",
+      key: "totalSales",
+      sorter: (a: EtsyListing, b: EtsyListing) => (a.totalSales || 0) - (b.totalSales || 0),
+    },
+    {
+      title: "Daily Views",
+      dataIndex: "dailyViews",
+      key: "dailyViews",
+      sorter: (a: EtsyListing, b: EtsyListing) => (a.dailyViews || 0) - (b.dailyViews || 0),
     },
     {
       title: "Scheduled Date",
@@ -335,10 +352,8 @@ const Social: React.FC = () => {
     {
       title: "Actions",
       key: "actions",
-      render: (text: string, record: EtsyListing) => (
-        <Button onClick={() => handleSchedulePost(record)}>
-          Schedule Post
-        </Button>
+      render: (_: any, record: EtsyListing) => (
+        <Button onClick={() => handleSchedulePost(record)}>Schedule Post</Button>
       ),
     },
   ];
@@ -374,45 +389,36 @@ const Social: React.FC = () => {
     fetchCustomers();
   }, [isAdmin, user]);
 
-  const fetchListings = async (pageNumber = 1) => {
+  const fetchListings = async () => {
     if (selectedCustomer) {
       try {
+        setLoading(true);
         const listingsCollection = collection(db, "listings");
-        let q = query(
+        const q = query(
           listingsCollection,
           where("customer_id", "==", selectedCustomer.customer_id),
-          orderBy("listingID"),
-          limit(LISTINGS_PER_PAGE),
+          orderBy("listingID")
         );
-
-        if (pageNumber > 1 && lastVisible) {
-          q = query(
-            listingsCollection,
-            where("customer_id", "==", selectedCustomer.customer_id),
-            orderBy("listingID"),
-            startAfter(lastVisible),
-            limit(LISTINGS_PER_PAGE),
-          );
-        }
 
         const listingsSnapshot = await getDocs(q);
         const listingsList = listingsSnapshot.docs.map(
-          (doc) =>
-            ({
-              id: doc.id,
-              listingID: doc.data().listingID,
-              listingTitle: doc.data().listingTitle,
-              scheduled_post_date: doc.data().scheduled_post_date,
-              primaryImage: doc.data().primaryImage, // Added primaryImage
-            } as EtsyListing),
+          (doc) => ({
+            id: doc.id,
+            listingID: doc.data().listingID,
+            listingTitle: doc.data().listingTitle,
+            scheduled_post_date: doc.data().scheduled_post_date,
+            primaryImage: doc.data().primaryImage,
+            totalSales: doc.data().totalSales || 0,
+            dailyViews: doc.data().dailyViews || 0,
+          } as EtsyListing),
         );
 
         setListings(listingsList);
         setFilteredListings(listingsList);
-        setLastVisible(listingsSnapshot.docs[listingsSnapshot.docs.length - 1]);
-        setCurrentPage(pageNumber);
       } catch (error) {
         console.error("Error fetching listings:", error);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -470,7 +476,7 @@ const Social: React.FC = () => {
           ...post,
           scheduledDate: post.scheduledDate,
           dateCreated: new Date(),
-          imageUrl: currentListing?.primaryImage, // Added imageUrl
+          imageUrl: currentListing?.primaryImage,
         });
         savedPosts.push({
           id: docRef.id,
@@ -644,16 +650,6 @@ const Social: React.FC = () => {
     setSelectedDatePosts(posts);
   };
 
-  const handleNextPage = () => {
-    fetchListings(currentPage + 1);
-  };
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      fetchListings(currentPage - 1);
-    }
-  };
-
   const handleSaveEditedPost = async (editedPost: Omit<Post, "id">) => {
     try {
       const socialCollection = collection(db, "socials");
@@ -715,6 +711,16 @@ const Social: React.FC = () => {
     }
   };
 
+  const handleSearch = (value: string) => {
+    const searchValue = value.toLowerCase();
+    const filtered = listings.filter(listing => 
+      listing.listingID.toLowerCase().includes(searchValue) ||
+      listing.listingTitle.toLowerCase().includes(searchValue)
+    );
+    setFilteredListings(filtered);
+    setCurrentPage(1);
+  };
+
   return (
     <div style={{ padding: "20px" }}>
       <div
@@ -758,11 +764,24 @@ const Social: React.FC = () => {
 
       <Card style={{ marginBottom: "20px" }}>
         <Title level={4}>Listings</Title>
+        <Input.Search
+          placeholder="Search listings by ID or title..."
+          style={{ marginBottom: 16 }}
+          onSearch={handleSearch}
+          allowClear
+        />
         <Table
           dataSource={filteredListings}
           columns={columns}
           loading={loading}
-          pagination={false}
+          pagination={{
+            total: filteredListings.length,
+            pageSize: LISTINGS_PER_PAGE,
+            current: currentPage,
+            onChange: (page) => setCurrentPage(page),
+            showSizeChanger: false,
+            showTotal: (total) => `Total ${total} listings`,
+          }}
           rowKey="id"
         />
       </Card>

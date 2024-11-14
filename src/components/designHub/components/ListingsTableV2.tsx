@@ -78,11 +78,6 @@ const ListingsTable = ({
     if (pageSize) setPageSize(pageSize);
   };
 
-  const paginatedListings = listings.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
-
   const columns: ColumnsType<
     Listing & { uploadedImages: number; totalImages: number }
   > = [
@@ -247,24 +242,17 @@ const ListingsTable = ({
       )}
       <Table
         style={{ width: "100%" }}
-        dataSource={paginatedListings}
+        dataSource={listings}
         columns={columns}
         loading={loading}
-        pagination={false}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: listings.length,
+          onChange: handlePageChange,
+        }}
         rowKey="id"
         expandable={{ expandedRowRender }}
-      />
-      <Pagination
-        current={currentPage}
-        pageSize={pageSize}
-        total={listings.length}
-        onChange={handlePageChange}
-        style={{
-          textAlign: "center",
-          marginTop: 16,
-          width: "100%",
-          justifyContent: "flex-end",
-        }}
       />
     </Row>
   );

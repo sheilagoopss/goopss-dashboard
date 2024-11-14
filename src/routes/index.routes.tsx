@@ -28,10 +28,11 @@ import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
 import { CustomerPlan } from '../components/CustomerPlan';
-import { PlanSimpleView } from "../components/plan-simple-view";
+import { PlanSimpleView } from "../components/plan-simple-view/PlanSimpleView";
 import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
+import ActivityLog from "components/customers/ActivityLog";
 
 
 export default function AppRoutes() {
@@ -163,6 +164,7 @@ export default function AppRoutes() {
               path="customer-form"
               element={<StoreInformation customerId="" isAdmin={true} />}
             />
+            <Route path="activity-log" element={<ActivityLog />} />
             <Route path="design-hub" element={<DesignHubV2 />} />
             {/* <Route 
               path="design-hub" 
@@ -279,13 +281,7 @@ export default function AppRoutes() {
             />
             <Route
               path="roas-calculator"
-              element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <ROASCalculator />
-                )
-              }
+              element={<ROASCalculator />}
             />
           </>
         ) : (
@@ -390,13 +386,7 @@ export default function AppRoutes() {
             />
             <Route
               path="roas-calculator"
-              element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <ROASCalculator />
-                )
-              }
+              element={<ROASCalculator />}
             />
           </>
         )}

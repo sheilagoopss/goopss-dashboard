@@ -7,6 +7,7 @@ import {
   Row,
   Select,
   Spin,
+  Switch,
   Typography,
 } from "antd";
 import CustomersDropdown from "components/CustomersDropdown";
@@ -43,6 +44,10 @@ const DesignHubAdmin = () => {
   const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [includeBestSellers, setIncludeBestSellers] = useState(false);
+  const [showAllListings, setShowAllListings] = useState(false);
+  const [dataToDisplay, setDataToDisplay] = useState<
+    (Listing & { uploadedImages: number; totalImages: number })[]
+  >([]);
 
   const refetch = () => {
     if (selectedCustomer) {
@@ -104,7 +109,7 @@ const DesignHubAdmin = () => {
         return listingImages
           .filter((image) => image.status === statusFilter)
           .some((image) => image.listing_id === listing.id);
-      } else if (searchTerm === "") {
+      } else if (searchTerm === "" && !showAllListings) {
         return listingsWithImages;
       }
       return listing;
@@ -133,6 +138,10 @@ const DesignHubAdmin = () => {
   useEffect(() => {
     refetch();
   }, [selectedCustomer]);
+
+  useEffect(() => {
+    setDataToDisplay(filterListings(filteredListings));
+  }, [filteredListings, showAllListings]);
 
   return isLoading ? (
     <div
@@ -212,10 +221,17 @@ const DesignHubAdmin = () => {
                 Include Best Sellers
               </Checkbox>
             </div>
+            <Switch
+              checked={showAllListings}
+              onChange={(checked) => setShowAllListings(checked)}
+              style={{ alignSelf: "center" }}
+              checkedChildren="All Listings"
+              unCheckedChildren="With Created Images Only"
+            />
           </Col>
           <Col span={24}>
             <ListingsTableV2
-              listings={filterListings(listings)}
+              listings={dataToDisplay}
               listingImages={listingImages.filter(
                 (image) =>
                   statusFilter === "all" || image.status === statusFilter,

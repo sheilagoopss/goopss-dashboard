@@ -1390,7 +1390,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         {isLoading && <LoadingSpinner />}
 
         {!selectedCustomer && plans.type === 'all' ? (
-          defaultSections.concat(['Other Tasks']).map(sectionTitle => {
+          [...(defaultSections || []), 'Other Tasks'].map(sectionTitle => {
             console.log(`Rendering section ${sectionTitle}:`, {
               viewType: plans.type,
               hasPlans: Object.keys(plans.data).length > 0

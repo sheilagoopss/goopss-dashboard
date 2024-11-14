@@ -5,6 +5,7 @@ import { filterUndefined } from "../utils/filterUndefined";
 import { ListingImage } from "types/Listing";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { IUserActivity } from "types/UserActivityLog";
 
 interface UseCustomerFetchReturn {
   fetchCustomer: (customerId: string) => Promise<ICustomer | null>;
@@ -38,6 +39,16 @@ interface UseCustomerListingImagesFetchReturn {
   fetchCustomerListingImages: (customerId: string) => Promise<ListingImage[]>;
   isLoading: boolean;
 }
+
+interface UseCustomerUserActivityFetchReturn {
+  fetchCustomerUserActivity: (customerId: string) => Promise<IUserActivity[]>;
+  isLoading: boolean;
+}
+
+interface UseCustomerUserActivityFetchAllReturn {
+  fetchCustomerUserActivityAll: () => Promise<IUserActivity[]>;
+  isLoading: boolean;
+} 
 
 export function useCustomerFetch(): UseCustomerFetchReturn {
   const [isLoading, setIsLoading] = useState(false);
@@ -185,4 +196,51 @@ export function useCustomerListingImagesFetch(): UseCustomerListingImagesFetchRe
   );
 
   return { fetchCustomerListingImages, isLoading };
+}
+
+export function useCustomerUserActivityFetchAll(): UseCustomerUserActivityFetchAllReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchCustomerUserActivityAll = useCallback(
+    async (): Promise<IUserActivity[]> => {
+    setIsLoading(true);
+    try {
+      const userActivities =
+        await FirebaseHelper.find<IUserActivity>("userActivity");
+      return userActivities;
+    } catch (error) {
+      console.error("Error fetching user activity:", error);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return { fetchCustomerUserActivityAll, isLoading };
+}
+export function useCustomerUserActivityFetch(): UseCustomerUserActivityFetchReturn {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchCustomerUserActivity = useCallback(
+    async (customerId: string): Promise<IUserActivity[]> => {
+      setIsLoading(true);
+      try {
+        const userActivities =
+          await FirebaseHelper.findWithFilter<IUserActivity>(
+            "userActivity",
+            "customer_id",
+            customerId,
+          );
+        return userActivities;
+      } catch (error) {
+        console.error("Error fetching user activity:", error);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchCustomerUserActivity, isLoading };
 }
