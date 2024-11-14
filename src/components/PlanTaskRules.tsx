@@ -254,7 +254,7 @@ const PlanTaskRulesComponent: React.FC = () => {
       title: 'Apply Changes to All Customers',
       content: (
         <div>
-          <p>The following changes will be applied to all customers for task:</p>
+          <p>The following changes will be applied to all <strong>{selectedPackage}</strong> customers for task:</p>
           <p><strong>{rule.task}</strong></p>
           <ul>
             {rule.frequency === 'Monthly' && rule.monthlyDueDate ? (
@@ -266,7 +266,7 @@ const PlanTaskRulesComponent: React.FC = () => {
             {rule.isActive !== undefined && <li>Active Status: {rule.isActive ? 'Active' : 'Inactive'}</li>}
             {rule.defaultGoal && <li>Default Goal: {rule.defaultGoal}</li>}
           </ul>
-          <p>This will update all customer plans while preserving their:</p>
+          <p>This will update all {selectedPackage} customer plans while preserving their:</p>
           <ul>
             <li>Progress (To Do/Doing/Done)</li>
             <li>Notes</li>
@@ -277,22 +277,45 @@ const PlanTaskRulesComponent: React.FC = () => {
       ),
       async onOk() {
         try {
-          console.log('Starting handleApplyToAll for rule:', rule);
+          console.log('Selected Package:', selectedPackage);
 
-          // Get all paid customers
+          // Get all paid customers with the selected package type
           const customersRef = collection(db, 'customers');
-          const customersSnapshot = await getDocs(customersRef);
-          const paidCustomers = customersSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
-            .filter(customer => customer.customer_type === 'Paid');
+          const q = query(customersRef, 
+            where('customer_type', '==', 'Paid'),
+            where('package_type', '==', selectedPackage)  // Use the display name directly
+          );
+          
+          console.log('Query conditions:', {
+            customerType: 'Paid',
+            packageType: selectedPackage  // Using display name instead of key
+          });
 
-          // Batch updates
+          const customersSnapshot = await getDocs(q);
+          
+          console.log('Found customers:', customersSnapshot.docs.length);
+          
+          const customers = customersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            console.log('Customer data:', {
+              id: doc.id,
+              packageType: data.package_type,
+              customerType: data.customer_type
+            });
+            return { id: doc.id, ...data } as ICustomer;
+          });
+
+          if (customers.length === 0) {
+            message.warning(`No customers found with package type: ${selectedPackage}`);
+            return;
+          }
+
+          // Rest of the function remains the same...
           const batch = writeBatch(db);
           let batchCount = 0;
           const BATCH_LIMIT = 500;
 
-          // Process all customers
-          for (const customer of paidCustomers) {
+          for (const customer of customers) {
             const planRef = doc(db, 'plans', customer.id);
             const planDoc = await getDoc(planRef);
 
@@ -369,7 +392,7 @@ const PlanTaskRulesComponent: React.FC = () => {
 
           notification.success({
             message: 'Success',
-            description: 'Task rule has been applied to all customers.',
+            description: `Task rule has been applied to all ${selectedPackage} customers.`,
           });
 
         } catch (error) {
@@ -377,9 +400,6 @@ const PlanTaskRulesComponent: React.FC = () => {
           message.error('Failed to apply changes');
         }
       },
-      onCancel() {
-        setIsApplying(false);
-      }
     });
   };
 
@@ -719,6 +739,7 @@ const PlanTaskRulesComponent: React.FC = () => {
               >
                 Add New Rule
               </Button>
+              {/* Commented out Initialize buttons
               {Object.entries(packageTypes).map(([key, displayName]) => (
                 <Button 
                   key={key}
@@ -750,6 +771,7 @@ const PlanTaskRulesComponent: React.FC = () => {
                   Initialize {displayName} Rules
                 </Button>
               ))}
+              */}
             </Space>
           </Space>
           <Table 
