@@ -595,7 +595,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   const onEdit = async (taskId: string, field: keyof PlanTask, value: any, planId: string) => {
     try {
-      console.log('onEdit called:', { taskId, field, planId });
+      console.log('onEdit called:', { taskId, field, value, planId });
 
       // Get current plan data
       const planRef = doc(db, 'plans', planId);
@@ -611,9 +611,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
+            // If value is an object (like when updating multiple fields)
             if (field === 'task' && typeof value === 'object') {
-              return { ...task, ...value };
+              // Remove any undefined values before spreading
+              const cleanedValue = Object.fromEntries(
+                Object.entries(value).filter(([_, v]) => v !== undefined)
+              );
+              return { ...task, ...cleanedValue };
             }
+            // For single field updates
             return { ...task, [field]: value };
           }
           return task;
