@@ -6,6 +6,8 @@ import {
   Firestore,
   getDoc,
   getDocs,
+  query,
+  where,
   setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -37,6 +39,20 @@ class FirebaseHandler {
     const data: T[] = [];
     querySnapshot.forEach((doc) => {
       data.push({ id: doc.id, ...doc.data() } as T);
+    });
+    return data;
+  }
+
+  async findWithFilter<T>(
+    collectionName: keyof typeof COLLECTIONS,
+    field: keyof T,
+    value: any,
+  ): Promise<T[]> {
+    const q = query(collection(this.db, collectionName), where(field as string, "==", value));
+    const querySnapshot = await getDocs(q);
+    const data: T[] = [];
+    querySnapshot.forEach((doc) => {
+      data.push({ id: doc.id, ...(doc.data() as T) });
     });
     return data;
   }

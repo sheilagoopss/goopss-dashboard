@@ -48,7 +48,7 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
         <Title level={5}>{record.thisYear?.daterange}</Title>
         <Paragraph>Metrics</Paragraph>
         <Row gutter={[16, 0]}>
-          {Object.keys(record.thisYear?.metrics)?.map((key) => (
+          {Object.keys(record.thisYear?.metrics).sort().map((key) => (
             <Col span={6}>
               <Card bordered={false}>
                 <Statistic
@@ -71,7 +71,7 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
               label: "Traffic Source",
               children: (
                 <Row gutter={[16, 6]}>
-                  {Object.keys(record.thisYear?.trafficSource)?.map((key) => (
+                  {Object.keys(record.thisYear?.trafficSource)?.sort()?.map((key) => (
                     <Col span={6}>
                       <Statistic
                         title={key}
@@ -141,7 +141,11 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
   return (
     <>
       <Table
-        dataSource={stats}
+        dataSource={stats.sort((a, b) => {
+          const dateA = a.timestamp ? dayjs(a.timestamp) : dayjs(0);
+          const dateB = b.timestamp ? dayjs(b.timestamp) : dayjs(0);
+          return dateA.isAfter(dateB) ? -1 : 1;
+        })}
         columns={columns}
         rowKey="id"
         loading={loading}

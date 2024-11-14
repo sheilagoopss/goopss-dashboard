@@ -23,8 +23,8 @@
   - Use declarative JSX.
   
   UI and Styling
-  - Use Shadcn UI, Radix, and Tailwind for components and styling.
-  - Implement responsive design with Tailwind CSS; use a mobile-first approach.
+  - Use antd for components and styling.
+  - Implement responsive design with inline styles; use a mobile-first approach.
   
   Performance Optimization
   - Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC).

@@ -96,7 +96,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
           key: '/customer-form',
           icon: <FormOutlined />,
           label: <Link to="/customer-form">Customer Form</Link>
-        }
+        },
+        {
+          key: "/activity-log",
+          icon: <BarChartOutlined />,
+          label: <Link to="/activity-log">Activity Log</Link>
+        },
       ]
     },
     {
