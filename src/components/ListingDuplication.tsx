@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Space, Button, Tag, message, Typography, Row, Col, Checkbox, Tabs } from 'antd';
+import { Card, Table, Input, Space, Button, Tag, message, Typography, Row, Col, Checkbox, Tabs, Modal } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, Timestamp, setDoc, FieldValue, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp, Timestamp, setDoc, FieldValue, arrayUnion, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Listing } from '../types/Listing';
 import { useAuth } from '../contexts/AuthContext';
@@ -102,6 +102,8 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
   const [duplicatedListings, setDuplicatedListings] = useState<Record<string, Listing[]>>({});
   const [selectedSegment, setSelectedSegment] = useState<'duplication' | 'duplicates'>('duplication');
   const [duplicateListings, setDuplicateListings] = useState<Listing[]>([]);
+  const [isTagsModalVisible, setIsTagsModalVisible] = useState(false);
+  const [tagCollections, setTagCollections] = useState<string>('');
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -474,6 +476,42 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
     }
   }, [selectedSegment, customerId]);
 
+  const fetchTagsCollection = async () => {
+    try {
+      const customerRef = doc(db, 'customers', customerId);
+      const customerDoc = await getDoc(customerRef);
+      
+      if (customerDoc.exists()) {
+        const data = customerDoc.data();
+        setTagCollections(data.tags_collection || '');
+      }
+    } catch (error) {
+      console.error('Error fetching tags collection:', error);
+      message.error('Failed to load tags collection');
+    }
+  };
+
+  const saveTagCollection = async (newTags: string) => {
+    try {
+      const customerRef = doc(db, 'customers', customerId);
+      await updateDoc(customerRef, {
+        tags_collection: newTags
+      });
+      
+      setTagCollections(newTags);
+      message.success('Tags collection saved successfully');
+    } catch (error) {
+      console.error('Error saving tags collection:', error);
+      message.error('Failed to save tags collection');
+    }
+  };
+
+  useEffect(() => {
+    if (customerId) {
+      fetchTagsCollection();
+    }
+  }, [customerId]);
+
   const columns = [
     {
       title: 'Image',
@@ -844,14 +882,22 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
                                       ({getTagCount(editedTags)}/{MAX_TAGS} tags)
                                     </Text>
                                   </Space>
-                                  <Button 
-                                    type="link" 
-                                    danger
-                                    onClick={handleClearAllTags}
-                                    disabled={!editedTags}
-                                  >
-                                    Clear All
-                                  </Button>
+                                  <Space>
+                                    <Button 
+                                      type="primary"
+                                      onClick={() => setIsTagsModalVisible(true)}
+                                    >
+                                      Tags Collection
+                                    </Button>
+                                    <Button 
+                                      type="link" 
+                                      danger
+                                      onClick={handleClearAllTags}
+                                      disabled={!editedTags}
+                                    >
+                                      Clear All
+                                    </Button>
+                                  </Space>
                                 </Space>
                                 <div style={{ 
                                   marginTop: 8,
@@ -1047,6 +1093,32 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
           </Space>
         </Tabs.TabPane>
       </Tabs>
+
+      <Modal
+        title="Tags Collection"
+        open={isTagsModalVisible}
+        onCancel={() => setIsTagsModalVisible(false)}
+        footer={null}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Input.TextArea
+            value={tagCollections}
+            onChange={(e) => setTagCollections(e.target.value)}
+            placeholder="Add tags collection (comma-separated)"
+            autoSize={{ minRows: 4, maxRows: 8 }}
+          />
+          <Button
+            type="primary"
+            onClick={async () => {
+              if (tagCollections.trim()) {
+                await saveTagCollection(tagCollections.trim());
+              }
+            }}
+          >
+            Save Collection
+          </Button>
+        </Space>
+      </Modal>
     </div>
   );
 };
