@@ -12,6 +12,7 @@ import {
   doc,
   serverTimestamp,
   Timestamp,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -33,8 +34,8 @@ import { useListingUpdate } from "../hooks/useListing";
 import { Listing } from "../types/Listing";
 import Papa from "papaparse";
 import dayjs from "dayjs";
-import { Button, Input, Table, Tag, Space, Card, Divider, Typography, Checkbox, message, Image, Row, Col } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { Button, Input, Table, Tag, Space, Card, Divider, Typography, Checkbox, message, Image, Row, Col, Modal } from 'antd';
+import { SearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useTaskCreate } from "../hooks/useTask";
 import { useAuth } from "../contexts/AuthContext";
 import { IAdmin } from "../types/Customer";
@@ -118,6 +119,10 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
   const MAX_TAGS = 13;
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const [isTagsModalVisible, setIsTagsModalVisible] = useState(false);
+  const [tagCollections, setTagCollections] = useState<string>('');
+  const [newTagCollection, setNewTagCollection] = useState("");
 
   const copyToClipboard = (text: string, field: string) => {
     let formattedText = text;
@@ -617,6 +622,51 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
     setEditedTags("");
   };
 
+  // Add this function to handle adding tags from collection
+  const handleAddTagsFromCollection = (tags: string) => {
+    handleAddTag(tags);
+    setIsTagsModalVisible(false);
+  };
+
+  // Add this function to fetch tags collection
+  const fetchTagsCollection = async () => {
+    try {
+      const customerRef = doc(db, 'customers', customerId);
+      const customerDoc = await getDoc(customerRef);
+      
+      if (customerDoc.exists()) {
+        const data = customerDoc.data();
+        setTagCollections(data.tags_collection || '');
+      }
+    } catch (error) {
+      console.error('Error fetching tags collection:', error);
+      message.error('Failed to load tags collection');
+    }
+  };
+
+  // Add this function to save new tag collection
+  const saveTagCollection = async (newTags: string) => {
+    try {
+      const customerRef = doc(db, 'customers', customerId);
+      await updateDoc(customerRef, {
+        tags_collection: newTags
+      });
+      
+      setTagCollections(newTags);
+      message.success('Tags collection saved successfully');
+    } catch (error) {
+      console.error('Error saving tags collection:', error);
+      message.error('Failed to save tags collection');
+    }
+  };
+
+  // Add this useEffect to load tags collection when component mounts
+  useEffect(() => {
+    if (customerId) {
+      fetchTagsCollection();
+    }
+  }, [customerId]);
+
   return (
     <div>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -813,14 +863,22 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
                                   ({getTagCount(editedTags)}/{MAX_TAGS} tags)
                                 </Text>
                               </Space>
-                              <Button 
-                                type="link" 
-                                danger
-                                onClick={handleClearAllTags}
-                                disabled={!editedTags}
-                              >
-                                Clear All
-                              </Button>
+                              <Space>
+                                <Button 
+                                  type="primary"
+                                  onClick={() => setIsTagsModalVisible(true)}
+                                >
+                                  Tags Collection
+                                </Button>
+                                <Button 
+                                  type="link" 
+                                  danger
+                                  onClick={handleClearAllTags}
+                                  disabled={!editedTags}
+                                >
+                                  Clear All
+                                </Button>
+                              </Space>
                             </Space>
                             <div style={{ 
                               marginTop: 8,
@@ -961,6 +1019,33 @@ const SEOListings: React.FC<SEOListingsProps> = ({ customerId, storeName }) => {
           }}
         />
       </Space>
+
+      {/* Add the Tags Collection Modal */}
+      <Modal
+        title="Tags Collection"
+        open={isTagsModalVisible}
+        onCancel={() => setIsTagsModalVisible(false)}
+        footer={null}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Input.TextArea
+            value={tagCollections}
+            onChange={(e) => setTagCollections(e.target.value)}
+            placeholder="Add tags collection (comma-separated)"
+            autoSize={{ minRows: 4, maxRows: 8 }}
+          />
+          <Button
+            type="primary"
+            onClick={async () => {
+              if (tagCollections.trim()) {
+                await saveTagCollection(tagCollections.trim());
+              }
+            }}
+          >
+            Save Collection
+          </Button>
+        </Space>
+      </Modal>
     </div>
   );
 };
