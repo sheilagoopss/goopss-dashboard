@@ -225,8 +225,8 @@ const DesignHubAdmin = () => {
               checked={showAllListings}
               onChange={(checked) => setShowAllListings(checked)}
               style={{ alignSelf: "center" }}
-              checkedChildren="Show All Listings"
-              unCheckedChildren="Hide Listings without images"
+              checkedChildren="All Listings"
+              unCheckedChildren="With Created Images Only"
             />
           </Col>
           <Col span={24}>

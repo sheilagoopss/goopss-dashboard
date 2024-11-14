@@ -15,6 +15,8 @@ import { ICustomer } from '../../types/Customer'
 import { doc, getDoc, updateDoc, collection, getDocs, setDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import type { Plan } from '../../types/Plan'
+import { useAuth } from '../../contexts/AuthContext';
+import { PlanTaskRule } from '../../types/PlanTasks';
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -122,7 +124,21 @@ const getAdjustedMonthlyDueDate = (dueDate: string | null, frequency: string) =>
   return adjustedDate.format('YYYY-MM-DD');
 };
 
-export default function PlanSimpleView({ customers = [], selectedCustomer, setSelectedCustomer }: Props) {
+// Add this function to create a new plan based on package type
+const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
+    return null;
+  } else {
+    return dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
+  }
+};
+
+export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false)
   const [plans, setPlans] = useState<{ type: 'all' | 'single'; selectedCustomer: ICustomer | null; data: { [customerId: string]: Plan } }>({
     type: 'all',
@@ -677,6 +693,98 @@ export default function PlanSimpleView({ customers = [], selectedCustomer, setSe
     localStorage.removeItem('planSimpleViewFilters');
   };
 
+  // Move createPlanForCustomer inside component
+  const createPlanForCustomer = async (customer: ICustomer) => {
+    try {
+      console.log('Creating plan for customer:', customer);
+      console.log('Customer package type:', customer.package_type);
+
+      // Define the package types mapping with proper typing
+      const packageTypes: { [key: string]: string } = {
+        'Accelerator - Basic': 'acceleratorBasic',
+        'Accelerator - Standard': 'acceleratorStandard',
+        'Accelerator - Pro': 'acceleratorPro',
+        'Extended Maintenance': 'extendedMaintenance',
+        'Regular Maintenance': 'regularMaintenance',
+        'Social': 'social',
+        'Default': 'default',
+        'Free': 'default'  // Add Free type and map it to default
+      };
+
+      // Then use it with type checking
+      const packageId = packageTypes[customer.package_type as keyof typeof packageTypes] || 'default';
+      console.log('Looking for rules in document:', packageId);
+
+      // Get the package-specific rules
+      const rulesRef = doc(db, 'planTaskRules', packageId);
+      const rulesDoc = await getDoc(rulesRef);
+      
+      console.log('Rules exist:', rulesDoc.exists());
+      
+      // Get the rules (use package rules or default as fallback)
+      const rules = rulesDoc.exists() 
+        ? rulesDoc.data()
+        : (await getDoc(doc(db, 'planTaskRules', 'default'))).data();
+
+      if (!rules) {
+        message.error('No rules found for this package');
+        return;
+      }
+
+      // Create the plan with these rules
+      const planRef = doc(db, 'plans', customer.id);
+      await setDoc(planRef, {
+        sections: rules.sections.map((sectionTitle: string) => ({
+          title: sectionTitle,
+          tasks: rules.tasks
+            .filter((task: PlanTaskRule) => task.section === sectionTitle)
+            .map((task: PlanTaskRule) => ({
+              ...task,
+              progress: 'To Do',
+              completedDate: null,
+              current: task.defaultCurrent || 0,
+              goal: task.defaultGoal || 0,
+              dueDate: calculateDueDate(customer, task),
+              updatedAt: new Date().toISOString(),
+              updatedBy: user?.email || ''
+            }))
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || ''
+      });
+
+      message.success('Plan created successfully');
+      
+      // Reload the plans after creating
+      if (selectedCustomer) {
+        loadPlan();
+      } else {
+        loadAllPlans();
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      message.error('Failed to create plan');
+    }
+  };
+
+  // Move handleCustomerSelect inside component
+  const handleCustomerSelect = async (customerId: string) => {
+    const customer = customers.find((c: ICustomer) => c.id === customerId);
+    if (customer) {
+      setSelectedCustomer(customer);
+      
+      // Check if customer has a plan
+      const planRef = doc(db, 'plans', customerId);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        // Create new plan based on package type
+        await createPlanForCustomer(customer);
+      }
+    }
+  };
+
   return (
     <Layout>
       <Content style={{ padding: '16px' }}>
@@ -687,13 +795,30 @@ export default function PlanSimpleView({ customers = [], selectedCustomer, setSe
               style={{ width: '100%' }}
               placeholder="Select a customer"
               value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
-              onChange={(value) => {
+              onChange={async (value) => {  // Make this async
+                console.log('Selected value:', value);
+                
                 if (value === 'all-paid') {
                   setSelectedCustomer(null);
                   loadAllPlans();
                 } else {
                   const customer = customers.find(c => c.id === value);
-                  setSelectedCustomer(customer || null);
+                  if (customer) {
+                    console.log('Found customer:', customer);
+                    
+                    // Check if plan exists
+                    const planRef = doc(db, 'plans', customer.id);
+                    const planDoc = await getDoc(planRef);
+                    
+                    console.log('Plan exists:', planDoc.exists());
+                    
+                    if (!planDoc.exists()) {
+                      console.log('Creating new plan for customer');
+                      await createPlanForCustomer(customer);
+                    }
+                    
+                    setSelectedCustomer(customer);
+                  }
                 }
               }}
               size="large"
