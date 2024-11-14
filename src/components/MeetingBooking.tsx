@@ -67,7 +67,7 @@ const MeetingBooking: React.FC = () => {
               </Title>
               <div 
                 className="calendly-inline-widget" 
-                data-url="https://calendly.com/goopss-team/tools-connection" 
+                data-url="https://calendly.com/ella-goopss/30min" 
                 style={{ minWidth: '320px', height: '700px' }}
               />
             </Card>
