@@ -90,6 +90,15 @@ const ListingsTable = ({
       title: "Listing Title",
       dataIndex: "listingTitle",
       sorter: (a, b) => a.listingTitle.localeCompare(b.listingTitle),
+      render: (text: string, record: Listing) => (
+        <a 
+          href={record.etsyLink} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          {text}
+        </a>
+      ),
     },
     {
       title: "Uploaded Images",
