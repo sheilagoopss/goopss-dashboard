@@ -22,5 +22,9 @@ export const endpoints = {
   },
   tagify: {
     generateTags: `${API_URL}/api/v1/tagify/generate-tags`,
+    generateTagsBase64: `${API_URL}/api/v1/tagify/generate-tags-base64`,
+  },
+  social: {
+    schedulePost: `${API_URL}/api/v1/facebook/schedulePost`,
   },
 };
