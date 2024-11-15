@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Layout } from "antd";
 import { useAuth } from "contexts/AuthContext";
-import DesignHubAdmin from "./views/DesignHubAdmin";
+import DesignHubAdmin from "./views/Admin/DesignHubAdmin";
 import DesignHubCustomer from "./views/DesignHubCustomer";
 
 const { Content } = Layout;

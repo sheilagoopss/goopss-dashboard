@@ -16,12 +16,15 @@ import { IAdmin } from "types/Customer";
 import { endpoints } from "constants/endpoints";
 import HttpHelper from "helpers/HttpHelper";
 import { IServiceReturn } from "types/apiResponse";
+import dayjs from "dayjs";
 
 interface UseListingImageStatusUpdate {
   approveImage: (imageId: string) => Promise<boolean>;
   reviseImage: (imageId: string, revisionNote: string) => Promise<boolean>;
   batchApproveImages: (imageIds: string[]) => Promise<boolean>;
   supersedeImage: (imageId: string) => Promise<boolean>;
+  markAsUploadedToEtsy: (imageId: string) => Promise<boolean>;
+  markAsNotUploadedToEtsy: (imageId: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -99,6 +102,38 @@ export const useListingImageStatusUpdate = (): UseListingImageStatusUpdate => {
     [],
   );
 
+  const markAsUploadedToEtsy = useCallback(async (imageId: string) => {
+    setIsLoading(true);
+    try {
+      await FirebaseHelper.update("images", imageId, {
+        uploadedToEtsy: true,
+        uploadedToEtsyAt: dayjs().toISOString(),
+      });
+      return true;
+    } catch (error) {
+      console.error("Error marking as uploaded to Etsy:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const markAsNotUploadedToEtsy = useCallback(async (imageId: string) => {
+    setIsLoading(true);
+    try {
+      await FirebaseHelper.update("images", imageId, {
+        uploadedToEtsy: false,
+        uploadedToEtsyAt: null,
+      });
+      return true;
+    } catch (error) {
+      console.error("Error marking as not uploaded to Etsy:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const supersedeImage = useCallback(async (imageId: string) => {
     setIsLoading(true);
     try {
@@ -145,6 +180,8 @@ export const useListingImageStatusUpdate = (): UseListingImageStatusUpdate => {
     reviseImage,
     batchApproveImages,
     supersedeImage,
+    markAsUploadedToEtsy,
+    markAsNotUploadedToEtsy,
     isLoading,
   };
 };

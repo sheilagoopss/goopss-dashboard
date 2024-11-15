@@ -50,4 +50,6 @@ export interface ListingImage {
   statusChangeDate?: Date;
   revisionNote?: string;
   date?: Date;
+  uploadedToEtsy?: boolean;
+  uploadedToEtsyAt?: Date;
 }
