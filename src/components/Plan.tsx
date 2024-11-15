@@ -48,6 +48,7 @@ import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, dele
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { PlanTaskRule } from '../types/PlanTasks';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -858,78 +859,23 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // Add loadPlan function
   const loadPlan = async () => {
+    if (!selectedCustomer) return;
     try {
-      console.log('loadPlan called for customer:', selectedCustomer?.id);
       setIsLoading(true);
-      const customerId = selectedCustomer?.id;
-      
-      if (!customerId) {
-        console.log('No customer selected, skipping load');
-        return;
-      }
-
-      const planRef = doc(db, 'plans', customerId);
-      console.log('Fetching plan from Firestore');
+      const planRef = doc(db, 'plans', selectedCustomer.id);
       const planDoc = await getDoc(planRef);
       
       if (!planDoc.exists()) {
-        console.log('No plan exists, creating from default rules');
-        
-        // Get default task rules
-        const rulesRef = doc(db, 'planTaskRules', 'default');
-        const rulesDoc = await getDoc(rulesRef);
-        
-        if (rulesDoc.exists()) {
-          const rules = rulesDoc.data();
-          
-          // Create plan sections from rules
-          const newPlan: Plan = {
-            sections: rules.sections.map((sectionTitle: string) => ({
-              title: sectionTitle,
-              tasks: rules.tasks
-                .filter((rule: { section: string }) => rule.section === sectionTitle)
-                .map((rule: { 
-                  id: string; 
-                  task: string; 
-                  isActive: boolean; 
-                  frequency: PlanTask['frequency'];
-                  daysAfterJoin?: number;
-                  defaultCurrent?: number;
-                  defaultGoal?: number;
-                }) => ({
-                  id: rule.id,
-                  task: rule.task,
-                  progress: 'To Do' as const,
-                  isActive: rule.isActive,
-                  notes: '',
-                  frequency: rule.frequency,
-                  dueDate: rule.daysAfterJoin && selectedCustomer.date_joined 
-                    ? dayjs(selectedCustomer.date_joined).add(rule.daysAfterJoin, 'day').format('YYYY-MM-DD')
-                    : null,
-                  completedDate: null,
-                  current: rule.defaultCurrent || 0,
-                  goal: rule.defaultGoal || 0,
-                  updatedAt: new Date().toISOString(),
-                  updatedBy: user?.email || ''
-                }))
-            })),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-
-          // Save new plan to Firestore
-          await setDoc(planRef, newPlan);
-          console.log('Created new plan from default rules');
-          setSections(newPlan.sections);
-          return;
-        }
+        // Create new plan based on package type
+        await createPlanForCustomer(selectedCustomer);
+        return;
       }
 
       const plan = planDoc.data() as Plan;
-      console.log('Plan loaded successfully');
       setSections(plan.sections);
     } catch (error) {
       console.error('Error loading plan:', error);
+      message.error('Failed to load plan');
     } finally {
       setIsLoading(false);
     }
@@ -1042,6 +988,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setSelectedCustomer(customer);
     
     if (customer) {
+      console.log('Found customer:', customer);
+      
+      // Check if customer has a plan
+      const planRef = doc(db, 'plans', customer.id);
+      const planDoc = await getDoc(planRef);
+      
+      console.log('Plan exists:', planDoc.exists());
+      
+      if (!planDoc.exists()) {
+        console.log('Creating new plan for customer');
+        await createPlanForCustomer(customer);  // This will use package-specific rules
+      }
+
       setPlans(prev => ({
         ...prev,
         type: 'single',
@@ -1204,6 +1163,77 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
     
     return dueDate.format('YYYY-MM-DD');
+  };
+
+  // Add createPlanForCustomer inside the component
+  const createPlanForCustomer = async (customer: ICustomer) => {
+    try {
+      console.log('Creating plan for customer:', customer);
+      console.log('Customer package type:', customer.package_type);
+
+      const packageTypes: { [key: string]: string } = {
+        'Accelerator - Basic': 'acceleratorBasic',
+        'Accelerator - Standard': 'acceleratorStandard',
+        'Accelerator - Pro': 'acceleratorPro',
+        'Extended Maintenance': 'extendedMaintenance',
+        'Regular Maintenance': 'regularMaintenance',
+        'Social': 'social',
+        'Default': 'default',
+        'Free': 'default'
+      };
+
+      const packageId = packageTypes[customer.package_type] || 'default';
+      console.log('Looking for rules in document:', packageId);
+
+      // Get the package-specific rules
+      const rulesRef = doc(db, 'planTaskRules', packageId);
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (!rulesDoc.exists()) {
+        message.error('No rules found for this package');
+        return;
+      }
+
+      const rules = rulesDoc.data();  // Only use package-specific rules, no fallback
+      
+      // Create the plan with these rules
+      const planRef = doc(db, 'plans', customer.id);
+      await setDoc(planRef, {
+        sections: rules.sections.map((sectionTitle: string) => ({
+          title: sectionTitle,
+          tasks: rules.tasks
+            .filter((task: PlanTaskRule) => task.section === sectionTitle)
+            .map((task: PlanTaskRule) => ({
+              ...task,
+              progress: 'To Do',
+              completedDate: null,
+              current: task.defaultCurrent || 0,
+              goal: task.defaultGoal || 0,
+              dueDate: task.frequency === 'Monthly' && task.monthlyDueDate
+                ? dayjs().date(task.monthlyDueDate).format('YYYY-MM-DD')
+                : task.frequency === 'As Needed' || task.daysAfterJoin === 0
+                ? null
+                : dayjs(customer.date_joined).add(task.daysAfterJoin || 0, 'day').format('YYYY-MM-DD'),
+              updatedAt: new Date().toISOString(),
+              updatedBy: user?.email || ''
+            }))
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      message.success('Plan created successfully');
+      
+      // Reload the plans
+      if (selectedCustomer) {
+        await loadPlan();
+      } else {
+        await loadAllPlans();
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      message.error('Failed to create plan');
+    }
   };
 
   if (!isAdmin) {
