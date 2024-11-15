@@ -23,7 +23,9 @@ import {
   Avatar,
   Form,
   Checkbox,
-  InputNumber
+  InputNumber,
+  Upload,
+  Divider
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -34,16 +36,18 @@ import {
   UserOutlined,
   WarningOutlined,
   ReloadOutlined,
-  PlusOutlined
+  PlusOutlined,
+  UploadOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../contexts/AuthContext'
 import { usePlan } from '../hooks/usePlan'
 import { PlanSection, PlanTask } from '../types/Plan'
-import { ICustomer } from '../types/Customer'
+import { ICustomer, IAdmin } from '../types/Customer'
 import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp, setDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -356,6 +360,46 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               rows={4}
             />
           </Space>
+
+          {/* Add custom task info only for tasks in Other Tasks section */}
+          {sections.find(s => s.title === 'Other Tasks')?.tasks.some(t => t.id === task.id) && (
+            <>
+              <Divider />
+              {/* Show files if they exist */}
+              {task.files && task.files.length > 0 && (
+                <div>
+                  <Text strong>Attachments:</Text>
+                  <div style={{ marginTop: 8 }}>
+                    {task.files.map((file, index) => (
+                      <div key={index} style={{ marginBottom: 8 }}>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer">
+                          {file.name}
+                        </a>
+                        <Text type="secondary" style={{ marginLeft: 8 }}>
+                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Show creator info */}
+              <Space direction="vertical" size={0}>
+                <Text type="secondary">
+                  Created by: {task.createdBy}
+                </Text>
+                <Text type="secondary">
+                  Created: {dayjs(task.createdAt).format('MMM DD, YYYY')}
+                </Text>
+                {task.updatedBy !== task.createdBy && (
+                  <Text type="secondary">
+                    Last updated by: {task.updatedBy} ({dayjs(task.updatedAt).format('MMM DD, YYYY')})
+                  </Text>
+                )}
+              </Space>
+            </>
+          )}
         </Space>
       </Panel>
     </Collapse>
@@ -430,6 +474,14 @@ const debounce = <T extends (...args: any[]) => void>(
   };
 };
 
+// Add interface for file type
+interface TaskFile {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+}
+
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
@@ -466,6 +518,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   }>({ visible: false, sectionTitle: '', taskName: '' });
   const [newCustomTaskModal, setNewCustomTaskModal] = useState(false);
   const [customTaskForm] = Form.useForm();
+  const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -1027,81 +1080,130 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   }
 
   // Add this function before the return statement
-  const handleCustomTaskSave = async (values: CustomTaskFormValues) => {
+  const handleCustomTaskSave = async (values: any) => {
+    if (!selectedCustomer) return;
     try {
-      if (!selectedCustomer) {
-        message.error('No customer selected');
-        return;
-      }
-
       setIsLoading(true);
-
-      // Calculate due date based on frequency
-      let dueDate: string | null = null;
-      if (values.frequency === 'Monthly' && values.monthlyDueDate) {
-        dueDate = dayjs().date(values.monthlyDueDate).format('YYYY-MM-DD');
-      } else if ((values.frequency === 'One Time' || values.frequency === 'As Needed') && values.dueDate) {
-        dueDate = values.dueDate.format('YYYY-MM-DD');
-      }
-
-      // Create new task
-      const newTask: PlanTask = {
-        id: `custom-${Date.now()}`,
-        task: values.task,
-        progress: 'To Do',
-        isActive: true,
-        notes: '',
-        frequency: values.frequency,
-        dueDate,
-        completedDate: null,
-        current: values.defaultCurrent || 0,
-        goal: values.requiresGoal ? (values.defaultGoal || 0) : 0,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || ''
-      };
-
-      // Get current plan
       const planRef = doc(db, 'plans', selectedCustomer.id);
       const planDoc = await getDoc(planRef);
       
-      if (!planDoc.exists()) {
-        throw new Error('Plan not found');
-      }
+      if (planDoc.exists()) {
+        const plan = planDoc.data() as Plan;
+        const newTask: PlanTask = {
+          id: Date.now().toString(),
+          task: values.task,
+          frequency: values.frequency,
+          progress: 'To Do',
+          dueDate: values.frequency === 'Monthly' && values.dueDate 
+            ? calculateMonthlyDueDate(values.dueDate.date())
+            : values.dueDate ? values.dueDate.format('YYYY-MM-DD') 
+            : null,
+          completedDate: null,
+          isActive: true,
+          notes: values.notes || '',
+          current: 0,
+          goal: 0,
+          files: uploadedFiles,
+          createdBy: (user as IAdmin)?.name || user?.email || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updatedBy: (user as IAdmin)?.name || user?.email || ''
+        };
 
-      // Find or create Other Tasks section
-      const updatedSections = [...sections];
-      const sectionIndex = updatedSections.findIndex(s => s.title === 'Other Tasks');
-      
-      if (sectionIndex === -1) {
-        // Create Other Tasks section if it doesn't exist
-        updatedSections.push({
-          title: 'Other Tasks',
-          tasks: [newTask]
+        // Add to Other Tasks section
+        const updatedSections = plan.sections.map(section => 
+          section.title === 'Other Tasks'
+            ? { ...section, tasks: [...section.tasks, newTask] }
+            : section
+        );
+
+        // If Other Tasks section doesn't exist, create it
+        if (!plan.sections.some(section => section.title === 'Other Tasks')) {
+          updatedSections.push({
+            title: 'Other Tasks',
+            tasks: [newTask]
+          });
+        }
+
+        // Save to Firestore
+        await updateDoc(planRef, { 
+          sections: updatedSections,
+          updatedAt: new Date().toISOString()
         });
-      } else {
-        // Add to existing Other Tasks section
-        updatedSections[sectionIndex].tasks.push(newTask);
+
+        // Update local state immediately
+        setSections(updatedSections);
+        
+        // Update plans state if in all view
+        if (plans.type === 'all') {
+          setPlans(prev => ({
+            ...prev,
+            data: {
+              ...prev.data,
+              [selectedCustomer.id]: {
+                ...prev.data[selectedCustomer.id],
+                sections: updatedSections
+              }
+            }
+          }));
+        }
+
+        // Reset form and close modal
+        customTaskForm.resetFields();
+        setUploadedFiles([]);
+        setNewCustomTaskModal(false);
+
+        message.success('Task added successfully');
       }
-
-      // Update Firestore
-      await updateDoc(planRef, {
-        sections: updatedSections,
-        updatedAt: new Date().toISOString()
-      });
-
-      // Update local state
-      setSections(updatedSections);
-
-      message.success('Custom task added successfully');
-      setNewCustomTaskModal(false);
-      customTaskForm.resetFields();
-
     } catch (error) {
       console.error('Error adding custom task:', error);
       message.error('Failed to add custom task');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Add file upload handler
+  const handleFileUpload = async (file: File) => {
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `customTask/${selectedCustomer?.id}/${Date.now()}_${file.name}`);
+      
+      // Check file size
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        message.error('File size must be less than 10MB');
+        return false;
+      }
+
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      setUploadedFiles(prev => [...prev, {
+        name: file.name,
+        url,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      }]);
+
+      return false; // Prevent default upload behavior
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      message.error('Failed to upload file');
+      return false;
+    }
+  };
+
+  // Add this helper function
+  const calculateMonthlyDueDate = (dayOfMonth: number) => {
+    const today = dayjs();
+    const dueDate = dayjs().date(dayOfMonth);
+    
+    // If the due date for this month has passed, use next month
+    if (dueDate.isBefore(today)) {
+      return dueDate.add(1, 'month').format('YYYY-MM-DD');
+    }
+    
+    return dueDate.format('YYYY-MM-DD');
   };
 
   if (!isAdmin) {
@@ -1582,24 +1684,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         onCancel={() => {
           setNewCustomTaskModal(false);
           customTaskForm.resetFields();
+          setUploadedFiles([]);
         }}
       >
-        <Form
-          form={customTaskForm}
-          layout="vertical"
-          onFinish={handleCustomTaskSave}
-          initialValues={{
-            isActive: true,
-            frequency: 'One Time',
-            requiresGoal: false,
-            section: 'Other Tasks'
-          }}
-        >
-          <Form.Item
-            name="task"
-            label="Task Name"
-            rules={[{ required: true, message: 'Please enter task name' }]}
-          >
+        <Form form={customTaskForm} onFinish={handleCustomTaskSave} layout="vertical">
+          <Form.Item name="task" label="Task Name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
 
@@ -1608,19 +1697,12 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             label="Section"
             initialValue="Other Tasks"
           >
-            <Select 
-              disabled 
-              value="Other Tasks"
-            >
+            <Select disabled value="Other Tasks">
               <Option value="Other Tasks">Other Tasks</Option>
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="frequency"
-            label="Frequency"
-            rules={[{ required: true, message: 'Please select frequency' }]}
-          >
+          <Form.Item name="frequency" label="Frequency" rules={[{ required: true }]}>
             <Select>
               <Option value="One Time">One Time</Option>
               <Option value="Monthly">Monthly</Option>
@@ -1636,79 +1718,90 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           >
             {({ getFieldValue }) => {
               const frequency = getFieldValue('frequency');
-              if (frequency === 'Monthly') {
-                return (
-                  <Form.Item
-                    name="monthlyDueDate"
-                    label="Monthly Due Date"
-                    rules={[{ required: true, message: 'Please select monthly due date' }]}
-                  >
-                    <Select>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                        <Option key={day} value={day}>Day {day}</Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                );
-              }
-              if (frequency === 'One Time' || frequency === 'As Needed') {
-                return (
-                  <Form.Item
-                    name="dueDate"
-                    label="Due Date"
-                    rules={[{ required: true, message: 'Please select a due date' }]}
-                  >
-                    <DatePicker 
-                      style={{ width: '100%' }}
-                      disabledDate={(current) => current && current < dayjs().startOf('day')}
-                    />
-                  </Form.Item>
-                );
-              }
-              return null;
+              return (
+                <>
+                  {frequency === 'Monthly' && (
+                    <Form.Item name="monthlyDueDate" label="Monthly Due Date">
+                      <Select>
+                        {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                          <Option key={day} value={day}>Day {day}</Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  )}
+                  {(frequency === 'Monthly' || frequency === 'As Needed') && (
+                    <>
+                      <Form.Item name="requiresGoal" valuePropName="checked">
+                        <Checkbox>Requires Goal</Checkbox>
+                      </Form.Item>
+                      <Form.Item
+                        noStyle
+                        shouldUpdate={(prevValues, currentValues) => 
+                          prevValues.requiresGoal !== currentValues.requiresGoal
+                        }
+                      >
+                        {({ getFieldValue }) => 
+                          getFieldValue('requiresGoal') ? (
+                            <Space>
+                              <Form.Item name="current" label="Current" initialValue={0}>
+                                <InputNumber min={0} />
+                              </Form.Item>
+                              <Form.Item name="goal" label="Goal" rules={[{ required: true }]}>
+                                <InputNumber min={0} />
+                              </Form.Item>
+                            </Space>
+                          ) : null
+                        }
+                      </Form.Item>
+                    </>
+                  )}
+                  {frequency !== 'Monthly' && (
+                    <Form.Item name="dueDate" label="Due Date">
+                      <DatePicker style={{ width: '100%' }} />
+                    </Form.Item>
+                  )}
+                </>
+              );
             }}
           </Form.Item>
 
-          <Form.Item
-            label="Requires Goal"
-            name="requiresGoal"
-            valuePropName="checked"
-          >
-            <Switch />
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={4} />
           </Form.Item>
 
-          <Form.Item
-            noStyle
-            shouldUpdate={(prevValues, currentValues) => 
-              prevValues.requiresGoal !== currentValues.requiresGoal
-            }
-          >
-            {({ getFieldValue }) => 
-              getFieldValue('requiresGoal') ? (
-                <>
-                  <Form.Item
-                    label="Default Goal"
-                    name="defaultGoal"
-                    rules={[
-                      {
-                        required: getFieldValue('frequency') === 'Monthly',
-                        message: 'Please input the default goal',
-                      }
-                    ]}
-                  >
-                    <InputNumber min={0} />
-                  </Form.Item>
-                  <Form.Item
-                    name="defaultCurrent"
-                    label="Default Current"
-                    initialValue={0}
-                  >
-                    <InputNumber min={0} />
-                  </Form.Item>
-                </>
-              ) : null
-            }
+          {/* Add file upload section */}
+          <Form.Item label="Attachments">
+            <Upload
+              beforeUpload={handleFileUpload}
+              fileList={uploadedFiles.map(file => ({
+                uid: file.url,
+                name: file.name,
+                status: 'done',
+                url: file.url,
+              }))}
+              onRemove={(file) => {
+                setUploadedFiles(prev => 
+                  prev.filter(f => f.url !== file.uid)
+                );
+                return true;
+              }}
+            >
+              <Button icon={<UploadOutlined />}>Upload File</Button>
+            </Upload>
+            <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+              Max file size: 10MB
+            </Text>
           </Form.Item>
+
+          {/* Add creator info display */}
+          <Space direction="vertical" style={{ width: '100%', marginTop: 16 }}>
+            <Text type="secondary">
+              Created by: {(user as IAdmin)?.name || user?.email}
+            </Text>
+            <Text type="secondary">
+              Date: {dayjs().format('MMM DD, YYYY')}
+            </Text>
+          </Space>
         </Form>
       </Modal>
     </Layout>
