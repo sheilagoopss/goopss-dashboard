@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
 import { useAuth } from "../contexts/AuthContext";
@@ -33,16 +33,37 @@ import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
 import ActivityLog from "components/customers/ActivityLog";
+import ReactGA from 'react-ga4';
 
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
+  const location = useLocation();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize GA once when component mounts
+  useEffect(() => {
+    if (!isAdmin && user && process.env.REACT_APP_GA_MEASUREMENT_ID) {
+      ReactGA.initialize(process.env.REACT_APP_GA_MEASUREMENT_ID);
+    }
+  }, [isAdmin, user]);
+
+  // Track page views when route changes
+  useEffect(() => {
+    if (!isAdmin && user) {
+      ReactGA.send({ 
+        hitType: "pageview", 
+        page: location.pathname,
+        userId: user.id,
+        userType: userType
+      });
+    }
+  }, [location, isAdmin, user, userType]);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
