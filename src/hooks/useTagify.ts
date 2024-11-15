@@ -18,7 +18,7 @@ export const useGenerateTags = () => {
           formData.append("files", image);
         });
         formData.append("description", description);
-        
+
         const response = await HttpHelper.post(endpoints.tagify.generateTags, {
           data: formData,
           headers: {
@@ -36,8 +36,36 @@ export const useGenerateTags = () => {
     [],
   );
 
+  const generateTagsBase64 = useCallback(
+    async (
+      images: string[],
+      description: string,
+    ): Promise<IServiceReturn | null> => {
+      setIsGeneratingTags(true);
+      try {
+        const response = await HttpHelper.post(
+          endpoints.tagify.generateTagsBase64,
+          {
+            data: {
+              files: images,
+              description,
+            },
+          },
+        );
+        return response?.data;
+      } catch (error) {
+        console.error("Error downloading image:", error);
+        return null;
+      } finally {
+        setIsGeneratingTags(false);
+      }
+    },
+    [],
+  );
+
   return {
     generateTags,
+    generateTagsBase64,
     isGeneratingTags,
   };
 };
