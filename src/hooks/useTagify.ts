@@ -27,7 +27,7 @@ export const useGenerateTags = () => {
         });
         return response?.data;
       } catch (error) {
-        console.error("Error downloading image:", error);
+        console.error("Error generating tags:", error);
         return null;
       } finally {
         setIsGeneratingTags(false);
@@ -54,7 +54,7 @@ export const useGenerateTags = () => {
         );
         return response?.data;
       } catch (error) {
-        console.error("Error downloading image:", error);
+        console.error("Error generating tags:", error);
         return null;
       } finally {
         setIsGeneratingTags(false);

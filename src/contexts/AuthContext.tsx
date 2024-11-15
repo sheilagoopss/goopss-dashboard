@@ -29,6 +29,7 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import dayjs from "dayjs";
 import { serverTimestamp, Timestamp } from "firebase/firestore";
 import { IUserActivity } from "types/UserActivityLog";
+import { useSubscribeCustomer } from "hooks/useKlaviyo";
 
 interface AuthContextType {
   user: ICustomer | IAdmin | null | undefined;
@@ -67,6 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState<ICustomer | null>(null);
+  const { subscribeCustomer } = useSubscribeCustomer();
 
   const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
@@ -124,6 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         );
         if (customer) {
           await userActivityLog(customer);
+          await subscribeCustomer(customer.email, customer.store_owner_name);
           setUser(customer);
           setCustomerData(customer);
           setIsAdmin(false);
