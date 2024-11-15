@@ -27,4 +27,7 @@ export const endpoints = {
   social: {
     schedulePost: `${API_URL}/api/v1/facebook/schedulePost`,
   },
+  klaviyo: {
+    subscribeCustomer: `${API_URL}/api/v1/klaviyo/subscribe-customer`,
+  },
 };
