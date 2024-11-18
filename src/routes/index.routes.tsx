@@ -35,35 +35,61 @@ import ROASCalculator from "../components/ROASCalculator";
 import ActivityLog from "components/customers/ActivityLog";
 import ReactGA from 'react-ga4';
 
-
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
   const location = useLocation();
-  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
-    null,
-  );
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Move trackUserEvent inside the component
+  const trackUserEvent = (eventName: string, eventData: any) => {
+    if (!isAdmin && user) {
+      const customerData = customers.find((c: ICustomer) => c.customer_id === user.id);
+      ReactGA.event({
+        category: 'User Activity',
+        action: eventName,
+        label: customerData?.store_name || 'unknown store',
+        ...eventData
+      });
+    }
+  };
+
+  // Make it available to child components
+  useEffect(() => {
+    // @ts-ignore
+    window.trackUserEvent = trackUserEvent;
+  }, [isAdmin, user, customers]);
+
   // Initialize GA once when component mounts
   useEffect(() => {
-    if (!isAdmin && user && process.env.REACT_APP_GA_MEASUREMENT_ID) {
+    if (user && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
+      console.log('Initializing GA for non-admin user:', {
+        userId: user.id,
+        userType: userType,
+        isAdmin: isAdmin
+      });
       ReactGA.initialize(process.env.REACT_APP_GA_MEASUREMENT_ID);
     }
-  }, [isAdmin, user]);
+  }, [isAdmin, user, userType]);
 
   // Track page views when route changes
   useEffect(() => {
-    if (!isAdmin && user) {
+    if (user && !isAdmin) {
+      const customerData = customers.find(c => c.customer_id === user.id);
+      console.log('Tracking pageview for non-admin user:', {
+        page: location.pathname,
+        store: customerData?.store_name
+      });
       ReactGA.send({ 
         hitType: "pageview", 
         page: location.pathname,
-        userId: user.id,
+        store_name: customerData?.store_name || 'unknown store',
         userType: userType
       });
     }
-  }, [location, isAdmin, user, userType]);
+  }, [location, isAdmin, user, userType, customers]);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
