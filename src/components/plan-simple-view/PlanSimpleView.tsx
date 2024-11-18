@@ -3,20 +3,21 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
-  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
-  UserOutlined, WarningOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined
+  UserOutlined, WarningOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined, UploadOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { PlanSection, PlanTask } from '../../types/Plan'
-import { ICustomer } from '../../types/Customer'
+import { ICustomer, IAdmin } from '../../types/Customer'
 import { doc, getDoc, updateDoc, collection, getDocs, setDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import type { Plan } from '../../types/Plan'
 import { useAuth } from '../../contexts/AuthContext';
 import { PlanTaskRule } from '../../types/PlanTasks';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -52,6 +53,10 @@ interface TableRecord {
   id: string;  // Task ID
   updatedAt: string;
   updatedBy: string;
+  // Add new fields for custom tasks
+  files?: TaskFile[];
+  createdBy?: string;
+  createdAt?: string;
 }
 
 const pastelColors = {
@@ -136,6 +141,13 @@ const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
       .format('YYYY-MM-DD');
   }
 };
+
+interface TaskFile {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+}
 
 export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { user } = useAuth();
@@ -627,6 +639,48 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         />
       ),
     },
+    {
+      title: 'Files',
+      key: 'files',
+      render: (_: any, record: TableRecord) => {
+        // Only show for Other Tasks section
+        if (record.section === 'Other Tasks' && record.files && record.files.length > 0) {
+          return (
+            <Space direction="vertical">
+              {record.files.map((file: TaskFile, index: number) => (
+                <a 
+                  key={index} 
+                  href={file.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  {file.name}
+                </a>
+              ))}
+            </Space>
+          );
+        }
+        return null;
+      }
+    },
+    {
+      title: 'Created By',
+      key: 'createdBy',
+      render: (_: any, record: TableRecord) => {
+        // Only show for Other Tasks section
+        if (record.section === 'Other Tasks' && record.createdBy) {
+          return (
+            <Space direction="vertical" size={0}>
+              <Text>{record.createdBy}</Text>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {dayjs(record.createdAt).format('MMM DD, YYYY')}
+              </Text>
+            </Space>
+          );
+        }
+        return null;
+      }
+    }
   ]
 
   const data = useMemo(() => {
@@ -782,6 +836,119 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         // Create new plan based on package type
         await createPlanForCustomer(customer);
       }
+    }
+  };
+
+  const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
+
+  // Add file upload handler
+  const handleFileUpload = async (file: File) => {
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `customTask/${selectedCustomer?.id}/${Date.now()}_${file.name}`);
+      
+      if (file.size > 10 * 1024 * 1024) {
+        message.error('File size must be less than 10MB');
+        return false;
+      }
+
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      setUploadedFiles(prev => [...prev, {
+        name: file.name,
+        url,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      }]);
+
+      return false;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      message.error('Failed to upload file');
+      return false;
+    }
+  };
+
+  // Add this function to handle custom task saving
+  const handleCustomTaskSave = async (values: any) => {
+    if (!selectedCustomer) return;
+    try {
+      setIsLoading(true);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (planDoc.exists()) {
+        const plan = planDoc.data() as Plan;
+        const newTask: PlanTask = {
+          id: Date.now().toString(),
+          task: values.task,
+          frequency: values.frequency,
+          progress: 'To Do',
+          dueDate: values.frequency === 'Monthly' && values.dueDate 
+            ? calculateMonthlyDueDate(values.dueDate.date())
+            : values.dueDate ? values.dueDate.format('YYYY-MM-DD') 
+            : null,
+          completedDate: null,
+          isActive: true,
+          notes: values.notes || '',
+          current: values.current || 0,
+          goal: values.goal || 0,
+          // Add new fields for custom tasks
+          files: uploadedFiles,
+          createdBy: (user as IAdmin)?.name || user?.email || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updatedBy: (user as IAdmin)?.name || user?.email || ''
+        };
+
+        // Add to Other Tasks section
+        const updatedSections = plan.sections.map(section => 
+          section.title === 'Other Tasks'
+            ? { ...section, tasks: [...section.tasks, newTask] }
+            : section
+        );
+
+        // If Other Tasks section doesn't exist, create it
+        if (!plan.sections.some(section => section.title === 'Other Tasks')) {
+          updatedSections.push({
+            title: 'Other Tasks',
+            tasks: [newTask]
+          });
+        }
+
+        // Save to Firestore
+        await updateDoc(planRef, { 
+          sections: updatedSections,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Update local state immediately
+        if (plans.type === 'all') {
+          setPlans(prev => ({
+            ...prev,
+            data: {
+              ...prev.data,
+              [selectedCustomer.id]: {
+                ...prev.data[selectedCustomer.id],
+                sections: updatedSections
+              }
+            }
+          }));
+        }
+
+        // Reset form and close modal
+        addTaskForm.resetFields();
+        setUploadedFiles([]);
+        setAddTaskModalVisible(false);
+
+        message.success('Task added successfully');
+      }
+    } catch (error) {
+      console.error('Error adding custom task:', error);
+      message.error('Failed to add custom task');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -998,9 +1165,13 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           title="Add Custom Task"
           open={addTaskModalVisible}
           onOk={addTaskForm.submit}
-          onCancel={() => setAddTaskModalVisible(false)}
+          onCancel={() => {
+            setAddTaskModalVisible(false);
+            addTaskForm.resetFields();
+            setUploadedFiles([]);
+          }}
         >
-          <Form form={addTaskForm} onFinish={handleAddTaskSave} layout="vertical">
+          <Form form={addTaskForm} onFinish={handleCustomTaskSave} layout="vertical">
             <Form.Item name="task" label="Task Name" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
@@ -1023,13 +1194,98 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               </Select>
             </Form.Item>
 
-            <Form.Item name="dueDate" label="Due Date">
-              <DatePicker style={{ width: '100%' }} />
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => 
+                prevValues.frequency !== currentValues.frequency
+              }
+            >
+              {({ getFieldValue }) => {
+                const frequency = getFieldValue('frequency');
+                return (
+                  <>
+                    {frequency === 'Monthly' && (
+                      <Form.Item name="monthlyDueDate" label="Monthly Due Date">
+                        <Select>
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                            <Option key={day} value={day}>Day {day}</Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    )}
+                    {(frequency === 'Monthly' || frequency === 'As Needed') && (
+                      <>
+                        <Form.Item name="requiresGoal" valuePropName="checked">
+                          <Checkbox>Requires Goal</Checkbox>
+                        </Form.Item>
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prevValues, currentValues) => 
+                            prevValues.requiresGoal !== currentValues.requiresGoal
+                          }
+                        >
+                          {({ getFieldValue }) => 
+                            getFieldValue('requiresGoal') ? (
+                              <Space>
+                                <Form.Item name="current" label="Current" initialValue={0}>
+                                  <InputNumber min={0} />
+                                </Form.Item>
+                                <Form.Item name="goal" label="Goal" rules={[{ required: true }]}>
+                                  <InputNumber min={0} />
+                                </Form.Item>
+                              </Space>
+                            ) : null
+                          }
+                        </Form.Item>
+                      </>
+                    )}
+                    {frequency !== 'Monthly' && (
+                      <Form.Item name="dueDate" label="Due Date">
+                        <DatePicker style={{ width: '100%' }} />
+                      </Form.Item>
+                    )}
+                  </>
+                );
+              }}
             </Form.Item>
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} />
             </Form.Item>
+
+            {/* Add file upload section */}
+            <Form.Item label="Attachments">
+              <Upload
+                beforeUpload={handleFileUpload}
+                fileList={uploadedFiles.map(file => ({
+                  uid: file.url,
+                  name: file.name,
+                  status: 'done',
+                  url: file.url,
+                }))}
+                onRemove={(file) => {
+                  setUploadedFiles(prev => 
+                    prev.filter(f => f.url !== file.uid)
+                  );
+                  return true;
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Upload File</Button>
+              </Upload>
+              <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                Max file size: 10MB
+              </Text>
+            </Form.Item>
+
+            {/* Add creator info display */}
+            <Space direction="vertical" style={{ width: '100%', marginTop: 16 }}>
+              <Text type="secondary">
+                Created by: {(user as IAdmin)?.name || user?.email}
+              </Text>
+              <Text type="secondary">
+                Date: {dayjs().format('MMM DD, YYYY')}
+              </Text>
+            </Space>
           </Form>
         </Modal>
 
