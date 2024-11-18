@@ -60,9 +60,11 @@ export interface ICustomer {
 
 export interface IAdmin {
   id: string;
-  name?: string;
   email: string;
+  name: string;
   isAdmin: boolean;
+  avatarUrl?: string;
+  canBeAssignedToTasks?: boolean;
 }
 
 export const packageTypes = {
