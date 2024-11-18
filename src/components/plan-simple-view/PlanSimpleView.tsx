@@ -494,6 +494,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                     ...(values.current !== undefined && { current: values.current }),
                     ...(values.goal !== undefined && { goal: values.goal })
                   }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
                   updatedAt: new Date().toISOString(),
                   updatedBy: 'admin'
                 };
@@ -1419,6 +1420,24 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} allowClear />
+            </Form.Item>
+
+            {/* Add team member selection */}
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+                allowClear
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
 
             <Alert
