@@ -1,5 +1,5 @@
 import { CloseCircleFilled } from "@ant-design/icons";
-import { Button, Card, Col, Image, Pagination, Row, Spin, Table } from "antd";
+import { Button, Card, Col, Image, Row, Spin, Table } from "antd";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useAuth } from "contexts/AuthContext";
 import { useState } from "react";
@@ -23,6 +23,9 @@ interface ListingsTableProps {
     data: string[],
   ) => Promise<boolean>;
   isUploading?: boolean;
+  handleMarkAsUploadedToEtsy?: (id: string) => Promise<boolean>;
+  handleMarkAsNotUploadedToEtsy?: (id: string) => Promise<boolean>;
+  isUpdatingStatus?: boolean;
 }
 
 const ListingsTable = ({
@@ -37,13 +40,18 @@ const ListingsTable = ({
   handleApprove,
   handleSupersede,
   handleUploadListingImages,
+  handleMarkAsUploadedToEtsy,
+  handleMarkAsNotUploadedToEtsy,
+  isUpdatingStatus,
 }: ListingsTableProps) => {
   const { isAdmin } = useAuth();
   const { downloadMultipleImages, isDownloading } = useDownloadImage();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [newListingImages, setNewListingImages] = useState<string[]>([]);
+  const [newListingImages, setNewListingImages] = useState<
+    Record<string, string[]>
+  >({});
 
   const handleDownload = async (listingImages: ListingImage[]) => {
     try {
@@ -91,11 +99,7 @@ const ListingsTable = ({
       dataIndex: "listingTitle",
       sorter: (a, b) => a.listingTitle.localeCompare(b.listingTitle),
       render: (text: string, record: Listing) => (
-        <a 
-          href={record.etsyLink} 
-          target="_blank" 
-          rel="noopener noreferrer"
-        >
+        <a href={record.etsyLink} target="_blank" rel="noopener noreferrer">
           {text}
         </a>
       ),
@@ -111,7 +115,6 @@ const ListingsTable = ({
       sorter: (a, b) => (a.totalImages || 0) - (b.totalImages || 0),
     },
   ];
-
   const expandedRowRender = (
     listing: Listing & { uploadedImages: number; totalImages: number },
   ) => {
@@ -150,7 +153,15 @@ const ListingsTable = ({
             handleUpload={(data) => {
               const newImage = (data as string[])?.at(0);
               if (newImage) {
-                setNewListingImages([...newListingImages, newImage]);
+                setNewListingImages({
+                  ...newListingImages,
+                  [listing.listingID]: [
+                    ...(Array.isArray(newListingImages[listing.listingID])
+                      ? newListingImages[listing.listingID]
+                      : []),
+                    newImage,
+                  ],
+                });
               }
             }}
           />
@@ -168,75 +179,88 @@ const ListingsTable = ({
                 handleSelect={handleSelect}
                 handleApprove={handleApprove}
                 handleSupersede={handleSupersede}
+                handleMarkAsUploadedToEtsy={handleMarkAsUploadedToEtsy}
+                handleMarkAsNotUploadedToEtsy={handleMarkAsNotUploadedToEtsy}
                 refetch={refresh}
               />
             </Col>
           ))}
-        {newListingImages.map((newImage) => (
-          <Col span={6} key={Math.random() * 999}>
-            <Card
-              style={{
-                position: "relative",
-                borderRadius: "5px",
-                overflow: "hidden",
-              }}
-              title={
-                <Button
-                  type="text"
-                  icon={<CloseCircleFilled />}
-                  onClick={() => {
-                    setNewListingImages(
-                      newListingImages.filter((image) => image !== newImage),
-                    );
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    zIndex: 1,
-                    color: "red",
-                  }}
+        {Object.entries(newListingImages[listing.listingID] || []).map(
+          ([_, newImage]) => (
+            <Col span={6} key={Math.random() * 999}>
+              <Card
+                style={{
+                  position: "relative",
+                  borderRadius: "5px",
+                  overflow: "hidden",
+                }}
+                title={
+                  <Button
+                    type="text"
+                    icon={<CloseCircleFilled />}
+                    onClick={() => {
+                      const newListingImagesCopy = {
+                        ...newListingImages,
+                        [listing.listingID]: newListingImages[
+                          listing.listingID
+                        ].filter((image) => image !== newImage),
+                      };
+                      setNewListingImages(newListingImagesCopy);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 1,
+                      color: "red",
+                    }}
+                  />
+                }
+              >
+                <Image
+                  src={newImage}
+                  alt="New Listing"
+                  style={{ width: "100%", minHeight: "200px" }}
                 />
-              }
-            >
-              <Image
-                src={newImage}
-                alt="New Listing"
-                style={{ width: "100%", minHeight: "200px" }}
-              />
-            </Card>
-          </Col>
-        ))}
-        {listingImages.filter((v) => v.listing_id === listing.listingID)
-          .length === 0 && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              width: "100%",
-            }}
-          >
-            <Card>No Listing Image with this status</Card>
-          </div>
+              </Card>
+            </Col>
+          ),
         )}
-        <Col span={24} style={{ display: "flex", justifyContent: "flex-end" }}>
-          {handleUploadListingImages && newListingImages.length > 0 && (
-            <Button
-              type="primary"
-              loading={isUploading}
-              onClick={() =>
-                handleUploadListingImages(listing, newListingImages).then(
-                  (resp) => {
-                    if (resp) {
-                      setNewListingImages([]);
-                    }
-                  },
-                )
-              }
+        {listingImages.filter((v) => v.listing_id === listing.listingID)
+          .length === 0 &&
+          Object.entries(newListingImages[listing.listingID] || []).length ===
+            0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                width: "100%",
+              }}
             >
-              Save Image Uploads
-            </Button>
+              <Card>No Listing Image with this status</Card>
+            </div>
           )}
+        <Col span={24} style={{ display: "flex", justifyContent: "flex-end" }}>
+          {handleUploadListingImages &&
+            Object.entries(newListingImages[listing.listingID] || []).length >
+              0 && (
+              <Button
+                type="primary"
+                loading={isUploading}
+                onClick={() =>
+                  handleUploadListingImages(
+                    listing,
+                    newListingImages[listing.listingID],
+                  ).then((resp) => {
+                    if (resp) {
+                      setNewListingImages({});
+                    }
+                  })
+                }
+              >
+                Save Image Uploads
+              </Button>
+            )}
         </Col>
       </Row>
     );

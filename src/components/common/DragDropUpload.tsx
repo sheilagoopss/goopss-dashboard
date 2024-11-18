@@ -58,8 +58,8 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
             handleUpload(base64Strings);
             setFileList([])
           })
-          .catch(() => {
-            console.error("Failed to convert some files to base64.");
+          .catch((error) => {
+            console.error("Failed to convert some files to base64.", error);
           });
       }
 

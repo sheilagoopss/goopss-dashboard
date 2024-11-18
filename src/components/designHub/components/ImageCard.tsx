@@ -14,6 +14,7 @@ import {
   Tag,
   Button,
   Modal,
+  Popconfirm,
 } from "antd";
 import { Listing, ListingImage } from "types/Listing";
 import { STATUS_COLORS } from "../constants/statusColors";
@@ -32,6 +33,8 @@ interface ImageCardProps {
   handleSelect?: (id: ListingImage, isSelected: boolean) => void;
   handleApprove?: (id: string) => void;
   handleSupersede?: (id: string) => void;
+  handleMarkAsUploadedToEtsy?: (id: string) => Promise<boolean>;
+  handleMarkAsNotUploadedToEtsy?: (id: string) => Promise<boolean>;
   refetch: () => void;
 }
 
@@ -43,6 +46,8 @@ const ImageCard = ({
   handleSelect,
   handleApprove,
   handleSupersede,
+  handleMarkAsUploadedToEtsy,
+  handleMarkAsNotUploadedToEtsy,
   refetch,
 }: ImageCardProps) => {
   const { isAdmin } = useAuth();
@@ -83,7 +88,7 @@ const ImageCard = ({
     <>
       <Card
         actions={[
-          ...(handleApprove && handleSupersede
+          ...(handleApprove
             ? [
                 <Button
                   icon={
@@ -100,22 +105,27 @@ const ImageCard = ({
                   shape="circle"
                   size="large"
                   key="approve"
+                  title="Approve"
                   style={{ border: "none" }}
                   disabled={["approved", "revision"].includes(
                     listingImage?.status,
                   )}
                   onClick={() => handleApprove(listingImage?.id)}
                 />,
+              ]
+            : []),
+
+          ...(isAdmin && handleSupersede
+            ? [
                 <Button
                   icon={<CloseCircleFilled />}
+                  title="Supersede"
                   danger
                   shape="circle"
                   size="large"
                   key="supersede"
                   style={{ border: "none" }}
-                  disabled={["approved", "revision"].includes(
-                    listingImage?.status,
-                  )}
+                  disabled={["superseded"].includes(listingImage?.status)}
                   onClick={() => handleSupersede(listingImage?.id)}
                 />,
               ]
@@ -125,6 +135,7 @@ const ImageCard = ({
             shape="circle"
             size="large"
             key="download"
+            title="Download"
             style={{ border: "none" }}
             onClick={handleDownload}
             loading={isDownloading}
@@ -166,10 +177,21 @@ const ImageCard = ({
               alt={listing.listingTitle}
             />
             <Typography.Text type="secondary">
+              <Typography.Text strong>Uploaded at: </Typography.Text>
               {listingImage.date
                 ? dayjs(listingImage.date).format("MMM DD, YYYY HH:mm")
                 : ""}
             </Typography.Text>
+            {listingImage.uploadedToEtsy && (
+              <Typography.Text type="secondary">
+                <Typography.Text strong>Uploaded to Etsy at: </Typography.Text>
+                {listingImage.uploadedToEtsyAt
+                  ? dayjs(listingImage.uploadedToEtsyAt).format(
+                      "MMM DD, YYYY HH:mm",
+                    )
+                  : ""}
+              </Typography.Text>
+            )}
             <Tag
               color={STATUS_COLORS[listingImage.status]}
               style={{ width: "fit-content" }}
@@ -180,6 +202,30 @@ const ImageCard = ({
               <Button onClick={() => setPreviewImage(listingImage)}>
                 Revision Note
               </Button>
+            )}
+            {isAdmin && (
+              <Popconfirm
+                title={
+                  listingImage.uploadedToEtsy
+                    ? "Are you sure you want to mark this as not uploaded to Etsy?"
+                    : "Are you sure you want to mark this as uploaded to Etsy?"
+                }
+                onConfirm={() => {
+                  if (listingImage.uploadedToEtsy) {
+                    handleMarkAsNotUploadedToEtsy &&
+                      handleMarkAsNotUploadedToEtsy(listingImage.id);
+                  } else {
+                    handleMarkAsUploadedToEtsy &&
+                      handleMarkAsUploadedToEtsy(listingImage.id);
+                  }
+                }}
+                okText="Yes"
+                cancelText="No"
+              >
+                <Checkbox checked={listingImage.uploadedToEtsy}>
+                  Uploaded to Etsy
+                </Checkbox>
+              </Popconfirm>
             )}
           </div>
         </Row>
