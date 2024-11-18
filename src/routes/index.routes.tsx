@@ -34,6 +34,7 @@ import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
 import ActivityLog from "components/customers/ActivityLog";
 import ReactGA from 'react-ga4';
+import DescriptionHero from "components/descriptionHero/DescriptionHero";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -370,6 +371,7 @@ export default function AppRoutes() {
                 )
               }
             />
+            <Route path="description-hero" element={<DescriptionHero />} />
             <Route
               path="social"
               element={userType === "Free" ? <UpgradeNotice /> : <Social />}

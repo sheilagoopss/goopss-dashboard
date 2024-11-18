@@ -30,6 +30,7 @@ export interface ICustomer {
   facebook?: ISocialMedia;
   instagram?: ISocialMedia;
   pinterest?: ISocialMedia;
+  banner?: string;
 
   // Store information and social form
   website?: string;
