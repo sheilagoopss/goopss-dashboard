@@ -63,9 +63,37 @@ export const useGenerateTags = () => {
     [],
   );
 
+  const generateDescription = useCallback(
+    async (
+      image: string,
+      description: string,
+    ): Promise<IServiceReturn | null> => {
+      setIsGeneratingTags(true);
+      try {
+        const response = await HttpHelper.post(
+          endpoints.tagify.generateDescription,
+          {
+            data: {
+              image,
+              description,
+            },
+          },
+        );
+        return response?.data;
+      } catch (error) {
+        console.error("Error generating description:", error);
+        return null;
+      } finally {
+        setIsGeneratingTags(false);
+      }
+    },
+    [],
+  );
+
   return {
     generateTags,
     generateTagsBase64,
+    generateDescription,
     isGeneratingTags,
   };
 };

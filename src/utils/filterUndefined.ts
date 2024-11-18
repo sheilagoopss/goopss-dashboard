@@ -4,7 +4,7 @@ export function filterUndefined(
   const filteredObj: Record<string, unknown> = {};
 
   Object.entries(obj).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
+    if (value !== undefined && value !== null) {
       if (typeof value === "object" && !Array.isArray(value)) {
         const nestedObj = filterUndefined(value as Record<string, unknown>);
         if (Object.keys(nestedObj).length > 0) {

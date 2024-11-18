@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Alert, Col, Row, Spin, Tabs, Typography } from "antd";
 import CustomersDropdown from "components/CustomersDropdown";
-import { useCustomerFetchAll } from "hooks/useCustomer";
+import { useCustomerFetch, useCustomerFetchAll } from "hooks/useCustomer";
 import { useEffect, useState } from "react";
 import { ICustomer } from "types/Customer";
 import UploadListingImage from "./Tabs/UploadListingImage";
@@ -14,9 +14,17 @@ const DesignHubAdmin = () => {
     null,
   );
 
+  const { fetchCustomer, isLoading: isFetchingCustomer } = useCustomerFetch();
+
   useEffect(() => {
     fetchAllCustomers().then((customers) => setCustomers(customers));
   }, [fetchAllCustomers]);
+
+  const refetchCustomer = async () => {
+    if (!selectedCustomer) return;
+    const customer = await fetchCustomer(selectedCustomer.id);
+    if (customer) setSelectedCustomer(customer);
+  };
 
   return isLoading ? (
     <div
@@ -51,6 +59,7 @@ const DesignHubAdmin = () => {
       {selectedCustomer ? (
         <Tabs
           defaultActiveKey="1"
+          style={{ width: "100%" }}
           items={[
             {
               label: "Upload Listing Image",
@@ -62,7 +71,13 @@ const DesignHubAdmin = () => {
             {
               label: "Upload Banner",
               key: "2",
-              children: <UploadBanner selectedCustomer={selectedCustomer} />,
+              children: (
+                <UploadBanner
+                  selectedCustomer={selectedCustomer}
+                  refetch={refetchCustomer}
+                  isFetchingCustomer={isFetchingCustomer}
+                />
+              ),
             },
           ]}
         />

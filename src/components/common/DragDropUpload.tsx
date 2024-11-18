@@ -10,6 +10,7 @@ interface DragDropUploadProp {
   multiple?: boolean;
   rawFile?: boolean;
   placeholder?: string;
+  width?: string;
 }
 
 const DragDropUpload: React.FC<DragDropUploadProp> = ({
@@ -17,6 +18,7 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
   multiple = false,
   rawFile = false,
   placeholder = "Click or drag file to this area to upload",
+  width = "100%",
 }) => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
@@ -77,7 +79,7 @@ const DragDropUpload: React.FC<DragDropUploadProp> = ({
   };
 
   return (
-    <Dragger {...props}>
+    <Dragger {...props} style={{ width }}>
       <p className="ant-upload-drag-icon">
         <InboxOutlined />
       </p>
