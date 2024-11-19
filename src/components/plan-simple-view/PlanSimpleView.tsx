@@ -80,7 +80,6 @@ interface SavedFilters {
   showActiveOnly: boolean;
   progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
-  sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
   showMyTasks: boolean;
@@ -180,7 +179,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
@@ -194,13 +192,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       showActiveOnly,
       progressFilter,
       search,
-      sortBy,
       frequencyFilter,
       teamMemberFilter,
       showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -664,7 +661,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     },
   ]
 
-  const data = useMemo(() => {
+  const filteredData = useMemo(() => {
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
       const customer = customers.find(c => c.id === customerId);
       if (!customer) return [];
@@ -710,30 +707,14 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       );
     });
 
-    // Group tasks by task ID (not task name)
-    const groupedTasks = allTasks.reduce((acc, task) => {
-      if (!acc[task.id]) {
-        acc[task.id] = []
-      }
-      acc[task.id].push(task)
-      return acc
-    }, {} as { [key: string]: typeof allTasks })
-
-    // Sort customers by join date within each task ID group
-    Object.values(groupedTasks).forEach(group => {
-      group.sort((a, b) => {
-        const dateA = dayjs(a.customer.date_joined)
-        const dateB = dayjs(b.customer.date_joined)
-        return dateB.valueOf() - dateA.valueOf() // Most recent first
-      })
-    })
-
-    // Convert back to array, maintaining original task order
-    const sortedTasks = Object.entries(groupedTasks)
-      .sort(([idA], [idB]) => idA.localeCompare(idB)) // Sort by task ID
-      .flatMap(([_, tasks]) => tasks)
-
-    return sortedTasks
+    return allTasks.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      const dateA = dayjs(a.dueDate);
+      const dateB = dayjs(b.dueDate);
+      return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+    });
   }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user]);
 
   // Update the reset filters function
@@ -741,7 +722,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setShowActiveOnly(false);
     setProgressFilter('All');
     setSearch('');
-    setSortBy('none');
     setFrequencyFilter('All');
     setTeamMemberFilter('all');
     setShowMyTasks(false);
@@ -1032,14 +1012,18 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             <Space>
               <Switch
                 checked={showActiveOnly}
-                onChange={setShowActiveOnly}
+                onChange={(checked) => {
+                  setShowActiveOnly(checked);  // This will be immediate
+                }}
               />
               <Text>Show Active Only</Text>
             </Space>
             <Space>
               <Switch
                 checked={showMyTasks}
-                onChange={setShowMyTasks}
+                onChange={(checked) => {
+                  setShowMyTasks(checked);  // This will be immediate
+                }}
               />
               <Text>My Tasks</Text>
             </Space>
@@ -1114,7 +1098,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
         <Table 
           columns={columns} 
-          dataSource={data}
+          dataSource={filteredData}
           style={{ marginTop: 16 }}
           loading={isLoading}
           rowSelection={{

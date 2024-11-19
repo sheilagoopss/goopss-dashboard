@@ -486,7 +486,6 @@ interface SavedFilters {
   progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
   searchInput: string;
-  sortBy: 'dueDate' | 'none';
   frequencyFilter: FrequencyFilterType;
   teamMemberFilter: string;
   showMyTasks: boolean;
@@ -536,14 +535,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // Constants
   const CACHE_DURATION = 2 * 60 * 1000;  // 2 minutes
-  const pageSize = 10;
+  const PAGE_SIZE = 10;
 
   // All state declarations
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
   const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(savedFilters?.frequencyFilter ?? 'All');
   const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -568,6 +566,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [adminList, setAdminList] = useState<IAdmin[]>([]);
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -645,10 +644,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       showActiveOnly,
       progressFilter,
       search,
-      sortBy,
-      frequencyFilter
+      frequencyFilter,
+      teamMemberFilter,
+      showMyTasks
     });
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   // Add render log
   console.log('Plan component rendered at:', new Date().toISOString());
@@ -779,23 +779,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }))
     .filter(section => section.tasks.length > 0);
 
-  const sortedSections = filteredSections.map(section => ({
-    ...section,
-    tasks: sortBy === 'dueDate' 
-      ? [...section.tasks].sort((a, b) => {
-          // Handle null or empty due dates
-          if (!a.dueDate && !b.dueDate) return 0;  // Both null, keep order
-          if (!a.dueDate) return 1;  // Move null dates to end
-          if (!b.dueDate) return -1;  // Move null dates to end
-
-          // Compare dates for earliest first
-          const dateA = dayjs(a.dueDate);
-          const dateB = dayjs(b.dueDate);
-          return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
-        })
-      : section.tasks
-  }));
-
   const handleAddTask = (sectionTitle: string) => {
     setNewTaskModal({
       visible: true,
@@ -917,7 +900,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setShowActiveOnly(false);
     setProgressFilter('All');
     setSearch('');
-    setSortBy('none');
     setFrequencyFilter('All');
     setTeamMemberFilter('all');
     setShowMyTasks(false);
@@ -931,13 +913,12 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       progressFilter,
       search,
       searchInput,
-      sortBy,
       frequencyFilter,
       teamMemberFilter,
       showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, searchInput, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
+  }, [showActiveOnly, progressFilter, search, searchInput, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   // Update the view switching logic
   const handleViewChange = async (viewType: 'all' | 'single') => {
@@ -948,7 +929,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         progressFilter,
         search,
         searchInput,
-        sortBy,
         frequencyFilter,
         teamMemberFilter,
         showMyTasks
@@ -969,7 +949,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         setProgressFilter(currentFilters.progressFilter);
         setSearch(currentFilters.search);
         setSearchInput(currentFilters.searchInput);
-        setSortBy(currentFilters.sortBy);
         setFrequencyFilter(currentFilters.frequencyFilter);
         setTeamMemberFilter(currentFilters.teamMemberFilter);
         setShowMyTasks(currentFilters.showMyTasks);
@@ -987,7 +966,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           setProgressFilter(currentFilters.progressFilter);
           setSearch(currentFilters.search);
           setSearchInput(currentFilters.searchInput);
-          setSortBy(currentFilters.sortBy);
           setFrequencyFilter(currentFilters.frequencyFilter);
           setTeamMemberFilter(currentFilters.teamMemberFilter);
           setShowMyTasks(currentFilters.showMyTasks);
@@ -1014,7 +992,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       progressFilter,
       search,
       searchInput,
-      sortBy,
       frequencyFilter,
       teamMemberFilter,
       showMyTasks
@@ -1057,7 +1034,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setProgressFilter(currentFilters.progressFilter);
     setSearch(currentFilters.search);
     setSearchInput(currentFilters.searchInput);
-    setSortBy(currentFilters.sortBy);
     setFrequencyFilter(currentFilters.frequencyFilter);
     setTeamMemberFilter(currentFilters.teamMemberFilter);
     setShowMyTasks(currentFilters.showMyTasks);
@@ -1376,30 +1352,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               onChange={e => setSearchInput(e.target.value)}
               onSearch={(value) => {
                 setSearch(value);
-                console.log('Searching for:', value);
               }}
-              enterButton
               allowClear
               style={{ width: 200 }}
             />
-            <Select
-              style={{ width: 150 }}
-              value={sortBy}
-              onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
-            >
-              <Option value="none">
-                <Space>
-                  <SortAscendingOutlined />
-                  <span>No sorting</span>
-                </Space>
-              </Option>
-              <Option value="dueDate">
-                <Space>
-                  <SortAscendingOutlined />
-                  <span>Due Date</span>
-                </Space>
-              </Option>
-            </Select>
             <Select
               style={{ width: 200 }}
               value={frequencyFilter}
@@ -1446,28 +1402,31 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
         {isLoading && <LoadingSpinner />}
 
-        {/* Tasks Sections */}
-        {!selectedCustomer && plans.type === 'all' ? (
-          // All customers view
-          [...(defaultSections || []), 'Other Tasks'].map(sectionTitle => {
-            const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-              const customer = customers.find(c => c.id === customerId);
-              if (!customer) return [];
+        {/* Tasks Section - Simplified */}
+        <Card style={{ marginTop: 16 }}>
+          {!selectedCustomer && plans.type === 'all' ? (
+            // All customers view
+            <>
+              {Object.entries(plans.data)
+                .flatMap(([customerId, plan]) => {
+                  const customer = customers.find(c => c.id === customerId);
+                  if (!customer) return [];
 
-              const section = plan.sections.find(s => s.title === sectionTitle);
-              if (!section) return [];
-
-              return section.tasks
-                .filter(filterTasks)
-                .map(task => ({ customer, task }));
-            });
-
-            if (allTasks.length === 0) return null;
-
-            return (
-              <Card key={sectionTitle} style={{ marginTop: 16 }}>
-                <Title level={4}>{sectionTitle}</Title>
-                {allTasks.map(({ customer, task }) => (
+                  return plan.sections
+                    .flatMap(section => section.tasks)
+                    .filter(filterTasks)
+                    .map(task => ({ customer, task }));
+                })
+                .sort((a, b) => {
+                  if (!a.task.dueDate && !b.task.dueDate) return 0;
+                  if (!a.task.dueDate) return 1;
+                  if (!b.task.dueDate) return -1;
+                  const dateA = dayjs(a.task.dueDate);
+                  const dateB = dayjs(b.task.dueDate);
+                  return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                })
+                .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+                .map(({ customer, task }) => (
                   <TaskCard
                     key={`${customer.id}-${task.id}`}
                     task={task}
@@ -1480,17 +1439,37 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     adminList={adminList}
                   />
                 ))}
-              </Card>
-            );
-          }).filter(Boolean)
-        ) : (
-          // Single customer view
-          sortedSections
-            .filter(section => section.tasks.length > 0)
-            .map((section) => (
-              <Card key={section.title} style={{ marginTop: 16 }}>
-                <Title level={4}>{section.title}</Title>
-                {section.tasks.map((task) => (
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Pagination
+                  current={currentPage}
+                  total={Object.entries(plans.data)
+                    .flatMap(([customerId, plan]) => {
+                      const customer = customers.find(c => c.id === customerId);
+                      if (!customer) return [];
+                      return plan.sections.flatMap(section => section.tasks).filter(filterTasks);
+                    }).length}
+                  pageSize={PAGE_SIZE}
+                  onChange={setCurrentPage}
+                  showTotal={(total) => `Total ${total} tasks`}
+                />
+              </div>
+            </>
+          ) : (
+            // Single customer view
+            <>
+              {sections
+                .flatMap(section => section.tasks)
+                .filter(filterTasks)
+                .sort((a, b) => {
+                  if (!a.dueDate && !b.dueDate) return 0;
+                  if (!a.dueDate) return 1;
+                  if (!b.dueDate) return -1;
+                  const dateA = dayjs(a.dueDate);
+                  const dateB = dayjs(b.dueDate);
+                  return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                })
+                .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+                .map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
@@ -1503,9 +1482,18 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     adminList={adminList}
                   />
                 ))}
-              </Card>
-            ))
-        )}
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Pagination
+                  current={currentPage}
+                  total={sections.flatMap(section => section.tasks).filter(filterTasks).length}
+                  pageSize={PAGE_SIZE}
+                  onChange={setCurrentPage}
+                  showTotal={(total) => `Total ${total} tasks`}
+                />
+              </div>
+            </>
+          )}
+        </Card>
       </Content>
 
       {/* Add Custom Task Modal */}
