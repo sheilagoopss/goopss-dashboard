@@ -31,4 +31,7 @@ export const endpoints = {
   klaviyo: {
     subscribeCustomer: `${API_URL}/api/v1/klaviyo/subscribe-customer`,
   },
+  etsy: {
+    getConnectionUrl: `${API_URL}/api/v1/etsy/auth`,
+  },
 };
