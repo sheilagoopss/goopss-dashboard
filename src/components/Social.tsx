@@ -242,6 +242,8 @@ const PostCreationModal: React.FC<{
       title={`Create Post for ${listing?.listingTitle}`}
       open={isOpen}
       onCancel={handleCancel}
+      width={800}
+      style={{ top: 20 }}
       footer={[
         <Button key="cancel" onClick={handleCancel}>
           Cancel
@@ -264,7 +266,7 @@ const PostCreationModal: React.FC<{
         ),
       ]}
     >
-      <Space direction="vertical" style={{ width: "100%" }}>
+      <Space direction="vertical" style={{ width: "100%" }} size="large">
         <DatePicker
           showTime
           style={{ width: "100%" }}
@@ -289,8 +291,12 @@ const PostCreationModal: React.FC<{
               value={facebookContent}
               onChange={(e) => setFacebookContent(e.target.value)}
               placeholder="Facebook content"
-              autoSize={{ minRows: 3, maxRows: 5 }}
-              style={{ whiteSpace: "pre-line" }}
+              autoSize={{ minRows: 6, maxRows: 12 }}
+              style={{ 
+                whiteSpace: 'pre-line',
+                fontSize: '14px',
+                marginTop: '8px'
+              }}
             />
           </div>
         )}
@@ -302,8 +308,12 @@ const PostCreationModal: React.FC<{
               value={instagramContent}
               onChange={(e) => setInstagramContent(e.target.value)}
               placeholder="Instagram content"
-              autoSize={{ minRows: 3, maxRows: 5 }}
-              style={{ whiteSpace: "pre-line" }}
+              autoSize={{ minRows: 6, maxRows: 12 }}
+              style={{ 
+                whiteSpace: 'pre-line',
+                fontSize: '14px',
+                marginTop: '8px'
+              }}
             />
           </div>
         )}
