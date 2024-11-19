@@ -1094,20 +1094,22 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           task: values.task,
           frequency: values.frequency,
           progress: 'To Do',
-          dueDate: values.frequency === 'Monthly' && values.dueDate 
-            ? calculateMonthlyDueDate(values.dueDate.date())
+          dueDate: values.frequency === 'Monthly' && values.monthlyDueDate 
+            ? calculateMonthlyDueDate(values.monthlyDueDate)
             : values.dueDate ? values.dueDate.format('YYYY-MM-DD') 
             : null,
           completedDate: null,
           isActive: true,
           notes: values.notes || '',
-          current: 0,
-          goal: 0,
+          current: values.current || 0,
+          goal: values.goal || 0,
           files: uploadedFiles,
           createdBy: (user as IAdmin)?.name || user?.email || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          updatedBy: (user as IAdmin)?.name || user?.email || ''
+          updatedBy: (user as IAdmin)?.name || user?.email || '',
+          section: 'Other Tasks',
+          assignedTeamMembers: values.assignedTeamMembers || []
         };
 
         // Add to Other Tasks section
@@ -1649,6 +1651,23 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               Date: {dayjs().format('MMM DD, YYYY')}
             </Text>
           </Space>
+
+          {/* Add team member selection before the file upload section */}
+          <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+            <Select
+              mode="multiple"
+              style={{ width: '100%' }}
+              placeholder="Select team members"
+            >
+              {adminList
+                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                .map((admin: IAdmin) => (
+                  <Option key={admin.email} value={admin.email}>
+                    {admin.name || admin.email}
+                  </Option>
+                ))}
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
     </Layout>

@@ -892,7 +892,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           updatedBy: (user as IAdmin)?.name || user?.email || '',
-          section: 'Other Tasks'
+          section: 'Other Tasks',
+          assignedTeamMembers: values.assignedTeamMembers || []
         };
 
         // Add to Other Tasks section
@@ -1343,6 +1344,23 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
                 Max file size: 10MB
               </Text>
+            </Form.Item>
+
+            {/* Add team member selection */}
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
 
             {/* Add creator info display */}
