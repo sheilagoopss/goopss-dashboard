@@ -83,6 +83,7 @@ interface SavedFilters {
   sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
+  showMyTasks: boolean;
 }
 
 // Add these helper functions
@@ -182,6 +183,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
+  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -194,10 +196,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       search,
       sortBy,
       frequencyFilter,
-      teamMemberFilter
+      teamMemberFilter,
+      showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter]);
+  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -676,7 +679,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               (frequencyFilter === 'Monthly and As Needed' 
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
                 : task.frequency === frequencyFilter)) &&
-            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
+            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
+            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''))
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
@@ -727,7 +731,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       .flatMap(([_, tasks]) => tasks)
 
     return sortedTasks
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers]);
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user]);
 
   // Update the reset filters function
   const handleResetFilters = () => {
@@ -737,6 +741,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setSortBy('none');
     setFrequencyFilter('All');
     setTeamMemberFilter('all');
+    setShowMyTasks(false);
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -1027,6 +1032,13 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 onChange={setShowActiveOnly}
               />
               <Text>Show Active Only</Text>
+            </Space>
+            <Space>
+              <Switch
+                checked={showMyTasks}
+                onChange={setShowMyTasks}
+              />
+              <Text>My Tasks</Text>
             </Space>
             <Select
               style={{ width: 150 }}

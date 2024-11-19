@@ -486,9 +486,11 @@ interface SavedFilters {
   progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
   dueDateFilter: 'all' | 'overdue' | 'thisWeek';
   search: string;
-  searchInput: string;  // Add this for search input
+  searchInput: string;
   sortBy: 'dueDate' | 'none';
   frequencyFilter: FrequencyFilterType;
+  teamMemberFilter: string;
+  showMyTasks: boolean;
 }
 
 // Add helper functions at the top
@@ -567,6 +569,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
   const [adminList, setAdminList] = useState<IAdmin[]>([]);
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
+  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -758,28 +761,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
       (progressFilter === 'All' || task.progress === progressFilter) &&
-      task.task.toLowerCase().includes(search.toLowerCase());
+      task.task.toLowerCase().includes(search.toLowerCase()) &&
+      (frequencyFilter === 'All' || 
+        (frequencyFilter === 'Monthly and As Needed' 
+          ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+          : task.frequency === frequencyFilter)) &&
+      (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
+      (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''));
 
-    const frequencyMatches = 
-      frequencyFilter === 'All' || 
-      (frequencyFilter === 'Monthly and As Needed' 
-        ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-        : task.frequency === frequencyFilter);
-
-    const teamMemberMatches = 
-      teamMemberFilter === 'all' || 
-      (task.assignedTeamMembers?.includes(teamMemberFilter));
-
-    if (!baseFilters || !frequencyMatches || !teamMemberMatches) return false;
-
-    switch (dueDateFilter) {
-      case 'overdue':
-        return isOverdue(task.dueDate);
-      case 'thisWeek':
-        return isDueThisWeek(task.dueDate);
-      default:
-        return true;
-    }
+    return baseFilters;
   };
 
   const filteredSections = sections
@@ -930,23 +920,26 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setSearch('');
     setSortBy('none');
     setFrequencyFilter('All');
-    setPaginationState({});
+    setTeamMemberFilter('all');
+    setShowMyTasks(false);
+    localStorage.removeItem('planFilters');
   };
 
   // Add useEffect to save filters
   useEffect(() => {
-    const filtersToSave = {
+    const filters: SavedFilters = {
       showActiveOnly,
       progressFilter,
       dueDateFilter,
       search,
       searchInput,
       sortBy,
-      frequencyFilter
+      frequencyFilter,
+      teamMemberFilter,
+      showMyTasks
     };
-    console.log('Saving filters:', filtersToSave);
-    saveFiltersToStorage(filtersToSave);
-  }, [showActiveOnly, progressFilter, dueDateFilter, search, searchInput, sortBy, frequencyFilter]);
+    saveFiltersToStorage(filters);
+  }, [showActiveOnly, progressFilter, dueDateFilter, search, searchInput, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   // Update the view switching logic
   const handleViewChange = async (viewType: 'all' | 'single') => {
@@ -959,7 +952,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         search,
         searchInput,
         sortBy,
-        frequencyFilter
+        frequencyFilter,
+        teamMemberFilter,
+        showMyTasks
       };
       console.log('Preserving filters:', currentFilters);
 
@@ -980,6 +975,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         setSearchInput(currentFilters.searchInput);
         setSortBy(currentFilters.sortBy);
         setFrequencyFilter(currentFilters.frequencyFilter);
+        setTeamMemberFilter(currentFilters.teamMemberFilter);
+        setShowMyTasks(currentFilters.showMyTasks);
       } else {
         if (selectedCustomer) {
           setPlans(prev => ({
@@ -997,6 +994,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           setSearchInput(currentFilters.searchInput);
           setSortBy(currentFilters.sortBy);
           setFrequencyFilter(currentFilters.frequencyFilter);
+          setTeamMemberFilter(currentFilters.teamMemberFilter);
+          setShowMyTasks(currentFilters.showMyTasks);
         }
       }
     } catch (error) {
@@ -1022,7 +1021,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       search,
       searchInput,
       sortBy,
-      frequencyFilter
+      frequencyFilter,
+      teamMemberFilter,
+      showMyTasks
     };
 
     const customer = customers.find(c => c.id === customerId) || null;
@@ -1065,6 +1066,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     setSearchInput(currentFilters.searchInput);
     setSortBy(currentFilters.sortBy);
     setFrequencyFilter(currentFilters.frequencyFilter);
+    setTeamMemberFilter(currentFilters.teamMemberFilter);
+    setShowMyTasks(currentFilters.showMyTasks);
   };
 
   // Add interface for form values
@@ -1357,6 +1360,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 onChange={setShowActiveOnly}
               />
               <Text>Show Active Only</Text>
+            </Space>
+            <Space>
+              <Switch
+                checked={showMyTasks}
+                onChange={setShowMyTasks}
+              />
+              <Text>My Tasks</Text>
             </Space>
             <Select
               style={{ width: 150 }}
