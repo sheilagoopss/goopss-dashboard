@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
-  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
@@ -297,19 +297,9 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   }, [selectedCustomer]);
 
   const handleEdit = (record: TableRecord, customer: ICustomer) => {
-    console.log('Editing task with data:', {
-      task: record,
-      customer,
-      progress: record.progress,
-      dueDate: record.dueDate,
-      completedDate: record.completedDate,
-      isActive: record.isActive,
-      current: record.current,
-      goal: record.goal,
-      notes: record.notes
-    });
+    console.log('Editing task with data:', record);
     
-    const taskData: PlanTask = {
+    const taskData: PlanTask & { section?: string } = {  // Add section to the type
       id: record.id,
       task: record.task,
       progress: record.progress as 'To Do' | 'Doing' | 'Done',
@@ -321,29 +311,27 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       goal: record.goal,
       notes: record.notes,
       updatedAt: record.updatedAt,
-      updatedBy: record.updatedBy
+      updatedBy: record.updatedBy,
+      files: record.files,
+      createdBy: record.createdBy,
+      createdAt: record.createdAt,
+      section: record.section,  // Add this line
+      assignedTeamMembers: record.assignedTeamMembers || []
     };
     
     setEditingTask(taskData);
     setEditingCustomer(customer);
     
-    // Set initial values from the task data
-    const initialValues = {
+    form.setFieldsValue({
       progress: record.progress,
       dueDate: record.dueDate ? dayjs(record.dueDate) : null,
       completedDate: record.completedDate ? dayjs(record.completedDate) : null,
-      isActive: record.isActive ?? false,
-      current: record.current ?? 0,
-      goal: record.goal ?? 0,
-      notes: record.notes ?? '',
+      isActive: record.isActive,
+      current: record.current,
+      goal: record.goal,
+      notes: record.notes,
       assignedTeamMembers: record.assignedTeamMembers || []
-    };
-
-    console.log('Setting form values:', initialValues);
-    
-    // Reset form and set values
-    form.resetFields();
-    form.setFieldsValue(initialValues);
+    });
     
     setEditModalVisible(true);
   };
@@ -648,48 +636,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       ),
     },
     {
-      title: 'Files',
-      key: 'files',
-      render: (_: any, record: TableRecord) => {
-        // Only show for Other Tasks section
-        if (record.section === 'Other Tasks' && record.files && record.files.length > 0) {
-          return (
-            <Space direction="vertical">
-              {record.files.map((file: TaskFile, index: number) => (
-                <a 
-                  key={index} 
-                  href={file.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  {file.name}
-                </a>
-              ))}
-            </Space>
-          );
-        }
-        return null;
-      }
-    },
-    {
-      title: 'Created By',
-      key: 'createdBy',
-      render: (_: any, record: TableRecord) => {
-        // Only show for Other Tasks section
-        if (record.section === 'Other Tasks' && record.createdBy) {
-          return (
-            <Space direction="vertical" size={0}>
-              <Text>{record.createdBy}</Text>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {dayjs(record.createdAt).format('MMM DD, YYYY')}
-              </Text>
-            </Space>
-          );
-        }
-        return null;
-      }
-    },
-    {
       title: 'Team Members',
       key: 'teamMembers',
       render: (_: any, record: TableRecord) => (
@@ -717,8 +663,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
   const data = useMemo(() => {
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-      const customer = customers.find(c => c.id === customerId)
-      if (!customer) return []
+      const customer = customers.find(c => c.id === customerId);
+      if (!customer) return [];
       
       return plan.sections.flatMap(section =>
         section.tasks
@@ -729,20 +675,33 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             (frequencyFilter === 'All' || 
               (frequencyFilter === 'Monthly and As Needed' 
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                : task.frequency === frequencyFilter) &&
-              (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
-            )
+                : task.frequency === frequencyFilter)) &&
+            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
             store_name: customer.store_name,
-            ...task,
-            dueDate: getAdjustedMonthlyDueDate(task.dueDate, task.frequency),
-            section: section.title,
             customer,
+            task: task.task,
+            section: section.title,
+            progress: task.progress,
+            frequency: task.frequency,
+            dueDate: getAdjustedMonthlyDueDate(task.dueDate, task.frequency),
+            completedDate: task.completedDate,
+            isActive: task.isActive,
+            current: task.current,
+            goal: task.goal,
+            notes: task.notes,
+            id: task.id,
+            updatedAt: task.updatedAt,
+            updatedBy: task.updatedBy,
+            files: task.files,
+            createdBy: task.createdBy,
+            createdAt: task.createdAt,
+            assignedTeamMembers: task.assignedTeamMembers
           }))
-      )
-    })
+      );
+    });
 
     // Group tasks by task ID (not task name)
     const groupedTasks = allTasks.reduce((acc, task) => {
@@ -768,7 +727,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       .flatMap(([_, tasks]) => tasks)
 
     return sortedTasks
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers])
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers]);
 
   // Update the reset filters function
   const handleResetFilters = () => {
@@ -928,12 +887,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           notes: values.notes || '',
           current: values.current || 0,
           goal: values.goal || 0,
-          // Add new fields for custom tasks
           files: uploadedFiles,
           createdBy: (user as IAdmin)?.name || user?.email || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          updatedBy: (user as IAdmin)?.name || user?.email || ''
+          updatedBy: (user as IAdmin)?.name || user?.email || '',
+          section: 'Other Tasks'
         };
 
         // Add to Other Tasks section
@@ -952,35 +911,20 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         }
 
         // Save to Firestore
-        await updateDoc(planRef, { 
-          sections: updatedSections,
-          updatedAt: new Date().toISOString()
-        });
-
-        // Update local state immediately
-        if (plans.type === 'all') {
-          setPlans(prev => ({
-            ...prev,
-            data: {
-              ...prev.data,
-              [selectedCustomer.id]: {
-                ...prev.data[selectedCustomer.id],
-                sections: updatedSections
-              }
-            }
-          }));
-        }
-
-        // Reset form and close modal
-        addTaskForm.resetFields();
-        setUploadedFiles([]);
-        setAddTaskModalVisible(false);
-
+        await updateDoc(planRef, { sections: updatedSections });
         message.success('Task added successfully');
+        setAddTaskModalVisible(false);
+        
+        // Reload data
+        if (plans.type === 'single') {
+          await loadPlan();
+        } else {
+          await loadAllPlans();
+        }
       }
     } catch (error) {
       console.error('Error adding custom task:', error);
-      message.error('Failed to add custom task');
+      message.error('Failed to add task');
     } finally {
       setIsLoading(false);
     }
@@ -1242,6 +1186,46 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                   ))}
               </Select>
             </Form.Item>
+
+            {editingTask?.section === 'Other Tasks' && editingTask.files && editingTask.files.length > 0 && (
+              <>
+                <Divider />
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong>Attachments:</Text>
+                  <div style={{ marginTop: 8 }}>
+                    {editingTask.files.map((file, index) => (
+                      <div key={index} style={{ marginBottom: 8 }}>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer">
+                          {file.name}
+                        </a>
+                        <Text type="secondary" style={{ marginLeft: 8 }}>
+                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editingTask?.section === 'Other Tasks' && editingTask.createdBy && (
+              <>
+                <Divider />
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary">
+                    Created by: {editingTask.createdBy}
+                  </Text>
+                  <Text type="secondary">
+                    Created: {dayjs(editingTask.createdAt).format('MMM DD, YYYY')}
+                  </Text>
+                  {editingTask.updatedBy !== editingTask.createdBy && (
+                    <Text type="secondary">
+                      Last updated by: {editingTask.updatedBy} ({dayjs(editingTask.updatedAt).format('MMM DD, YYYY')})
+                    </Text>
+                  )}
+                </Space>
+              </>
+            )}
           </Form>
         </Modal>
 
