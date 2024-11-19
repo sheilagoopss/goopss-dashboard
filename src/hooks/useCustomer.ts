@@ -4,8 +4,10 @@ import FirebaseHelper from "../helpers/FirebaseHelper";
 import { filterUndefined } from "../utils/filterUndefined";
 import { ListingImage } from "types/Listing";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { db, storage } from "../firebase/config";
 import { IUserActivity } from "types/UserActivityLog";
+import { getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 
 interface UseCustomerFetchReturn {
   fetchCustomer: (customerId: string) => Promise<ICustomer | null>;
@@ -48,7 +50,15 @@ interface UseCustomerUserActivityFetchReturn {
 interface UseCustomerUserActivityFetchAllReturn {
   fetchCustomerUserActivityAll: () => Promise<IUserActivity[]>;
   isLoading: boolean;
-} 
+}
+
+interface UseCustomerBannerUploadReturn {
+  uploadCustomerBanner: (
+    customerId: string,
+    banner: string | null,
+  ) => Promise<boolean>;
+  isUploading: boolean;
+}
 
 export function useCustomerFetch(): UseCustomerFetchReturn {
   const [isLoading, setIsLoading] = useState(false);
@@ -201,8 +211,9 @@ export function useCustomerListingImagesFetch(): UseCustomerListingImagesFetchRe
 export function useCustomerUserActivityFetchAll(): UseCustomerUserActivityFetchAllReturn {
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchCustomerUserActivityAll = useCallback(
-    async (): Promise<IUserActivity[]> => {
+  const fetchCustomerUserActivityAll = useCallback(async (): Promise<
+    IUserActivity[]
+  > => {
     setIsLoading(true);
     try {
       const userActivities =
@@ -243,4 +254,56 @@ export function useCustomerUserActivityFetch(): UseCustomerUserActivityFetchRetu
   );
 
   return { fetchCustomerUserActivity, isLoading };
+}
+
+export function useCustomerBannerUpload(): UseCustomerBannerUploadReturn {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const uploadCustomerBanner = useCallback(
+    async (
+      customerId: string,
+      base64Banner: string | null,
+    ): Promise<boolean> => {
+      setIsUploading(true);
+      try {
+        let downloadURL = "";
+        if (base64Banner) {
+          const matches = base64Banner.match(/^data:(image\/\w+);base64,/);
+          const fileExtension = matches ? matches[1].split("/")[1] : "png";
+          const base64Data = base64Banner.replace(
+            /^data:image\/\w+;base64,/,
+            "",
+          );
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length)
+            .fill(0)
+            .map((_, i) => byteCharacters.charCodeAt(i));
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], {
+            type: `image/${fileExtension}`,
+          });
+
+          const uniqueFileName = `${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(2, 9)}.${fileExtension}`;
+          const storageRef = ref(storage, `designs/${uniqueFileName}`);
+          await uploadBytes(storageRef, blob);
+          downloadURL = await getDownloadURL(storageRef);
+        }
+
+        const updated = await FirebaseHelper.update("customers", customerId, {
+          banner: downloadURL,
+        });
+        return updated;
+      } catch (error) {
+        console.error("Error uploading customer banner:", error);
+        return false;
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [],
+  );
+
+  return { uploadCustomerBanner, isUploading };
 }

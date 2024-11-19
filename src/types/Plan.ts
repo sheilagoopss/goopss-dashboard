@@ -38,6 +38,7 @@ export interface PlanTask {
   createdBy?: string;
   createdAt?: string;
   monthlyHistory?: MonthlyHistory[];
+  assignedTeamMembers?: string[];
 }
 
 export interface PlanSection {

@@ -30,6 +30,7 @@ export interface ICustomer {
   facebook?: ISocialMedia;
   instagram?: ISocialMedia;
   pinterest?: ISocialMedia;
+  banner?: string;
 
   // Store information and social form
   website?: string;
@@ -60,9 +61,11 @@ export interface ICustomer {
 
 export interface IAdmin {
   id: string;
-  name?: string;
   email: string;
+  name: string;
   isAdmin: boolean;
+  avatarUrl?: string;
+  canBeAssignedToTasks?: boolean;
 }
 
 export const packageTypes = {

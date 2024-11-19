@@ -40,6 +40,7 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
   const [selectedImages, setSelectedImages] = useState<ListingImage[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [includeBestSellers, setIncludeBestSellers] = useState(false);
+  const [includeUploadedToEtsy, setIncludeUploadedToEtsy] = useState(false);
   const [showAllListings, setShowAllListings] = useState(false);
   const [dataToDisplay, setDataToDisplay] = useState<
     (Listing & { uploadedImages: number; totalImages: number })[]
@@ -130,17 +131,23 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
     }
   };
 
-
   const filterListings = (
     filteredListings: Listing[],
   ): (Listing & { uploadedImages: number; totalImages: number })[] => {
+    const filteredImages = includeUploadedToEtsy
+      ? listingImages
+      : listingImages.filter((image) => !image.uploadedToEtsy);
+
     const listingsWithImages = filteredListings.filter((listing) => {
-      const listingsWithImages = listingImages.some(
+      const listingsWithImages = filteredImages.some(
         (image) => image.listing_id === listing.id,
       );
       if (statusFilter !== "all") {
-        return listingImages
+        return filteredImages
           .filter((image) => image.status === statusFilter)
+          .filter((image) =>
+            includeUploadedToEtsy ? true : !image.uploadedToEtsy,
+          )
           .some((image) => image.listing_id === listing.id);
       } else if (searchTerm === "" && !showAllListings) {
         return listingsWithImages;
@@ -158,6 +165,7 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
           .filter((image) => image.status !== "superseded").length || 0) +
         (listing.imageCount || 0),
     })) as (Listing & { uploadedImages: number; totalImages: number })[];
+
     return listingsWithImageCount.filter((listing) => {
       if (includeBestSellers) {
         return true;
@@ -172,7 +180,14 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
 
   useEffect(() => {
     setDataToDisplay(filterListings(filteredListings));
-  }, [filteredListings, showAllListings, statusFilter, searchTerm]);
+  }, [
+    filteredListings,
+    showAllListings,
+    statusFilter,
+    searchTerm,
+    includeBestSellers,
+    includeUploadedToEtsy,
+  ]);
 
   return (
     <Row gutter={[16, 16]}>
@@ -214,6 +229,13 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
           >
             Include Best Sellers
           </Checkbox>
+          <Checkbox
+            checked={includeUploadedToEtsy}
+            onChange={(e) => setIncludeUploadedToEtsy(e.target.checked)}
+            style={{ alignSelf: "center" }}
+          >
+            Include Uploaded to Etsy
+          </Checkbox>
         </div>
         <Switch
           checked={showAllListings}
@@ -226,9 +248,14 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
       <Col span={24}>
         <ListingsTableV2
           listings={dataToDisplay}
-          listingImages={listingImages.filter(
-            (image) => statusFilter === "all" || image.status === statusFilter,
-          )}
+          listingImages={listingImages
+            .filter(
+              (image) =>
+                statusFilter === "all" || image.status === statusFilter,
+            )
+            .filter((image) =>
+              includeUploadedToEtsy ? true : !image.uploadedToEtsy,
+            )}
           loading={isFetchingListings || isFetchingImages}
           refresh={refetch}
           selectedImages={selectedImages}

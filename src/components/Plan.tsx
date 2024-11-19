@@ -49,6 +49,7 @@ import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { PlanTaskRule } from '../types/PlanTasks';
+import FirebaseHelper from '../helpers/FirebaseHelper';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -73,6 +74,7 @@ interface TaskCardProps {
   sections: PlanSection[];
   updateTask: (customerId: string, sectionTitle: string, taskId: string, updates: Partial<PlanTask>) => Promise<void>;
   isOverdue: (dueDate: string | null) => boolean;
+  adminList: IAdmin[];
 }
 
 const dropdownStyle = {
@@ -80,7 +82,7 @@ const dropdownStyle = {
   fontSize: '16px'
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue, adminList }) => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
@@ -148,7 +150,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
     setTempValues({});
     setIsEditing(false);
   };
-  const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
+  const handleTempChange = (field: keyof PlanTask, value: string | number | boolean | string[] | null) => {
     setTempValues(prev => ({
       ...prev,
       [field]: value
@@ -195,6 +197,27 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
                     )}
                   </Text>
                   {task.notes && <FileTextOutlined style={{ color: '#8c8c8c' }} />}
+                </Space>
+              )}
+              {task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
+                <Space size={4}>
+                  <UserOutlined style={{ color: '#8c8c8c' }} />
+                  <Avatar.Group maxCount={3} size="small">
+                    {task.assignedTeamMembers.map((email) => {
+                      const admin = adminList.find((a: IAdmin) => a.email === email);
+                      return (
+                        <Tooltip key={email} title={admin?.name || email}>
+                          <Avatar 
+                            size="small"
+                            style={{ backgroundColor: '#1890ff' }}
+                            src={admin?.avatarUrl}
+                          >
+                            {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
+                          </Avatar>
+                        </Tooltip>
+                      );
+                    })}
+                  </Avatar.Group>
                 </Space>
               )}
             </Space>
@@ -401,6 +424,28 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               </Space>
             </>
           )}
+
+          {/* Add Team Members Selection */}
+          {isEditing && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Assigned Team Members:</Text>
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+                value={tempValues.assignedTeamMembers !== undefined ? tempValues.assignedTeamMembers : (task.assignedTeamMembers || [])}
+                onChange={(value) => handleTempChange('assignedTeamMembers', value)}
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
+            </Space>
+          )}
         </Space>
       </Panel>
     </Collapse>
@@ -520,6 +565,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [newCustomTaskModal, setNewCustomTaskModal] = useState(false);
   const [customTaskForm] = Form.useForm();
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
+  const [adminList, setAdminList] = useState<IAdmin[]>([]);
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -706,18 +753,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
-  // Update the filterTasks function to include frequency filter
+  // Update the filterTasks function
   const filterTasks = (task: PlanTask) => {
-    console.log('Filtering task:', {
-      task: task.task,
-      frequency: task.frequency,
-      selectedFilter: frequencyFilter,
-      matches: frequencyFilter === 'All' || 
-        (frequencyFilter === 'Monthly and As Needed' 
-          ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-          : task.frequency === frequencyFilter)
-    });
-
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
       (progressFilter === 'All' || task.progress === progressFilter) &&
@@ -729,7 +766,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
         : task.frequency === frequencyFilter);
 
-    if (!baseFilters || !frequencyMatches) return false;
+    const teamMemberMatches = 
+      teamMemberFilter === 'all' || 
+      (task.assignedTeamMembers?.includes(teamMemberFilter));
+
+    if (!baseFilters || !frequencyMatches || !teamMemberMatches) return false;
 
     switch (dueDateFilter) {
       case 'overdue':
@@ -1236,6 +1277,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
+  // Add this useEffect after other useEffects
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      try {
+        const admins = await FirebaseHelper.find<IAdmin>('admin');
+        setAdminList(admins);
+      } catch (error) {
+        console.error('Error fetching admin list:', error);
+        message.error('Failed to load team members');
+      }
+    };
+
+    fetchAdmins();
+  }, []);
+
   if (!isAdmin) {
     return (
       <Layout>
@@ -1319,6 +1375,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   sections={sections}
                   updateTask={updateTask}
                   isOverdue={isOverdue}
+                  adminList={adminList}
                 />
               ))}
             </Card>
@@ -1508,6 +1565,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               <Option value="As Needed">As Needed</Option>
               <Option value="Monthly and As Needed">Monthly & As Needed</Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={teamMemberFilter}
+              onChange={setTeamMemberFilter}
+              placeholder="Filter by team member"
+            >
+              <Option value="all">All Team Members</Option>
+              {adminList
+                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                .map((admin: IAdmin) => (
+                  <Option key={admin.email} value={admin.email}>
+                    {admin.name || admin.email}
+                  </Option>
+                ))}
+            </Select>
             <Button 
               icon={<ReloadOutlined />} 
               onClick={handleResetFilters}
@@ -1584,6 +1656,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       sections={plans.data[customer.id].sections}
                       updateTask={updateTask}
                       isOverdue={isOverdue}
+                      adminList={adminList}
                     />
                   ))}
                   {allTasks.length > pageSize && (
@@ -1641,6 +1714,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       sections={sections}
                       updateTask={updateTask}
                       isOverdue={isOverdue}
+                      adminList={adminList}
                     />
                   ))}
                   {filteredTasks.length > pageSize && (
@@ -1688,6 +1762,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     sections={sections}
                     updateTask={updateTask}
                     isOverdue={isOverdue}
+                    adminList={adminList}
                   />
                 ))}
                 {filteredTasks.length > pageSize && (
