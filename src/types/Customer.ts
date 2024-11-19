@@ -63,7 +63,7 @@ export interface IAdmin {
   id: string;
   email: string;
   name: string;
-  isAdmin: boolean;
+  isAdmin: true;
   avatarUrl?: string;
   canBeAssignedToTasks?: boolean;
 }
