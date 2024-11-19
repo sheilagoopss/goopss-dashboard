@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Layout, Menu } from "antd";
-import type { MenuProps } from 'antd';
-import { 
+import type { MenuProps } from "antd";
+import {
   UserOutlined,
   LogoutOutlined,
   FileTextOutlined,
@@ -17,9 +17,10 @@ import {
   InstagramOutlined,
   FormOutlined,
   TableOutlined,
-} from '@ant-design/icons';
-import { ChevronDown } from 'lucide-react';
-import logo from '../assets/images/logo.png';
+} from "@ant-design/icons";
+import { ChevronDown } from "lucide-react";
+import logo from "../assets/images/logo.png";
+import { IAdmin } from "types/Customer";
 
 const { Sider } = Layout;
 
@@ -27,190 +28,204 @@ interface AdminSidebarProps {
   isAdmin: boolean;
 }
 
-type MenuItem = Required<MenuProps>['items'][number];
+type MenuItem = Required<MenuProps>["items"][number];
 
 const AdminSidebar: React.FC<AdminSidebarProps> = () => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname;
   const navigate = useNavigate();
 
   const [socialExpanded, setSocialExpanded] = useState(() => {
-    const saved = localStorage.getItem('adminSocialExpanded');
-    return saved ? JSON.parse(saved) : currentPath === 'social' || currentPath === 'social-insights';
+    const saved = localStorage.getItem("adminSocialExpanded");
+    return saved
+      ? JSON.parse(saved)
+      : currentPath === "social" || currentPath === "social-insights";
   });
 
   useEffect(() => {
-    if (currentPath === 'social' || currentPath === 'social-insights') {
+    if (currentPath === "social" || currentPath === "social-insights") {
       setSocialExpanded(true);
     }
   }, [currentPath]);
 
   React.useEffect(() => {
-    localStorage.setItem('adminSocialExpanded', JSON.stringify(socialExpanded));
+    localStorage.setItem("adminSocialExpanded", JSON.stringify(socialExpanded));
   }, [socialExpanded]);
 
   const [openKeys, setOpenKeys] = useState<string[]>(() => {
-    const saved = localStorage.getItem('adminOpenKeys');
+    const saved = localStorage.getItem("adminOpenKeys");
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('adminOpenKeys', JSON.stringify(openKeys));
+    localStorage.setItem("adminOpenKeys", JSON.stringify(openKeys));
   }, [openKeys]);
 
   const adminMenuItems: MenuItem[] = [
     {
-      key: 'plan',
+      key: "plan",
       icon: <PieChartOutlined />,
       label: <span>Plan</span>,
       children: [
         {
-          key: '/plan',
+          key: "/plan",
           icon: <PieChartOutlined />,
-          label: <Link to="/plan">Default View</Link>
+          label: <Link to="/plan">Default View</Link>,
         },
         {
-          key: '/plan-simple-view',
+          key: "/plan-simple-view",
           icon: <TableOutlined />,
-          label: <Link to="/plan-simple-view">Simple View</Link>
+          label: <Link to="/plan-simple-view">Simple View</Link>,
         },
-        {
-          key: '/plan-task-rules',
-          icon: <FormOutlined />,
-          label: <Link to="/plan-task-rules">Plan Task Rules</Link>
-        }
-      ]
+        ...((user as IAdmin).role === "TeamMember" ||
+        (user as IAdmin).role === "SuperAdmin"
+          ? [
+              {
+                key: "/plan-task-rules",
+                icon: <FormOutlined />,
+                label: <Link to="/plan-task-rules">Plan Task Rules</Link>,
+              },
+            ]
+          : []),
+      ],
     },
     {
-      key: 'customers',
+      key: "customers",
       icon: <UserOutlined />,
       label: <span>Customers</span>,
       children: [
         {
-          key: '/',
+          key: "/",
           icon: <UserOutlined />,
-          label: <Link to="/">Customers List</Link>
+          label: <Link to="/">Customers List</Link>,
         },
         {
-          key: '/customer-form',
+          key: "/customer-form",
           icon: <FormOutlined />,
-          label: <Link to="/customer-form">Customer Form</Link>
+          label: <Link to="/customer-form">Customer Form</Link>,
         },
         {
           key: "/activity-log",
           icon: <BarChartOutlined />,
-          label: <Link to="/activity-log">Activity Log</Link>
+          label: <Link to="/activity-log">Activity Log</Link>,
         },
-      ]
+      ],
     },
+    ...((user as IAdmin).role === "Designer" ||
+    (user as IAdmin).role === "SuperAdmin"
+      ? [
+          {
+            key: "design-hub",
+            icon: <AppstoreOutlined />,
+            label: <Link to="/design-hub">Design Hub</Link>,
+          },
+        ]
+      : []),
     {
-      key: 'design-hub',
-      icon: <AppstoreOutlined />,
-      label: <Link to="/design-hub">Design Hub</Link>,
-    },
-    {
-      key: 'listings',
+      key: "listings",
       icon: <FileTextOutlined />,
-      label: 'Listings',
+      label: "Listings",
       children: [
         {
-          key: '/listings',
-          label: (
-            <Link to="/listings">
-              Optimization
-            </Link>
-          )
+          key: "/listings",
+          label: <Link to="/listings">Optimization</Link>,
         },
         {
-          key: '/listings/duplicate',
-          label: (
-            <Link to="/listings/duplicate">
-              Duplication
-            </Link>
-          )
-        }
-      ]
+          key: "/listings/duplicate",
+          label: <Link to="/listings/duplicate">Duplication</Link>,
+        },
+      ],
     },
     {
-      key: 'social',
+      key: "social",
       icon: <MessageOutlined />,
-      label: 'Social',
+      label: "Social",
       children: [
         {
-          key: '/social',
-          label: (
-            <Link to="/social">
-              Social Calendar
-            </Link>
-          )
+          key: "/social",
+          label: <Link to="/social">Social Calendar</Link>,
         },
         {
-          key: '/social-insights',
-          label: (
-            <Link to="/social-insights">
-              Social Media Insights
-            </Link>
-          )
-        }
-      ]
+          key: "/social-insights",
+          label: <Link to="/social-insights">Social Media Insights</Link>,
+        },
+      ],
     },
     {
-      key: 'pinterest',
+      key: "pinterest",
       icon: <InstagramOutlined />,
       label: <Link to="/pinterest">Pinterest</Link>,
     },
     {
-      key: 'ads-recommendation',
+      key: "ads-recommendation",
       icon: <StarOutlined />,
       label: <Link to="/ads-recommendation">Ads Analysis</Link>,
     },
     {
-      key: 'store-analysis',
+      key: "store-analysis",
       icon: <BarChartOutlined />,
       label: <Link to="/store-analysis">Store Analysis</Link>,
     },
     {
-      key: 'stats',
+      key: "stats",
       icon: <LineChartOutlined />,
       label: <Link to="/stats">Stats</Link>,
     },
+    ...((user as IAdmin).role === "TeamMember" ||
+    (user as IAdmin).role === "SuperAdmin"
+      ? [
+          {
+            key: "tasks",
+            icon: <ProjectOutlined />,
+            label: <Link to="/tasks">Tasks Summary</Link>,
+          },
+        ]
+      : []),
+    ...((user as IAdmin).role === "SuperAdmin"
+      ? [
+          {
+            key: "role-management",
+            icon: <UserOutlined />,
+            label: <Link to="/role-management">Role Management</Link>,
+          },
+        ]
+      : []),
     {
-      key: 'tasks',
-      icon: <ProjectOutlined />,
-      label: <Link to="/tasks">Tasks Summary</Link>,
-    },
-    {
-      key: 'logout',
+      key: "logout",
       icon: <LogoutOutlined />,
-      label: 'Logout',
+      label: "Logout",
       onClick: logout,
     },
   ];
 
   return (
-    <Sider 
+    <Sider
       width={280}
-      style={{ 
-        background: '#fff',
-        position: 'fixed',
+      style={{
+        background: "#fff",
+        position: "fixed",
         left: 0,
         top: 0,
         bottom: 0,
-        height: '100vh',
+        height: "100vh",
       }}
     >
-      <div style={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'auto',
-      }}>
-        <div style={{ 
-          padding: '16px', 
-          textAlign: 'center',
-          flexShrink: 0
-        }}>
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px",
+            textAlign: "center",
+            flexShrink: 0,
+          }}
+        >
           <img src={logo} alt="goopss logo" style={{ height: 40 }} />
         </div>
         <Menu
@@ -218,13 +233,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
           selectedKeys={[currentPath]}
           openKeys={openKeys}
           onOpenChange={setOpenKeys}
-          style={{ 
+          style={{
             borderRight: 0,
-            padding: '8px',
-            height: 'auto',
+            padding: "8px",
+            height: "auto",
             minHeight: 0,
             flexGrow: 1,
-            overflow: 'visible'
+            overflow: "visible",
           }}
           items={adminMenuItems}
           className="admin-sidebar-menu"

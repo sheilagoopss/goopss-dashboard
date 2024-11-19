@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
@@ -5,8 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
-import UserDesignHub from "../components/UserDesignHub";
-import PlanComponent from '../components/Plan';
+import PlanComponent from "../components/Plan";
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import LoginPage from "../components/auth/login";
@@ -22,24 +22,26 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import DesignHubV2 from "components/designHub/DesignHub";
-import { DesignHub } from "components/DesignHub";
-import { Spin } from 'antd';
+import { Spin } from "antd";
 import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
-import { CustomerPlan } from '../components/CustomerPlan';
+import { CustomerPlan } from "../components/CustomerPlan";
 import { PlanSimpleView } from "../components/plan-simple-view/PlanSimpleView";
 import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
 import ActivityLog from "components/customers/ActivityLog";
-import ReactGA from 'react-ga4';
+import ReactGA from "react-ga4";
 import DescriptionHero from "components/descriptionHero/DescriptionHero";
+import RoleManagement from "components/roleManagement/RoleManagement";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
   const location = useLocation();
-  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
+    null,
+  );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,12 +49,14 @@ export default function AppRoutes() {
   // Move trackUserEvent inside the component
   const trackUserEvent = (eventName: string, eventData: any) => {
     if (!isAdmin && user) {
-      const customerData = customers.find((c: ICustomer) => c.customer_id === user.id);
+      const customerData = customers.find(
+        (c: ICustomer) => c.customer_id === user.id,
+      );
       ReactGA.event({
-        category: 'User Activity',
+        category: "User Activity",
         action: eventName,
-        label: customerData?.store_name || 'unknown store',
-        ...eventData
+        label: customerData?.store_name || "unknown store",
+        ...eventData,
       });
     }
   };
@@ -66,10 +70,10 @@ export default function AppRoutes() {
   // Initialize GA once when component mounts
   useEffect(() => {
     if (user && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
-      console.log('Initializing GA for non-admin user:', {
+      console.log("Initializing GA for non-admin user:", {
         userId: user.id,
         userType: userType,
-        isAdmin: isAdmin
+        isAdmin: isAdmin,
       });
       ReactGA.initialize(process.env.REACT_APP_GA_MEASUREMENT_ID);
     }
@@ -78,16 +82,16 @@ export default function AppRoutes() {
   // Track page views when route changes
   useEffect(() => {
     if (user && !isAdmin) {
-      const customerData = customers.find(c => c.customer_id === user.id);
-      console.log('Tracking pageview for non-admin user:', {
+      const customerData = customers.find((c) => c.customer_id === user.id);
+      console.log("Tracking pageview for non-admin user:", {
         page: location.pathname,
-        store: customerData?.store_name
+        store: customerData?.store_name,
       });
-      ReactGA.send({ 
-        hitType: "pageview", 
+      ReactGA.send({
+        hitType: "pageview",
         page: location.pathname,
-        store_name: customerData?.store_name || 'unknown store',
-        userType: userType
+        store_name: customerData?.store_name || "unknown store",
+        userType: userType,
       });
     }
   }, [location, isAdmin, user, userType, customers]);
@@ -183,6 +187,135 @@ export default function AppRoutes() {
     return <>{children}</>;
   };
 
+  const designerRoutes = [
+    <Route path="design-hub" element={<DesignHubV2 />} />,
+  ];
+
+  const teamMemberRoutes = [
+    ...designerRoutes,
+    <Route index element={<CustomerManagement />} />,
+    <Route
+      path="customer-form"
+      element={<StoreInformation customerId="" isAdmin={true} />}
+    />,
+    <Route
+      path="listings"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <div style={{ width: "300px" }}>
+              <CustomersDropdown
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                setSelectedCustomer={setSelectedCustomer}
+                isAdmin={true}
+              />
+            </div>
+          </div>
+          {selectedCustomer ? (
+            <SEOListings
+              customerId={selectedCustomer.id}
+              storeName={selectedCustomer.store_name}
+            />
+          ) : (
+            <div style={{ textAlign: "center", padding: "20px" }}>
+              Please select a customer to view their listings
+            </div>
+          )}
+        </div>
+      }
+    />,
+    <Route
+      path="listings/duplicate"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <div
+            style={{
+              marginBottom: "24px",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <div style={{ width: "300px" }}>
+              <CustomersDropdown
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                setSelectedCustomer={setSelectedCustomer}
+                isAdmin={true}
+              />
+            </div>
+          </div>
+          {selectedCustomer ? (
+            <ListingDuplication
+              customerId={selectedCustomer.id}
+              storeName={selectedCustomer.store_name}
+            />
+          ) : (
+            <div style={{ textAlign: "center", padding: "20px" }}>
+              Please select a customer to view their listings
+            </div>
+          )}
+        </div>
+      }
+    />,
+    <Route path="social" element={<Social />} />,
+    <Route
+      path="social-insights"
+      element={<SocialInsights customerId="" isAdmin={true} />}
+    />,
+    <Route path="pinterest" element={<PinterestAutomation />} />,
+    <Route
+      path="ads-recommendation"
+      element={
+        <AdsRecommendation
+          customerId={selectedCustomer?.id || ""}
+          isAdmin={true}
+        />
+      }
+    />,
+    <Route path="store-analysis" element={<StoreAnalysis />} />,
+    <Route path="stats" element={<Stats />} />,
+    <Route
+      path="plan"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <PlanComponent
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+          />
+        </div>
+      }
+    />,
+    <Route
+      path="plan-simple-view"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <PlanSimpleView
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+          />
+        </div>
+      }
+    />,
+    <Route path="roas-calculator" element={<ROASCalculator />} />,
+  ];
+
+  const superAdminRoutes = [
+    ...teamMemberRoutes,
+    <Route path="activity-log" element={<ActivityLog />} />,
+    <Route path="plan-task-rules" element={<PlanTaskRules />} />,
+    <Route path="tasks" element={<TaskManagement />} />,
+    <Route path="role-management" element={<RoleManagement />} />,
+  ];
+
   return (
     <Routes>
       <Route
@@ -206,143 +339,20 @@ export default function AppRoutes() {
         }
       >
         {isAdmin ? (
-          <>
-            <Route index element={<CustomerManagement />} />
-            <Route
-              path="customer-form"
-              element={<StoreInformation customerId="" isAdmin={true} />}
-            />
-            <Route path="activity-log" element={<ActivityLog />} />
-            <Route path="design-hub" element={<DesignHubV2 />} />
-            {/* <Route 
-              path="design-hub" 
-              element={<DesignHub customerId={selectedCustomer?.id || ''} isAdmin={true} />} 
-            />  */}
-            <Route
-              path="listings"
-              element={
-                <div style={{ paddingTop: "16px" }}>
-                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <div style={{ width: "300px" }}>
-                      <CustomersDropdown
-                        customers={customers}
-                        selectedCustomer={selectedCustomer}
-                        setSelectedCustomer={setSelectedCustomer}
-                        isAdmin={true}
-                      />
-                    </div>
-                  </div>
-                  {selectedCustomer ? (
-                    <SEOListings
-                      customerId={selectedCustomer.id}
-                      storeName={selectedCustomer.store_name}
-                    />
-                  ) : (
-                    <div style={{ textAlign: "center", padding: "20px" }}>
-                      Please select a customer to view their listings
-                    </div>
-                  )}
-                </div>
-              }
-            />
-            <Route
-              path="listings/duplicate"
-              element={
-                <div style={{ paddingTop: "16px" }}>
-                  <div
-                    style={{
-                      marginBottom: "24px",
-                      display: "flex",
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <div style={{ width: "300px" }}>
-                      <CustomersDropdown
-                        customers={customers}
-                        selectedCustomer={selectedCustomer}
-                        setSelectedCustomer={setSelectedCustomer}
-                        isAdmin={true}
-                      />
-                    </div>
-                  </div>
-                  {selectedCustomer ? (
-                    <ListingDuplication
-                      customerId={selectedCustomer.id}
-                      storeName={selectedCustomer.store_name}
-                    />
-                  ) : (
-                    <div style={{ textAlign: "center", padding: "20px" }}>
-                      Please select a customer to view their listings
-                    </div>
-                  )}
-                </div>
-              }
-            />
-            <Route path="social" element={<Social />} />
-            <Route 
-              path="social-insights" 
-              element={<SocialInsights customerId="" isAdmin={true} />} 
-            />
-            <Route path="pinterest" element={<PinterestAutomation />} />
-            <Route
-              path="ads-recommendation"
-              element={
-                <AdsRecommendation
-                  customerId={selectedCustomer?.id || ""}
-                  isAdmin={true}
-                />
-              }
-            />
-            <Route path="store-analysis" element={<StoreAnalysis />} />
-            <Route path="stats" element={<Stats />} />
-            <Route path="tasks" element={<TaskManagement />} />
-            <Route
-              path="plan"
-              element={
-                <div style={{ paddingTop: "16px" }}>
-                  <PlanComponent
-                    customers={customers}
-                    selectedCustomer={selectedCustomer}
-                    setSelectedCustomer={setSelectedCustomer}
-                  />
-                </div>
-              }
-            />
-            <Route path="plan-task-rules" element={<PlanTaskRules />} />
-            <Route 
-              path="plan-simple-view" 
-              element={
-                <div style={{ paddingTop: "16px" }}>
-                  <PlanSimpleView 
-                    customers={customers}
-                    selectedCustomer={selectedCustomer}
-                    setSelectedCustomer={setSelectedCustomer}
-                  />
-                </div>
-              } 
-            />
-            <Route
-              path="roas-calculator"
-              element={<ROASCalculator />}
-            />
-          </>
+          (user as IAdmin).role === "SuperAdmin" ? (
+            superAdminRoutes
+          ) : ["TeamMember", "Admin"].includes((user as IAdmin).role) ? (
+            teamMemberRoutes
+          ) : (
+            designerRoutes
+          )
         ) : (
           <>
             <Route index element={<Navigate to="/home" replace />} />
             <Route
               path="home"
               element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <UserHomepage />
-                )
+                userType === "Free" ? <UpgradeNotice /> : <UserHomepage />
               }
             />
             <Route
@@ -376,12 +386,14 @@ export default function AppRoutes() {
               path="social"
               element={userType === "Free" ? <UpgradeNotice /> : <Social />}
             />
-            <Route 
-              path="social-insights" 
+            <Route
+              path="social-insights"
               element={
-                userType === "Free" ? 
-                <UpgradeNotice /> : 
-                <SocialInsights customerId={user?.id || ''} isAdmin={false} />
+                userType === "Free" ? (
+                  <UpgradeNotice />
+                ) : (
+                  <SocialInsights customerId={user?.id || ""} isAdmin={false} />
+                )
               }
             />
             <Route path="tagify" element={<Tagify />} />
@@ -418,25 +430,16 @@ export default function AppRoutes() {
             <Route
               path="plan"
               element={
-                userType === "Free" ? 
-                <UpgradeNotice /> : 
-                <CustomerPlan />
+                userType === "Free" ? <UpgradeNotice /> : <CustomerPlan />
               }
             />
             <Route
               path="meeting-booking"
               element={
-                userType === "Free" ? (
-                  <UpgradeNotice />
-                ) : (
-                  <MeetingBooking />
-                )
+                userType === "Free" ? <UpgradeNotice /> : <MeetingBooking />
               }
             />
-            <Route
-              path="roas-calculator"
-              element={<ROASCalculator />}
-            />
+            <Route path="roas-calculator" element={<ROASCalculator />} />
           </>
         )}
       </Route>

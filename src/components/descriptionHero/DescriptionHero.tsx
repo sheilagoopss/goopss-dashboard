@@ -8,9 +8,11 @@ import type { SegmentedProps } from "antd";
 import { useState } from "react";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useGenerateTags } from "hooks/useTagify";
+import useEtsy from "hooks/useEtsy";
 
 const DescriptionHero = () => {
   const { generateDescription, isGeneratingTags } = useGenerateTags();
+  const { getEtsyConnectionUrl, isConnecting } = useEtsy();
   const [mode, setMode] = useState<"image" | "text">("image");
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>("");
@@ -24,6 +26,13 @@ const DescriptionHero = () => {
   const handleGenerate = async () => {
     const response = await generateDescription(image as string, description);
     setGeneratedData(response?.data);
+  };
+
+  const handleConnectEtsy = async () => {
+    const response = await getEtsyConnectionUrl();
+    if (response?.data && response?.data !== "") {
+      window.open(response.data, "_blank");
+    }
   };
 
   const items: SegmentedProps["options"] = [
@@ -77,7 +86,12 @@ const DescriptionHero = () => {
             Description Hero
           </h1>
         </div>
-        <Button type="primary" icon={<LinkOutlined />}>
+        <Button
+          type="primary"
+          icon={<LinkOutlined />}
+          loading={isConnecting}
+          onClick={handleConnectEtsy}
+        >
           Connect to Etsy Store
         </Button>
       </div>

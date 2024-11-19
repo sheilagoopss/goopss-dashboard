@@ -64,7 +64,10 @@ export interface IAdmin {
   name?: string;
   email: string;
   isAdmin: boolean;
+  role: AdminRole;
 }
+
+export type AdminRole = "Admin" | "SuperAdmin" | "Designer" | "TeamMember";
 
 export const packageTypes = {
   acceleratorBasic: "Accelerator - Basic",
