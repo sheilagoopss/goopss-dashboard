@@ -18,6 +18,7 @@ import type { Plan } from '../../types/Plan'
 import { useAuth } from '../../contexts/AuthContext';
 import { PlanTaskRule } from '../../types/PlanTasks';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import FirebaseHelper from '../../helpers/FirebaseHelper';
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -57,6 +58,7 @@ interface TableRecord {
   files?: TaskFile[];
   createdBy?: string;
   createdAt?: string;
+  assignedTeamMembers?: string[];
 }
 
 const pastelColors = {
@@ -80,6 +82,7 @@ interface SavedFilters {
   search: string;
   sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
+  teamMemberFilter: string;
 }
 
 // Add these helper functions
@@ -178,6 +181,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -189,10 +193,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       progressFilter,
       search,
       sortBy,
-      frequencyFilter
+      frequencyFilter,
+      teamMemberFilter
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter]);
+  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -330,7 +335,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       isActive: record.isActive ?? false,
       current: record.current ?? 0,
       goal: record.goal ?? 0,
-      notes: record.notes ?? ''
+      notes: record.notes ?? '',
+      assignedTeamMembers: record.assignedTeamMembers || []
     };
 
     console.log('Setting form values:', initialValues);
@@ -370,6 +376,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 current: typeof values.current === 'number' ? values.current : task.current,
                 goal: typeof values.goal === 'number' ? values.goal : task.goal,
                 notes: values.notes || task.notes,
+                assignedTeamMembers: values.assignedTeamMembers || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: 'admin'
               }
@@ -487,6 +494,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                     ...(values.current !== undefined && { current: values.current }),
                     ...(values.goal !== undefined && { goal: values.goal })
                   }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
                   updatedAt: new Date().toISOString(),
                   updatedBy: 'admin'
                 };
@@ -680,7 +688,31 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         }
         return null;
       }
-    }
+    },
+    {
+      title: 'Team Members',
+      key: 'teamMembers',
+      render: (_: any, record: TableRecord) => (
+        record.assignedTeamMembers && record.assignedTeamMembers.length > 0 ? (
+          <Avatar.Group maxCount={3} size="small">
+            {record.assignedTeamMembers.map((email) => {
+              const admin = adminList.find((a: IAdmin) => a.email === email);
+              return (
+                <Tooltip key={email} title={admin?.name || email}>
+                  <Avatar 
+                    size="small"
+                    style={{ backgroundColor: '#1890ff' }}
+                    src={admin?.avatarUrl}
+                  >
+                    {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
+                  </Avatar>
+                </Tooltip>
+              );
+            })}
+          </Avatar.Group>
+        ) : null
+      ),
+    },
   ]
 
   const data = useMemo(() => {
@@ -697,7 +729,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             (frequencyFilter === 'All' || 
               (frequencyFilter === 'Monthly and As Needed' 
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                : task.frequency === frequencyFilter)
+                : task.frequency === frequencyFilter) &&
+              (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
             )
           )
           .map(task => ({
@@ -735,7 +768,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       .flatMap(([_, tasks]) => tasks)
 
     return sortedTasks
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, customers])
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers])
 
   // Update the reset filters function
   const handleResetFilters = () => {
@@ -744,6 +777,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setSearch('');
     setSortBy('none');
     setFrequencyFilter('All');
+    setTeamMemberFilter('all');
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -952,6 +986,24 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     }
   };
 
+  // Add this with other state declarations at the top of the component
+  const [adminList, setAdminList] = useState<IAdmin[]>([]);
+
+  // Add this useEffect after other useEffects
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      try {
+        const admins = await FirebaseHelper.find<IAdmin>('admin');
+        setAdminList(admins);
+      } catch (error) {
+        console.error('Error fetching admin list:', error);
+        message.error('Failed to load team members');
+      }
+    };
+
+    fetchAdmins();
+  }, []);
+
   return (
     <Layout>
       <Content style={{ padding: '16px' }}>
@@ -1062,6 +1114,21 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Option value="As Needed">As Needed</Option>
               <Option value="Monthly and As Needed">Monthly & As Needed</Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={teamMemberFilter}
+              onChange={setTeamMemberFilter}
+              placeholder="Filter by team member"
+            >
+              <Option value="all">All Team Members</Option>
+              {adminList
+                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                .map((admin: IAdmin) => (
+                  <Option key={admin.email} value={admin.email}>
+                    {admin.name || admin.email}
+                  </Option>
+                ))}
+            </Select>
             <Button 
               icon={<ReloadOutlined />} 
               onClick={handleResetFilters}
@@ -1121,7 +1188,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               isActive: editingTask?.isActive ?? false,
               current: editingTask?.current ?? 0,
               goal: editingTask?.goal ?? 0,
-              notes: editingTask?.notes ?? ''
+              notes: editingTask?.notes ?? '',
+              assignedTeamMembers: editingTask?.assignedTeamMembers || []
             }}
           >
             <Form.Item name="progress" label="Progress">
@@ -1157,6 +1225,22 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} />
+            </Form.Item>
+
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
           </Form>
         </Modal>
@@ -1336,6 +1420,24 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} allowClear />
+            </Form.Item>
+
+            {/* Add team member selection */}
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+                allowClear
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
 
             <Alert
