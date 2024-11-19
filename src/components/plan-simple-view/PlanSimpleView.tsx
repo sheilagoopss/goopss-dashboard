@@ -78,7 +78,7 @@ interface Props {
 // Add this interface for saved filters
 interface SavedFilters {
   showActiveOnly: boolean;
-  progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
+  progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
   sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
@@ -178,7 +178,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   // Keep only these declarations with saved filters
   const savedFilters = getFiltersFromStorage();
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
@@ -673,7 +673,10 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         section.tasks
           .filter(task => 
             (!showActiveOnly || task.isActive) &&
-            (progressFilter === 'All' || task.progress === progressFilter) &&
+            (progressFilter === 'All' || 
+              (progressFilter === 'To Do and Doing' ? 
+                (task.progress === 'To Do' || task.progress === 'Doing') : 
+                task.progress === progressFilter)) &&
             task.task.toLowerCase().includes(search.toLowerCase()) &&
             (frequencyFilter === 'All' || 
               (frequencyFilter === 'Monthly and As Needed' 
@@ -1046,8 +1049,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               onChange={setProgressFilter}
             >
               <Option value="All">All Progress</Option>
-              <Option value="To Do">To Do</Option>
-              <Option value="Doing">Doing</Option>
+              <Option value="To Do and Doing">To Do & Doing</Option>
               <Option value="Done">Done</Option>
             </Select>
             <Search

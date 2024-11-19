@@ -483,8 +483,7 @@ type FrequencyFilterType = 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Month
 
 interface SavedFilters {
   showActiveOnly: boolean;
-  progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
-  dueDateFilter: 'all' | 'overdue' | 'thisWeek';
+  progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
   searchInput: string;
   sortBy: 'dueDate' | 'none';
@@ -541,8 +540,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // All state declarations
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
-  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>(savedFilters?.dueDateFilter ?? 'all');
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
   const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
@@ -646,12 +644,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     console.log('Filters changed:', {
       showActiveOnly,
       progressFilter,
-      dueDateFilter,
       search,
       sortBy,
       frequencyFilter
     });
-  }, [showActiveOnly, progressFilter, dueDateFilter, search, sortBy, frequencyFilter]);
+  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter]);
 
   // Add render log
   console.log('Plan component rendered at:', new Date().toISOString());
@@ -760,7 +757,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const filterTasks = (task: PlanTask) => {
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
-      (progressFilter === 'All' || task.progress === progressFilter) &&
+      (progressFilter === 'All' || 
+        (progressFilter === 'To Do and Doing' ? 
+          (task.progress === 'To Do' || task.progress === 'Doing') : 
+          task.progress === progressFilter)) &&
       task.task.toLowerCase().includes(search.toLowerCase()) &&
       (frequencyFilter === 'All' || 
         (frequencyFilter === 'Monthly and As Needed' 
@@ -916,7 +916,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
-    setDueDateFilter('all');
     setSearch('');
     setSortBy('none');
     setFrequencyFilter('All');
@@ -930,7 +929,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     const filters: SavedFilters = {
       showActiveOnly,
       progressFilter,
-      dueDateFilter,
       search,
       searchInput,
       sortBy,
@@ -939,7 +937,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, dueDateFilter, search, searchInput, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
+  }, [showActiveOnly, progressFilter, search, searchInput, sortBy, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   // Update the view switching logic
   const handleViewChange = async (viewType: 'all' | 'single') => {
@@ -948,7 +946,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       const currentFilters = {
         showActiveOnly,
         progressFilter,
-        dueDateFilter,
         search,
         searchInput,
         sortBy,
@@ -970,7 +967,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         // Restore filters after loading
         setShowActiveOnly(currentFilters.showActiveOnly);
         setProgressFilter(currentFilters.progressFilter);
-        setDueDateFilter(currentFilters.dueDateFilter);
         setSearch(currentFilters.search);
         setSearchInput(currentFilters.searchInput);
         setSortBy(currentFilters.sortBy);
@@ -989,7 +985,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           // Restore filters after loading
           setShowActiveOnly(currentFilters.showActiveOnly);
           setProgressFilter(currentFilters.progressFilter);
-          setDueDateFilter(currentFilters.dueDateFilter);
           setSearch(currentFilters.search);
           setSearchInput(currentFilters.searchInput);
           setSortBy(currentFilters.sortBy);
@@ -1017,7 +1012,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     const currentFilters = {
       showActiveOnly,
       progressFilter,
-      dueDateFilter,
       search,
       searchInput,
       sortBy,
@@ -1061,7 +1055,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     // Restore filters after loading
     setShowActiveOnly(currentFilters.showActiveOnly);
     setProgressFilter(currentFilters.progressFilter);
-    setDueDateFilter(currentFilters.dueDateFilter);
     setSearch(currentFilters.search);
     setSearchInput(currentFilters.searchInput);
     setSortBy(currentFilters.sortBy);
@@ -1371,31 +1364,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             <Select
               style={{ width: 150 }}
               value={progressFilter}
-              onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
+              onChange={(value: 'All' | 'To Do and Doing' | 'Done') => setProgressFilter(value)}
             >
               <Option value="All">All Progress</Option>
-              <Option value="To Do">To Do</Option>
-              <Option value="Doing">Doing</Option>
+              <Option value="To Do and Doing">To Do & Doing</Option>
               <Option value="Done">Done</Option>
-            </Select>
-            <Select
-              style={{ width: 150 }}
-              value={dueDateFilter}
-              onChange={(value: 'all' | 'overdue' | 'thisWeek') => setDueDateFilter(value)}
-            >
-              <Option value="all">All Due Dates</Option>
-              <Option value="overdue">
-                <Space>
-                  <WarningOutlined style={{ color: '#ff4d4f' }} />
-                  <span>Overdue</span>
-                </Space>
-              </Option>
-              <Option value="thisWeek">
-                <Space>
-                  <CalendarOutlined style={{ color: '#1890ff' }} />
-                  <span>Due This Week</span>
-                </Space>
-              </Option>
             </Select>
             <Search
               placeholder="Search tasks..."
