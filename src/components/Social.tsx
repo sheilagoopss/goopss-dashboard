@@ -128,23 +128,21 @@ const PostCreationModal: React.FC<{
         competitor_social: customerData.competitor_social || "", // competitor social
       };
 
-      const payload = [
-        {
-          image_path: listingInfo.primaryImage || "", // listing image link
-          store_name: listingInfo.store_name || "", // store name
-          about: customerInfo.about || "", // store about
-          description: listingInfo.description || "", // listing description
-          url: listingInfo.etsyLink || "", // listing link
-          content_tone: customerInfo.content_tone || "", // content tone
-          target_audience: customerInfo.target_audience || "", // target audience
-          goopss_hashtags: customerInfo.instagram_hashtags_goopss || "", // ig hashtags
-          past_facebook_posts: customerInfo.past_facebook_posts || "", // facebook post reference
-          past_instagram_posts: customerInfo.past_instagram_posts || "", // ig post reference
-          content_guideline: customerInfo.content_guideline || "", // additional instructions from customer
-        },
-      ];
+      const payload = [{
+        image_path: listingInfo.primaryImage || '',
+        store_name: listingInfo.store_name || '',
+        about: customerInfo.about || '',
+        description: listingInfo.description || '',
+        url: listingInfo.etsyLink || '',
+        content_guideline: customerInfo.content_guideline || '',
+        content_tone: customerInfo.content_tone || '', // new field to incorporate to prompt
+        target_audience: customerInfo.target_audience || '', // new field to incorporate to prompt
+        goopss_hashtags: customerInfo.instagram_hashtags_goopss || '', // new field to incorporate to prompt
+        past_facebook_posts: customerInfo.past_facebook_posts || '', // new field to incorporate to prompt
+        past_instagram_posts: customerInfo.past_instagram_posts || '' // new field to incorporate to prompt
+    }];
 
-      const API_URL = "https://goopss.onrender.com/gen_posts";
+      const API_URL = "https://goopss.onrender.com/gen_posts_dashboard";
 
       // Make the POST request
       const response = await fetch(API_URL, {
