@@ -49,6 +49,7 @@ import { db } from '../firebase/config'
 import type { Plan } from '../types/Plan';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { PlanTaskRule } from '../types/PlanTasks';
+import FirebaseHelper from '../helpers/FirebaseHelper';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -73,6 +74,7 @@ interface TaskCardProps {
   sections: PlanSection[];
   updateTask: (customerId: string, sectionTitle: string, taskId: string, updates: Partial<PlanTask>) => Promise<void>;
   isOverdue: (dueDate: string | null) => boolean;
+  adminList: IAdmin[];
 }
 
 const dropdownStyle = {
@@ -80,7 +82,7 @@ const dropdownStyle = {
   fontSize: '16px'
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue, adminList }) => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
@@ -148,7 +150,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
     setTempValues({});
     setIsEditing(false);
   };
-  const handleTempChange = (field: keyof PlanTask, value: string | number | boolean) => {
+  const handleTempChange = (field: keyof PlanTask, value: string | number | boolean | string[] | null) => {
     setTempValues(prev => ({
       ...prev,
       [field]: value
@@ -195,6 +197,27 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
                     )}
                   </Text>
                   {task.notes && <FileTextOutlined style={{ color: '#8c8c8c' }} />}
+                </Space>
+              )}
+              {task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
+                <Space size={4}>
+                  <UserOutlined style={{ color: '#8c8c8c' }} />
+                  <Avatar.Group maxCount={3} size="small">
+                    {task.assignedTeamMembers.map((email) => {
+                      const admin = adminList.find((a: IAdmin) => a.email === email);
+                      return (
+                        <Tooltip key={email} title={admin?.name || email}>
+                          <Avatar 
+                            size="small"
+                            style={{ backgroundColor: '#1890ff' }}
+                            src={admin?.avatarUrl}
+                          >
+                            {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
+                          </Avatar>
+                        </Tooltip>
+                      );
+                    })}
+                  </Avatar.Group>
                 </Space>
               )}
             </Space>
@@ -401,6 +424,28 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
               </Space>
             </>
           )}
+
+          {/* Add Team Members Selection */}
+          {isEditing && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Assigned Team Members:</Text>
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+                value={tempValues.assignedTeamMembers !== undefined ? tempValues.assignedTeamMembers : (task.assignedTeamMembers || [])}
+                onChange={(value) => handleTempChange('assignedTeamMembers', value)}
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
+            </Space>
+          )}
         </Space>
       </Panel>
     </Collapse>
@@ -520,6 +565,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [newCustomTaskModal, setNewCustomTaskModal] = useState(false);
   const [customTaskForm] = Form.useForm();
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
+  const [adminList, setAdminList] = useState<IAdmin[]>([]);
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -706,18 +753,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
-  // Update the filterTasks function to include frequency filter
+  // Update the filterTasks function
   const filterTasks = (task: PlanTask) => {
-    console.log('Filtering task:', {
-      task: task.task,
-      frequency: task.frequency,
-      selectedFilter: frequencyFilter,
-      matches: frequencyFilter === 'All' || 
-        (frequencyFilter === 'Monthly and As Needed' 
-          ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-          : task.frequency === frequencyFilter)
-    });
-
     const baseFilters = 
       (!showActiveOnly || task.isActive) &&
       (progressFilter === 'All' || task.progress === progressFilter) &&
@@ -729,7 +766,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
         : task.frequency === frequencyFilter);
 
-    if (!baseFilters || !frequencyMatches) return false;
+    const teamMemberMatches = 
+      teamMemberFilter === 'all' || 
+      (task.assignedTeamMembers?.includes(teamMemberFilter));
+
+    if (!baseFilters || !frequencyMatches || !teamMemberMatches) return false;
 
     switch (dueDateFilter) {
       case 'overdue':
@@ -1236,101 +1277,29 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <Layout>
-        <Content style={{ padding: '16px' }}>
-          <Card>
-            <Space wrap>
-              <Space>
-                <Switch
-                  checked={showActiveOnly}
-                  onChange={setShowActiveOnly}
-                />
-                <Text>Show Active Only</Text>
-              </Space>
-              <Select
-                style={{ width: 150 }}
-                value={progressFilter}
-                onChange={(value: 'All' | 'To Do' | 'Doing' | 'Done') => setProgressFilter(value)}
-              >
-                <Option value="All">All Progress</Option>
-                <Option value="To Do">To Do</Option>
-                <Option value="Doing">Doing</Option>
-                <Option value="Done">Done</Option>
-              </Select>
-              <Search
-                placeholder="Search tasks..."
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                onSearch={(value) => {
-                  setSearch(value);  // Only apply filter when search button is clicked
-                  console.log('Searching for:', value);
-                }}
-                enterButton  // Add search button
-                allowClear   // Keep clear button
-                style={{ width: 200 }}
-              />
-              <Select
-                style={{ width: 150 }}
-                value={sortBy}
-                onChange={(value: 'dueDate' | 'none') => setSortBy(value)}
-              >
-                <Option value="none">
-                  <Space>
-                    <SortAscendingOutlined />
-                    <span>No sorting</span>
-                  </Space>
-                </Option>
-                <Option value="dueDate">
-                  <Space>
-                    <SortAscendingOutlined />
-                    <span>Due Date</span>
-                  </Space>
-                </Option>
-              </Select>
-              {plans.type === 'single' && (
-                <Button
-                  icon={<PlusOutlined />}
-                  onClick={() => setNewCustomTaskModal(true)}
-                  style={{ marginRight: 8 }}
-                >
-                  Add Custom Task
-                </Button>
-              )}
-              <Button 
-                icon={<ReloadOutlined />} 
-                onClick={handleResetFilters}
-                title="Reset all filters"
-              />
-            </Space>
-          </Card>
+  // Add this useEffect after other useEffects
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      try {
+        const admins = await FirebaseHelper.find<IAdmin>('admin');
+        setAdminList(admins);
+      } catch (error) {
+        console.error('Error fetching admin list:', error);
+        message.error('Failed to load team members');
+      }
+    };
 
-          {sortedSections.map((section) => (
-            <Card key={section.title} style={{ marginTop: 16 }}>
-              <Title level={4}>{section.title}</Title>
-              {section.tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  editMode={editMode}
-                  onEdit={onEdit}
-                  customer={null}
-                  sections={sections}
-                  updateTask={updateTask}
-                  isOverdue={isOverdue}
-                />
-              ))}
-            </Card>
-          ))}
-        </Content>
-      </Layout>
-    );
-  }
+    fetchAdmins();
+  }, []);
 
   return (
     <Layout>
-      <Content style={{ padding: '16px' }}>
+      <Content style={{ 
+        padding: '16px',
+        maxHeight: 'calc(100vh - 64px)',
+        overflowY: 'auto',
+        position: 'relative'
+      }}>
         <Card>
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
@@ -1338,52 +1307,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               style={{ width: '100%' }}
               placeholder="Select a customer"
               value={selectedCustomer ? selectedCustomer.id : plans.type === 'all' ? 'all-paid' : undefined}
-              onChange={async (value) => {
-                try {
-                  setIsLoading(true);
-                  
-                  if (value === 'all-paid') {
-                    // Handle all customers view
-                    const newPlans: { [customerId: string]: Plan } = {};
-                    const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
-                    
-                    await Promise.all(
-                      paidCustomers.map(async (customer) => {
-                        const planRef = doc(db, 'plans', customer.id);
-                        const planDoc = await getDoc(planRef);
-                        
-                        if (planDoc.exists()) {
-                          newPlans[customer.id] = planDoc.data() as Plan;
-                        }
-                      })
-                    );
-
-                    setPlans({
-                      type: 'all',
-                      selectedCustomer: null,
-                      data: newPlans
-                    });
-                    setSelectedCustomer(null);
-                  } else {
-                    // Handle individual customer selection
-                    const customer = customers
-                      .filter(c => c.customer_type === 'Paid')
-                      .find((c) => c.id === value);
-                    
-                    setSelectedCustomer(customer || null);
-                    setPlans({
-                      type: 'single',
-                      selectedCustomer: customer || null,
-                      data: {}
-                    });
-                  }
-                } catch (error) {
-                  console.error('Error switching views:', error);
-                  message.error('Failed to switch views');
-                } finally {
-                  setIsLoading(false);
-                }
-              }}
+              onChange={handleCustomerSelect}
               size="large"
               listHeight={400}
               showSearch
@@ -1419,15 +1343,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   </Select.Option>
                 ))}
             </Select>
-            {selectedCustomer && (
-              <Text type="secondary">
-                <CalendarOutlined /> Date Joined: {selectedCustomer.date_joined}
-              </Text>
-            )}
           </Space>
         </Card>
 
-        {/* Always show filters */}
+        {/* Filters Card */}
         <Card style={{ marginTop: 16 }}>
           <Space wrap>
             <Space>
@@ -1508,6 +1427,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               <Option value="As Needed">As Needed</Option>
               <Option value="Monthly and As Needed">Monthly & As Needed</Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={teamMemberFilter}
+              onChange={setTeamMemberFilter}
+              placeholder="Filter by team member"
+            >
+              <Option value="all">All Team Members</Option>
+              {adminList
+                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                .map((admin: IAdmin) => (
+                  <Option key={admin.email} value={admin.email}>
+                    {admin.name || admin.email}
+                  </Option>
+                ))}
+            </Select>
             <Button 
               icon={<ReloadOutlined />} 
               onClick={handleResetFilters}
@@ -1527,158 +1461,51 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
         {isLoading && <LoadingSpinner />}
 
+        {/* Tasks Sections */}
         {!selectedCustomer && plans.type === 'all' ? (
+          // All customers view
           [...(defaultSections || []), 'Other Tasks'].map(sectionTitle => {
-            console.log(`Rendering section ${sectionTitle}:`, {
-              viewType: plans.type,
-              hasPlans: Object.keys(plans.data).length > 0
+            const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
+              const customer = customers.find(c => c.id === customerId);
+              if (!customer) return [];
+
+              const section = plan.sections.find(s => s.title === sectionTitle);
+              if (!section) return [];
+
+              return section.tasks
+                .filter(filterTasks)
+                .map(task => ({ customer, task }));
             });
 
-            if (plans.type === 'all') {
-              console.log('ENTERING ALL PLANS VIEW');
-              console.log('Available plans:', Object.keys(plans.data).map(id => {
-                const customer = customers.find(c => c.id === id);
-                return customer?.store_name;
-              }));
-              
-              // Get all tasks for this section from all customers
-              const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-                const customer = customers.find(c => c.id === customerId);
-                if (!customer) return [];
-
-                const section = plan.sections.find(s => s.title === sectionTitle);
-                if (!section) return [];
-
-                return section.tasks
-                  .filter(filterTasks)
-                  .map(task => ({ customer, task }));
-              });
-
-              // Sort tasks by task ID first, then by customer join date (most recent first)
-              const sortedTasks = allTasks.sort((a, b) => {
-                // First sort by task ID
-                if (a.task.id !== b.task.id) {
-                  return a.task.id.localeCompare(b.task.id);
-                }
-                // Then by customer join date (most recent first)
-                const dateA = dayjs(a.customer.date_joined);
-                const dateB = dayjs(b.customer.date_joined);
-                return dateB.isAfter(dateA) ? 1 : dateB.isBefore(dateA) ? -1 : 0;
-              });
-
-              // Then apply pagination to sorted tasks
-              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
-              const endIndex = startIndex + pageSize;
-              const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
-
-              return (
-                <Card key={sectionTitle} style={{ marginTop: 16 }}>
-                  <Title level={4}>{sectionTitle}</Title>
-                  {paginatedTasks.map(({ customer, task }) => (
-                    <TaskCard
-                      key={`${customer.id}-${task.id}`}
-                      task={task}
-                      editMode={editMode}
-                      onEdit={onEdit}
-                      customer={customer}
-                      sections={plans.data[customer.id].sections}
-                      updateTask={updateTask}
-                      isOverdue={isOverdue}
-                    />
-                  ))}
-                  {allTasks.length > pageSize && (
-                    <Pagination
-                      current={(paginationState[sectionTitle] || 0) + 1}
-                      total={allTasks.length}
-                      pageSize={pageSize}
-                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
-                      style={{ marginTop: '16px', textAlign: 'right' }}
-                      showTotal={(total) => `Total ${total} tasks`}
-                    />
-                  )}
-                </Card>
-              );
-            } else {
-              console.log('🔵 ENTERING SINGLE CUSTOMER VIEW');
-              const customer = selectedCustomer as ICustomer | null;
-              if (!customer) return null;
-              
-              const customerId = customer.id;
-              if (!plans.data[customerId]) return null;
-
-              const section = (plans.data[customerId] as Plan).sections
-                .find((s: PlanSection) => s.title === sectionTitle);
-              
-              if (!section) return null;
-
-              const filteredTasks = section.tasks.filter(task => 
-                (!showActiveOnly || task.isActive) &&
-                (progressFilter === 'All' || task.progress === progressFilter) &&
-                task.task.toLowerCase().includes(search.toLowerCase()) &&
-                (dueDateFilter === 'all' || 
-                  (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
-                  (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
-                )
-              );
-
-              if (filteredTasks.length === 0) return null;
-
-              // Then apply pagination
-              const startIndex = (paginationState[sectionTitle] || 0) * pageSize;
-              const endIndex = startIndex + pageSize;
-              const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
-
-              return (
-                <Card key={sectionTitle} style={{ marginTop: 16 }}>
-                  <Title level={4}>{sectionTitle}</Title>
-                  {paginatedTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      editMode={editMode}
-                      onEdit={onEdit}
-                      customer={customer}
-                      sections={sections}
-                      updateTask={updateTask}
-                      isOverdue={isOverdue}
-                    />
-                  ))}
-                  {filteredTasks.length > pageSize && (
-                    <Pagination
-                      current={(paginationState[sectionTitle] || 0) + 1}
-                      total={filteredTasks.length}
-                      pageSize={pageSize}
-                      onChange={(page) => setPaginationState(prev => ({ ...prev, [sectionTitle]: page - 1 }))}
-                      style={{ marginTop: '16px', textAlign: 'right' }}
-                      showTotal={(total) => `Total ${total} tasks`}
-                    />
-                  )}
-                </Card>
-              );
-            }
-          })
-        ) : (
-          sortedSections.map((section) => {
-            // Apply ALL filters first
-            const filteredTasks = section.tasks.filter(task => 
-              (!showActiveOnly || task.isActive) &&
-              (progressFilter === 'All' || task.progress === progressFilter) &&
-              task.task.toLowerCase().includes(search.toLowerCase()) &&
-              (dueDateFilter === 'all' || 
-                (dueDateFilter === 'overdue' && isOverdue(task.dueDate)) ||
-                (dueDateFilter === 'thisWeek' && isDueThisWeek(task.dueDate))
-              )
-            );
-
-            // Then paginate
-            const startIndex = (paginationState[section.title] || 0) * pageSize;
-            const endIndex = startIndex + pageSize;
-            const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+            if (allTasks.length === 0) return null;
 
             return (
+              <Card key={sectionTitle} style={{ marginTop: 16 }}>
+                <Title level={4}>{sectionTitle}</Title>
+                {allTasks.map(({ customer, task }) => (
+                  <TaskCard
+                    key={`${customer.id}-${task.id}`}
+                    task={task}
+                    editMode={editMode}
+                    onEdit={onEdit}
+                    customer={customer}
+                    sections={sections}
+                    updateTask={updateTask}
+                    isOverdue={isOverdue}
+                    adminList={adminList}
+                  />
+                ))}
+              </Card>
+            );
+          }).filter(Boolean)
+        ) : (
+          // Single customer view
+          sortedSections
+            .filter(section => section.tasks.length > 0)
+            .map((section) => (
               <Card key={section.title} style={{ marginTop: 16 }}>
                 <Title level={4}>{section.title}</Title>
-                {paginatedTasks.map((task) => (
+                {section.tasks.map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
@@ -1688,21 +1515,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     sections={sections}
                     updateTask={updateTask}
                     isOverdue={isOverdue}
+                    adminList={adminList}
                   />
                 ))}
-                {filteredTasks.length > pageSize && (
-                  <Pagination
-                    current={(paginationState[section.title] || 0) + 1}
-                    total={filteredTasks.length}
-                    pageSize={pageSize}
-                    onChange={(page) => setPaginationState(prev => ({ ...prev, [section.title]: page - 1 }))}
-                    style={{ marginTop: '16px', textAlign: 'right' }}
-                    showTotal={(total) => `Total ${total} tasks`}
-                  />
-                )}
               </Card>
-            );
-          })
+            ))
         )}
       </Content>
 

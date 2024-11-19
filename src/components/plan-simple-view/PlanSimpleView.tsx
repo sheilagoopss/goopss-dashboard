@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
-  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
@@ -18,6 +18,7 @@ import type { Plan } from '../../types/Plan'
 import { useAuth } from '../../contexts/AuthContext';
 import { PlanTaskRule } from '../../types/PlanTasks';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import FirebaseHelper from '../../helpers/FirebaseHelper';
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -57,6 +58,7 @@ interface TableRecord {
   files?: TaskFile[];
   createdBy?: string;
   createdAt?: string;
+  assignedTeamMembers?: string[];
 }
 
 const pastelColors = {
@@ -80,6 +82,7 @@ interface SavedFilters {
   search: string;
   sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
+  teamMemberFilter: string;
 }
 
 // Add these helper functions
@@ -178,6 +181,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -189,10 +193,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       progressFilter,
       search,
       sortBy,
-      frequencyFilter
+      frequencyFilter,
+      teamMemberFilter
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter]);
+  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -292,19 +297,9 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   }, [selectedCustomer]);
 
   const handleEdit = (record: TableRecord, customer: ICustomer) => {
-    console.log('Editing task with data:', {
-      task: record,
-      customer,
-      progress: record.progress,
-      dueDate: record.dueDate,
-      completedDate: record.completedDate,
-      isActive: record.isActive,
-      current: record.current,
-      goal: record.goal,
-      notes: record.notes
-    });
+    console.log('Editing task with data:', record);
     
-    const taskData: PlanTask = {
+    const taskData: PlanTask & { section?: string } = {  // Add section to the type
       id: record.id,
       task: record.task,
       progress: record.progress as 'To Do' | 'Doing' | 'Done',
@@ -316,28 +311,27 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       goal: record.goal,
       notes: record.notes,
       updatedAt: record.updatedAt,
-      updatedBy: record.updatedBy
+      updatedBy: record.updatedBy,
+      files: record.files,
+      createdBy: record.createdBy,
+      createdAt: record.createdAt,
+      section: record.section,  // Add this line
+      assignedTeamMembers: record.assignedTeamMembers || []
     };
     
     setEditingTask(taskData);
     setEditingCustomer(customer);
     
-    // Set initial values from the task data
-    const initialValues = {
+    form.setFieldsValue({
       progress: record.progress,
       dueDate: record.dueDate ? dayjs(record.dueDate) : null,
       completedDate: record.completedDate ? dayjs(record.completedDate) : null,
-      isActive: record.isActive ?? false,
-      current: record.current ?? 0,
-      goal: record.goal ?? 0,
-      notes: record.notes ?? ''
-    };
-
-    console.log('Setting form values:', initialValues);
-    
-    // Reset form and set values
-    form.resetFields();
-    form.setFieldsValue(initialValues);
+      isActive: record.isActive,
+      current: record.current,
+      goal: record.goal,
+      notes: record.notes,
+      assignedTeamMembers: record.assignedTeamMembers || []
+    });
     
     setEditModalVisible(true);
   };
@@ -370,6 +364,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 current: typeof values.current === 'number' ? values.current : task.current,
                 goal: typeof values.goal === 'number' ? values.goal : task.goal,
                 notes: values.notes || task.notes,
+                assignedTeamMembers: values.assignedTeamMembers || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: 'admin'
               }
@@ -487,6 +482,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                     ...(values.current !== undefined && { current: values.current }),
                     ...(values.goal !== undefined && { goal: values.goal })
                   }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
                   updatedAt: new Date().toISOString(),
                   updatedBy: 'admin'
                 };
@@ -640,53 +636,35 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       ),
     },
     {
-      title: 'Files',
-      key: 'files',
-      render: (_: any, record: TableRecord) => {
-        // Only show for Other Tasks section
-        if (record.section === 'Other Tasks' && record.files && record.files.length > 0) {
-          return (
-            <Space direction="vertical">
-              {record.files.map((file: TaskFile, index: number) => (
-                <a 
-                  key={index} 
-                  href={file.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  {file.name}
-                </a>
-              ))}
-            </Space>
-          );
-        }
-        return null;
-      }
+      title: 'Team Members',
+      key: 'teamMembers',
+      render: (_: any, record: TableRecord) => (
+        record.assignedTeamMembers && record.assignedTeamMembers.length > 0 ? (
+          <Avatar.Group maxCount={3} size="small">
+            {record.assignedTeamMembers.map((email) => {
+              const admin = adminList.find((a: IAdmin) => a.email === email);
+              return (
+                <Tooltip key={email} title={admin?.name || email}>
+                  <Avatar 
+                    size="small"
+                    style={{ backgroundColor: '#1890ff' }}
+                    src={admin?.avatarUrl}
+                  >
+                    {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
+                  </Avatar>
+                </Tooltip>
+              );
+            })}
+          </Avatar.Group>
+        ) : null
+      ),
     },
-    {
-      title: 'Created By',
-      key: 'createdBy',
-      render: (_: any, record: TableRecord) => {
-        // Only show for Other Tasks section
-        if (record.section === 'Other Tasks' && record.createdBy) {
-          return (
-            <Space direction="vertical" size={0}>
-              <Text>{record.createdBy}</Text>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {dayjs(record.createdAt).format('MMM DD, YYYY')}
-              </Text>
-            </Space>
-          );
-        }
-        return null;
-      }
-    }
   ]
 
   const data = useMemo(() => {
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
-      const customer = customers.find(c => c.id === customerId)
-      if (!customer) return []
+      const customer = customers.find(c => c.id === customerId);
+      if (!customer) return [];
       
       return plan.sections.flatMap(section =>
         section.tasks
@@ -697,19 +675,33 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             (frequencyFilter === 'All' || 
               (frequencyFilter === 'Monthly and As Needed' 
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                : task.frequency === frequencyFilter)
-            )
+                : task.frequency === frequencyFilter)) &&
+            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
             store_name: customer.store_name,
-            ...task,
-            dueDate: getAdjustedMonthlyDueDate(task.dueDate, task.frequency),
-            section: section.title,
             customer,
+            task: task.task,
+            section: section.title,
+            progress: task.progress,
+            frequency: task.frequency,
+            dueDate: getAdjustedMonthlyDueDate(task.dueDate, task.frequency),
+            completedDate: task.completedDate,
+            isActive: task.isActive,
+            current: task.current,
+            goal: task.goal,
+            notes: task.notes,
+            id: task.id,
+            updatedAt: task.updatedAt,
+            updatedBy: task.updatedBy,
+            files: task.files,
+            createdBy: task.createdBy,
+            createdAt: task.createdAt,
+            assignedTeamMembers: task.assignedTeamMembers
           }))
-      )
-    })
+      );
+    });
 
     // Group tasks by task ID (not task name)
     const groupedTasks = allTasks.reduce((acc, task) => {
@@ -735,7 +727,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       .flatMap(([_, tasks]) => tasks)
 
     return sortedTasks
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, customers])
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers]);
 
   // Update the reset filters function
   const handleResetFilters = () => {
@@ -744,6 +736,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setSearch('');
     setSortBy('none');
     setFrequencyFilter('All');
+    setTeamMemberFilter('all');
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -894,12 +887,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           notes: values.notes || '',
           current: values.current || 0,
           goal: values.goal || 0,
-          // Add new fields for custom tasks
           files: uploadedFiles,
           createdBy: (user as IAdmin)?.name || user?.email || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          updatedBy: (user as IAdmin)?.name || user?.email || ''
+          updatedBy: (user as IAdmin)?.name || user?.email || '',
+          section: 'Other Tasks'
         };
 
         // Add to Other Tasks section
@@ -918,39 +911,42 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         }
 
         // Save to Firestore
-        await updateDoc(planRef, { 
-          sections: updatedSections,
-          updatedAt: new Date().toISOString()
-        });
-
-        // Update local state immediately
-        if (plans.type === 'all') {
-          setPlans(prev => ({
-            ...prev,
-            data: {
-              ...prev.data,
-              [selectedCustomer.id]: {
-                ...prev.data[selectedCustomer.id],
-                sections: updatedSections
-              }
-            }
-          }));
-        }
-
-        // Reset form and close modal
-        addTaskForm.resetFields();
-        setUploadedFiles([]);
-        setAddTaskModalVisible(false);
-
+        await updateDoc(planRef, { sections: updatedSections });
         message.success('Task added successfully');
+        setAddTaskModalVisible(false);
+        
+        // Reload data
+        if (plans.type === 'single') {
+          await loadPlan();
+        } else {
+          await loadAllPlans();
+        }
       }
     } catch (error) {
       console.error('Error adding custom task:', error);
-      message.error('Failed to add custom task');
+      message.error('Failed to add task');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Add this with other state declarations at the top of the component
+  const [adminList, setAdminList] = useState<IAdmin[]>([]);
+
+  // Add this useEffect after other useEffects
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      try {
+        const admins = await FirebaseHelper.find<IAdmin>('admin');
+        setAdminList(admins);
+      } catch (error) {
+        console.error('Error fetching admin list:', error);
+        message.error('Failed to load team members');
+      }
+    };
+
+    fetchAdmins();
+  }, []);
 
   return (
     <Layout>
@@ -1062,6 +1058,21 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Option value="As Needed">As Needed</Option>
               <Option value="Monthly and As Needed">Monthly & As Needed</Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={teamMemberFilter}
+              onChange={setTeamMemberFilter}
+              placeholder="Filter by team member"
+            >
+              <Option value="all">All Team Members</Option>
+              {adminList
+                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                .map((admin: IAdmin) => (
+                  <Option key={admin.email} value={admin.email}>
+                    {admin.name || admin.email}
+                  </Option>
+                ))}
+            </Select>
             <Button 
               icon={<ReloadOutlined />} 
               onClick={handleResetFilters}
@@ -1121,7 +1132,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               isActive: editingTask?.isActive ?? false,
               current: editingTask?.current ?? 0,
               goal: editingTask?.goal ?? 0,
-              notes: editingTask?.notes ?? ''
+              notes: editingTask?.notes ?? '',
+              assignedTeamMembers: editingTask?.assignedTeamMembers || []
             }}
           >
             <Form.Item name="progress" label="Progress">
@@ -1158,6 +1170,62 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} />
             </Form.Item>
+
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
+            </Form.Item>
+
+            {editingTask?.section === 'Other Tasks' && editingTask.files && editingTask.files.length > 0 && (
+              <>
+                <Divider />
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong>Attachments:</Text>
+                  <div style={{ marginTop: 8 }}>
+                    {editingTask.files.map((file, index) => (
+                      <div key={index} style={{ marginBottom: 8 }}>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer">
+                          {file.name}
+                        </a>
+                        <Text type="secondary" style={{ marginLeft: 8 }}>
+                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editingTask?.section === 'Other Tasks' && editingTask.createdBy && (
+              <>
+                <Divider />
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary">
+                    Created by: {editingTask.createdBy}
+                  </Text>
+                  <Text type="secondary">
+                    Created: {dayjs(editingTask.createdAt).format('MMM DD, YYYY')}
+                  </Text>
+                  {editingTask.updatedBy !== editingTask.createdBy && (
+                    <Text type="secondary">
+                      Last updated by: {editingTask.updatedBy} ({dayjs(editingTask.updatedAt).format('MMM DD, YYYY')})
+                    </Text>
+                  )}
+                </Space>
+              </>
+            )}
           </Form>
         </Modal>
 
@@ -1336,6 +1404,24 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={4} allowClear />
+            </Form.Item>
+
+            {/* Add team member selection */}
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+                allowClear
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
 
             <Alert
