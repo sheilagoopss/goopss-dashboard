@@ -539,7 +539,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // All state declarations
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
   const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(savedFilters?.frequencyFilter ?? 'All');
@@ -1379,7 +1379,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
                 .map((admin: IAdmin) => (
                   <Option key={admin.email} value={admin.email}>
-                    {admin.name || admin.email}
+                    <Space>
+                      <Avatar 
+                        size="small"
+                        style={{ backgroundColor: '#1890ff' }}
+                        src={admin.avatarUrl}
+                      >
+                        {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
+                      </Avatar>
+                      {admin.name || admin.email}
+                    </Space>
                   </Option>
                 ))}
             </Select>
@@ -1405,7 +1414,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         {/* Tasks Section - Simplified */}
         <Card style={{ marginTop: 16 }}>
           {!selectedCustomer && plans.type === 'all' ? (
-            // All customers view
+            // All customers view - Remove the extra Card wrapper
             <>
               {Object.entries(plans.data)
                 .flatMap(([customerId, plan]) => {

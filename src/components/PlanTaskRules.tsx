@@ -668,80 +668,11 @@ const PlanTaskRulesComponent: React.FC = () => {
     }
   };
 
-  const handleDeleteSpecificTasks = async () => {
-    try {
-      Modal.confirm({
-        title: 'Delete Specific Tasks',
-        content: 'This will delete tasks with IDs 4-6 and 4-8 from all plans. Are you sure?',
-        onOk: async () => {
-          setIsApplying(true);
-          
-          // Get all plans
-          const plansRef = collection(db, 'plans');
-          const plansSnapshot = await getDocs(plansRef);
-          
-          // Batch updates
-          const batch = writeBatch(db);
-          let batchCount = 0;
-          const BATCH_LIMIT = 500;
-          
-          for (const planDoc of plansSnapshot.docs) {
-            const plan = planDoc.data() as Plan;
-            let needsUpdate = false;
-            
-            // Update each section
-            const updatedSections = plan.sections.map(section => ({
-              ...section,
-              tasks: section.tasks.filter(task => task.id !== '4-6' && task.id !== '4-8')
-            }));
-            
-            // Check if any tasks were removed
-            const tasksRemoved = updatedSections.some((section, index) => 
-              section.tasks.length !== plan.sections[index].tasks.length
-            );
-            
-            if (tasksRemoved) {
-              if (batchCount >= BATCH_LIMIT) {
-                await batch.commit();
-                batchCount = 0;
-              }
-              batch.update(doc(db, 'plans', planDoc.id), { 
-                sections: updatedSections,
-                updatedAt: new Date().toISOString()
-              });
-              batchCount++;
-              needsUpdate = true;
-            }
-          }
-          
-          // Commit any remaining updates
-          if (batchCount > 0) {
-            await batch.commit();
-          }
-          
-          message.success('Tasks deleted successfully');
-        },
-      });
-    } catch (error) {
-      console.error('Error deleting tasks:', error);
-      message.error('Failed to delete tasks');
-    } finally {
-      setIsApplying(false);
-    }
-  };
-
   return (
     <Layout>
       <Header style={{ background: '#fff', padding: '0 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={2}>Plan Task Rules</Title>
-          <Button 
-            danger
-            onClick={handleDeleteSpecificTasks}
-            loading={isApplying}
-          >
-            Delete Tasks 4-6 and 4-8
-          </Button>
         </div>
       </Header>
       <Content style={{ padding: '16px' }}>

@@ -177,7 +177,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   // Keep only these declarations with saved filters
   const savedFilters = getFiltersFromStorage();
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
@@ -1068,7 +1068,16 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
                 .map((admin: IAdmin) => (
                   <Option key={admin.email} value={admin.email}>
-                    {admin.name || admin.email}
+                    <Space>
+                      <Avatar 
+                        size="small"
+                        style={{ backgroundColor: '#1890ff' }}
+                        src={admin.avatarUrl}
+                      >
+                        {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
+                      </Avatar>
+                      {admin.name || admin.email}
+                    </Space>
                   </Option>
                 ))}
             </Select>
@@ -1078,13 +1087,15 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             >
               Reset Filters
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAddTask}
-            >
-              Add Custom Task
-            </Button>
+            {selectedCustomer && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setAddTaskModalVisible(true)}
+              >
+                Add Custom Task
+              </Button>
+            )}
             {selectedRows.length > 0 && (
               <Button
                 type="primary"
