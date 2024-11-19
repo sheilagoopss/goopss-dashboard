@@ -50,41 +50,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
     return currentPath === "social" || currentPath === "social-insights";
   });
 
-  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
-
-  // Add loading state for customer data
-  const [isCustomerDataLoading, setIsCustomerDataLoading] = useState(true);
-
   const [homeExpanded, setHomeExpanded] = useState(() => {
     return currentPath === "my-info";
   });
 
   // Add this check for paid user
   const isPaidUser = !isAdmin && (user as ICustomer)?.customer_type === "Paid";
-
-  useEffect(() => {
-    const fetchCustomerData = async () => {
-      if (!user?.id) return;
-      setIsCustomerDataLoading(true);
-      try {
-        const q = query(
-          collection(db, "customers"),
-          where("customer_id", "==", user.id),
-        );
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const data = querySnapshot.docs[0].data() as CustomerData;
-          setCustomerData(data);
-        }
-      } catch (error) {
-        console.error("Error fetching customer data:", error);
-      } finally {
-        setIsCustomerDataLoading(false);
-      }
-    };
-
-    fetchCustomerData();
-  }, [user]);
 
   useEffect(() => {
     if (socialExpanded) {
@@ -403,78 +374,72 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               marginTop: "auto",
             }}
           >
-            {isCustomerDataLoading ? (
-              <div style={{ padding: "12px", textAlign: "center" }}>
-                Loading...
-              </div>
-            ) : customerData ? (
-              <div
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <img
+                src={(user as ICustomer)?.logo || logo}
+                alt="Store logo"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
+                  height: "48px",
+                  width: "48px",
+                  borderRadius: "50%",
+                  padding: "8px",
                 }}
-              >
-                <img
-                  src={customerData.logo || logo}
-                  alt="Store logo"
+              />
+              <div style={{ flex: 1 }}>
+                <div
                   style={{
-                    height: "48px",
-                    width: "48px",
-                    borderRadius: "50%",
-                    padding: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <span
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 500,
-                          color: "#000",
-                        }}
-                      >
-                        {customerData.store_name}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "14px",
-                          color: "#666",
-                        }}
-                      >
-                        {customerData.store_owner_name}
-                      </span>
-                    </div>
-                    <Dropdown
-                      menu={{ items: dropdownItems }}
-                      placement="topRight"
-                      trigger={["click"]}
+                >
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 500,
+                        color: "#000",
+                      }}
                     >
-                      <Button
-                        type="text"
-                        icon={<MoreVertical size={20} />}
-                        style={{
-                          border: "none",
-                          width: "36px",
-                          height: "36px",
-                          padding: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      />
-                    </Dropdown>
+                      {(user as ICustomer)?.store_name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        color: "#666",
+                      }}
+                    >
+                      {(user as ICustomer)?.store_owner_name}
+                    </span>
                   </div>
+                  <Dropdown
+                    menu={{ items: dropdownItems }}
+                    placement="topRight"
+                    trigger={["click"]}
+                  >
+                    <Button
+                      type="text"
+                      icon={<MoreVertical size={20} />}
+                      style={{
+                        border: "none",
+                        width: "36px",
+                        height: "36px",
+                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    />
+                  </Dropdown>
                 </div>
               </div>
-            ) : null}
+            </div>
           </div>
         ) : (
           // Free users and admins see simple logout button
