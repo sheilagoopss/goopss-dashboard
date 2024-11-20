@@ -16,9 +16,11 @@ export default function Analytics({
 }: AnalyticsProps) {
   const totalOwners = customers.length;
   const payingCustomers = customers.filter(
-    (owner) => owner.package_type !== "Free",
+    (owner) => owner.customer_type === "Paid"
   ).length;
-  const freeCustomers = totalOwners - payingCustomers;
+  const freeCustomers = customers.filter(
+    (owner) => owner.customer_type === "Free"
+  ).length;
 
   return (
     <Card>
@@ -32,9 +34,6 @@ export default function Analytics({
         <Col span={6}>
           <Statistic title="Free Customers" value={freeCustomers} />
         </Col>
-        {/* <Col>
-          <Button>Edit All</Button>
-        </Col> */}
         <Col>
           <Button onClick={handleCSVExport}>Export store owners list</Button>
         </Col>
