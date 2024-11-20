@@ -25,7 +25,9 @@ import {
   Checkbox,
   InputNumber,
   Upload,
-  Divider
+  Divider,
+  Row,
+  Col
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -40,16 +42,17 @@ import {
   UploadOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { useAuth } from '../contexts/AuthContext'
-import { usePlan } from '../hooks/usePlan'
-import { PlanSection, PlanTask } from '../types/Plan'
-import { ICustomer, IAdmin } from '../types/Customer'
+import { useAuth } from '../../contexts/AuthContext'
+import { usePlan } from '../../hooks/usePlan'
+import { PlanSection, PlanTask } from '../../types/Plan'
+import { ICustomer, IAdmin } from '../../types/Customer'
 import { doc, getDoc, updateDoc, collection, getDocs, addDoc, query, where, deleteDoc, Timestamp, setDoc } from 'firebase/firestore'
-import { db } from '../firebase/config'
-import type { Plan } from '../types/Plan';
+import { db } from '../../firebase/config'
+import type { Plan } from '../../types/Plan';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { PlanTaskRule } from '../types/PlanTasks';
-import FirebaseHelper from '../helpers/FirebaseHelper';
+import { PlanTaskRule } from '../../types/PlanTasks';
+import FirebaseHelper from '../../helpers/FirebaseHelper';
+import TaskCalendar from './TaskCalendar';
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -579,6 +582,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [progressOptions, setProgressOptions] = useState(['Not Started', 'In Progress', 'Done']);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -1278,6 +1284,18 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchAdmins();
   }, []);
 
+  // Assume tasks is an array of PlanTask objects fetched or passed as props
+  const tasks = [
+    // Example task data
+    { task: 'Task 1', assignedTeamMembers: ['Alice'], dueDate: '2023-11-01', progress: 'In Progress' },
+    { task: 'Task 2', assignedTeamMembers: ['Bob'], dueDate: '2023-11-02', progress: 'Done' },
+    // Add more tasks as needed
+  ];
+
+  const toggleView = () => {
+    setViewMode(prev => prev === 'list' ? 'calendar' : 'list');
+  };
+
   return (
     <Layout>
       <Content style={{ 
@@ -1418,101 +1436,137 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 Add Custom Task
               </Button>
             )}
+            <Row gutter={[16, 16]} className="mb-6">
+              <Col>
+                <Input
+                  placeholder="Search tasks"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: 200 }}
+                />
+              </Col>
+              <Col>
+                <Button onClick={toggleView}>
+                  {viewMode === 'list' ? 'Calendar View' : 'List View'}
+                </Button>
+              </Col>
+            </Row>
           </Space>
         </Card>
 
         {isLoading && <LoadingSpinner />}
 
         {/* Tasks Section - Simplified */}
-        <Card style={{ marginTop: 16 }}>
-          {!selectedCustomer && plans.type === 'all' ? (
-            <>
-              {Object.entries(plans.data)
-                .flatMap(([customerId, plan]) => {
-                  const customer = customers.find(c => c.id === customerId);
-                  if (!customer) return [];
+        {viewMode === 'list' ? (
+          <Card style={{ marginTop: 16 }}>
+            {!selectedCustomer && plans.type === 'all' ? (
+              <>
+                {Object.entries(plans.data)
+                  .flatMap(([customerId, plan]) => {
+                    const customer = customers.find(c => c.id === customerId);
+                    if (!customer) return [];
 
-                  return plan.sections
-                    .flatMap(section => section.tasks)
-                    .filter(filterTasks)
-                    .map(task => ({ customer, task }));
-                })
-                .sort((a, b) => {
-                  if (!a.task.dueDate && !b.task.dueDate) return 0;
-                  if (!a.task.dueDate) return 1;
-                  if (!b.task.dueDate) return -1;
-                  const dateA = dayjs(a.task.dueDate);
-                  const dateB = dayjs(b.task.dueDate);
-                  return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
-                })
-                .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-                .map(({ customer, task }) => (
-                  <TaskCard
-                    key={`${customer.id}-${task.id}`}
-                    task={task}
-                    editMode={editMode}
-                    onEdit={onEdit}
-                    customer={customer}
-                    sections={sections}
-                    updateTask={updateTask}
-                    isOverdue={isOverdue}
-                    adminList={adminList}
+                    return plan.sections
+                      .flatMap(section => section.tasks)
+                      .filter(filterTasks)
+                      .map(task => ({ customer, task }));
+                  })
+                  .sort((a, b) => {
+                    if (!a.task.dueDate && !b.task.dueDate) return 0;
+                    if (!a.task.dueDate) return 1;
+                    if (!b.task.dueDate) return -1;
+                    const dateA = dayjs(a.task.dueDate);
+                    const dateB = dayjs(b.task.dueDate);
+                    return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                  })
+                  .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+                  .map(({ customer, task }) => (
+                    <TaskCard
+                      key={`${customer.id}-${task.id}`}
+                      task={task}
+                      editMode={editMode}
+                      onEdit={onEdit}
+                      customer={customer}
+                      sections={sections}
+                      updateTask={updateTask}
+                      isOverdue={isOverdue}
+                      adminList={adminList}
+                    />
+                  ))}
+                <div style={{ marginTop: 16, textAlign: 'right' }}>
+                  <Pagination
+                    current={currentPage}
+                    total={Object.entries(plans.data)
+                      .flatMap(([customerId, plan]) => {
+                        const customer = customers.find(c => c.id === customerId);
+                        if (!customer) return [];
+                        return plan.sections.flatMap(section => section.tasks).filter(filterTasks);
+                      }).length}
+                    pageSize={PAGE_SIZE}
+                    onChange={setCurrentPage}
+                    showTotal={(total) => `Total ${total} tasks`}
                   />
-                ))}
-              <div style={{ marginTop: 16, textAlign: 'right' }}>
-                <Pagination
-                  current={currentPage}
-                  total={Object.entries(plans.data)
+                </div>
+              </>
+            ) : (
+              <>
+                {sections
+                  .flatMap(section => section.tasks)
+                  .filter(filterTasks)
+                  .sort((a, b) => {
+                    if (!a.dueDate && !b.dueDate) return 0;
+                    if (!a.dueDate) return 1;
+                    if (!b.dueDate) return -1;
+                    const dateA = dayjs(a.dueDate);
+                    const dateB = dayjs(b.dueDate);
+                    return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                  })
+                  .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+                  .map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      editMode={editMode}
+                      onEdit={onEdit}
+                      customer={selectedCustomer}
+                      sections={sections}
+                      updateTask={updateTask}
+                      isOverdue={isOverdue}
+                      adminList={adminList}
+                    />
+                  ))}
+                <div style={{ marginTop: 16, textAlign: 'right' }}>
+                  <Pagination
+                    current={currentPage}
+                    total={sections.flatMap(section => section.tasks).filter(filterTasks).length}
+                    pageSize={PAGE_SIZE}
+                    onChange={setCurrentPage}
+                    showTotal={(total) => `Total ${total} tasks`}
+                  />
+                </div>
+              </>
+            )}
+          </Card>
+        ) : (
+          <Card style={{ marginTop: 16 }}>
+            <TaskCalendar 
+              tasks={!selectedCustomer && plans.type === 'all' 
+                ? Object.entries(plans.data)
                     .flatMap(([customerId, plan]) => {
                       const customer = customers.find(c => c.id === customerId);
                       if (!customer) return [];
-                      return plan.sections.flatMap(section => section.tasks).filter(filterTasks);
-                    }).length}
-                  pageSize={PAGE_SIZE}
-                  onChange={setCurrentPage}
-                  showTotal={(total) => `Total ${total} tasks`}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              {sections
-                .flatMap(section => section.tasks)
-                .filter(filterTasks)
-                .sort((a, b) => {
-                  if (!a.dueDate && !b.dueDate) return 0;
-                  if (!a.dueDate) return 1;
-                  if (!b.dueDate) return -1;
-                  const dateA = dayjs(a.dueDate);
-                  const dateB = dayjs(b.dueDate);
-                  return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
-                })
-                .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-                .map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    editMode={editMode}
-                    onEdit={onEdit}
-                    customer={selectedCustomer}
-                    sections={sections}
-                    updateTask={updateTask}
-                    isOverdue={isOverdue}
-                    adminList={adminList}
-                  />
-                ))}
-              <div style={{ marginTop: 16, textAlign: 'right' }}>
-                <Pagination
-                  current={currentPage}
-                  total={sections.flatMap(section => section.tasks).filter(filterTasks).length}
-                  pageSize={PAGE_SIZE}
-                  onChange={setCurrentPage}
-                  showTotal={(total) => `Total ${total} tasks`}
-                />
-              </div>
-            </>
-          )}
-        </Card>
+                      return plan.sections
+                        .flatMap(section => section.tasks)
+                        .filter(task => task.isActive);
+                    })
+                : sections
+                    .flatMap(section => section.tasks)
+                    .filter(task => task.isActive)
+              }
+              adminList={adminList}
+            />
+          </Card>
+        )}
       </Content>
 
       {/* Add Custom Task Modal */}

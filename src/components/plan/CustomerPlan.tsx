@@ -3,10 +3,10 @@ import { Layout, Card, Space, Typography, Select, Input, Spin, Tooltip, Tag, Pro
 import { CalendarOutlined, WarningOutlined, CheckCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { useAuth } from '../contexts/AuthContext';
-import { PlanSection, PlanTask } from '../types/Plan';
-import { ICustomer } from '../types/Customer';
+import { db } from '../../firebase/config';
+import { useAuth } from '../../contexts/AuthContext';
+import { PlanSection, PlanTask } from '../../types/Plan';
+import { ICustomer } from '../../types/Customer';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -149,12 +149,12 @@ export const CustomerPlan: React.FC = () => {
   }, [user?.id]);
 
   // Helper functions
-  const isOverdue = (dueDate: string | null) => {
+  const isOverdue = (dueDate: string | null | undefined) => {
     if (!dueDate) return false;
     return dayjs(dueDate).isBefore(dayjs(), 'day');
   };
 
-  const isDueThisWeek = (dueDate: string | null) => {
+  const isDueThisWeek = (dueDate: string | null | undefined) => {
     if (!dueDate) return false;
     const today = dayjs();
     const dueDay = dayjs(dueDate);
