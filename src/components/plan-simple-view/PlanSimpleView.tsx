@@ -78,11 +78,11 @@ interface Props {
 // Add this interface for saved filters
 interface SavedFilters {
   showActiveOnly: boolean;
-  progressFilter: 'All' | 'To Do' | 'Doing' | 'Done';
+  progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
-  sortBy: 'dueDate' | 'none';
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
+  showMyTasks: boolean;
 }
 
 // Add these helper functions
@@ -177,11 +177,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   // Keep only these declarations with saved filters
   const savedFilters = getFiltersFromStorage();
   const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>(savedFilters?.progressFilter ?? 'All');
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'none'>(savedFilters?.sortBy ?? 'none');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
+  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -192,12 +192,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       showActiveOnly,
       progressFilter,
       search,
-      sortBy,
       frequencyFilter,
-      teamMemberFilter
+      teamMemberFilter,
+      showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, sortBy, frequencyFilter, teamMemberFilter]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -661,7 +661,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     },
   ]
 
-  const data = useMemo(() => {
+  const filteredData = useMemo(() => {
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
       const customer = customers.find(c => c.id === customerId);
       if (!customer) return [];
@@ -670,13 +670,17 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         section.tasks
           .filter(task => 
             (!showActiveOnly || task.isActive) &&
-            (progressFilter === 'All' || task.progress === progressFilter) &&
+            (progressFilter === 'All' || 
+              (progressFilter === 'To Do and Doing' ? 
+                (task.progress === 'To Do' || task.progress === 'Doing') : 
+                task.progress === progressFilter)) &&
             task.task.toLowerCase().includes(search.toLowerCase()) &&
             (frequencyFilter === 'All' || 
               (frequencyFilter === 'Monthly and As Needed' 
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
                 : task.frequency === frequencyFilter)) &&
-            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter))
+            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
+            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''))
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
@@ -703,40 +707,24 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       );
     });
 
-    // Group tasks by task ID (not task name)
-    const groupedTasks = allTasks.reduce((acc, task) => {
-      if (!acc[task.id]) {
-        acc[task.id] = []
-      }
-      acc[task.id].push(task)
-      return acc
-    }, {} as { [key: string]: typeof allTasks })
-
-    // Sort customers by join date within each task ID group
-    Object.values(groupedTasks).forEach(group => {
-      group.sort((a, b) => {
-        const dateA = dayjs(a.customer.date_joined)
-        const dateB = dayjs(b.customer.date_joined)
-        return dateB.valueOf() - dateA.valueOf() // Most recent first
-      })
-    })
-
-    // Convert back to array, maintaining original task order
-    const sortedTasks = Object.entries(groupedTasks)
-      .sort(([idA], [idB]) => idA.localeCompare(idB)) // Sort by task ID
-      .flatMap(([_, tasks]) => tasks)
-
-    return sortedTasks
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, customers]);
+    return allTasks.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      const dateA = dayjs(a.dueDate);
+      const dateB = dayjs(b.dueDate);
+      return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+    });
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user]);
 
   // Update the reset filters function
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
     setSearch('');
-    setSortBy('none');
     setFrequencyFilter('All');
     setTeamMemberFilter('all');
+    setShowMyTasks(false);
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -892,7 +880,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           updatedBy: (user as IAdmin)?.name || user?.email || '',
-          section: 'Other Tasks'
+          section: 'Other Tasks',
+          assignedTeamMembers: values.assignedTeamMembers || []
         };
 
         // Add to Other Tasks section
@@ -1023,9 +1012,20 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             <Space>
               <Switch
                 checked={showActiveOnly}
-                onChange={setShowActiveOnly}
+                onChange={(checked) => {
+                  setShowActiveOnly(checked);  // This will be immediate
+                }}
               />
               <Text>Show Active Only</Text>
+            </Space>
+            <Space>
+              <Switch
+                checked={showMyTasks}
+                onChange={(checked) => {
+                  setShowMyTasks(checked);  // This will be immediate
+                }}
+              />
+              <Text>My Tasks</Text>
             </Space>
             <Select
               style={{ width: 150 }}
@@ -1033,8 +1033,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               onChange={setProgressFilter}
             >
               <Option value="All">All Progress</Option>
-              <Option value="To Do">To Do</Option>
-              <Option value="Doing">Doing</Option>
+              <Option value="To Do and Doing">To Do & Doing</Option>
               <Option value="Done">Done</Option>
             </Select>
             <Search
@@ -1069,7 +1068,16 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
                 .map((admin: IAdmin) => (
                   <Option key={admin.email} value={admin.email}>
-                    {admin.name || admin.email}
+                    <Space>
+                      <Avatar 
+                        size="small"
+                        style={{ backgroundColor: '#1890ff' }}
+                        src={admin.avatarUrl}
+                      >
+                        {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
+                      </Avatar>
+                      {admin.name || admin.email}
+                    </Space>
                   </Option>
                 ))}
             </Select>
@@ -1079,13 +1087,15 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             >
               Reset Filters
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAddTask}
-            >
-              Add Custom Task
-            </Button>
+            {selectedCustomer && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setAddTaskModalVisible(true)}
+              >
+                Add Custom Task
+              </Button>
+            )}
             {selectedRows.length > 0 && (
               <Button
                 type="primary"
@@ -1099,7 +1109,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
         <Table 
           columns={columns} 
-          dataSource={data}
+          dataSource={filteredData}
           style={{ marginTop: 16 }}
           loading={isLoading}
           rowSelection={{
@@ -1343,6 +1353,23 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
                 Max file size: 10MB
               </Text>
+            </Form.Item>
+
+            {/* Add team member selection */}
+            <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                placeholder="Select team members"
+              >
+                {adminList
+                  .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                  .map((admin: IAdmin) => (
+                    <Option key={admin.email} value={admin.email}>
+                      {admin.name || admin.email}
+                    </Option>
+                  ))}
+              </Select>
             </Form.Item>
 
             {/* Add creator info display */}
