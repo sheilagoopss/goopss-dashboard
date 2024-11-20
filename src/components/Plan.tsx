@@ -303,6 +303,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
         </div>
 
         <Space direction="vertical" style={{ width: '100%' }} size="large">
+          {task.section === 'Other Tasks' && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Task Name:</Text>
+              <Input
+                value={tempValues.task !== undefined ? tempValues.task : task.task}
+                onChange={(e) => handleTempChange('task', e.target.value)}
+                disabled={!isEditing}
+              />
+            </Space>
+          )}
           <Space>
             <Select
               style={{ width: 120 }}
@@ -385,17 +395,34 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
             />
           </Space>
 
-          {/* Add custom task info only for tasks in Other Tasks section */}
-          {sections.find(s => s.title === 'Other Tasks')?.tasks.some(t => t.id === task.id) && (
-            <>
-              <Divider />
-              {/* Show files if they exist */}
+          {/* Add creator info and attachments section */}
+          {(task.createdBy || (task.files && task.files.length > 0)) && (
+            <div style={{ 
+              marginTop: 16,
+              padding: '8px 16px', 
+              backgroundColor: '#f5f5f5', 
+              borderRadius: '8px' 
+            }}>
+              {task.createdBy && (
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary">
+                    Created by: {task.createdBy}
+                    {task.createdAt && ` (${dayjs(task.createdAt).format('MMM DD, YYYY')})`}
+                  </Text>
+                  {task.updatedBy && task.updatedBy !== task.createdBy && (
+                    <Text type="secondary">
+                      Last updated by: {task.updatedBy}
+                      {task.updatedAt && ` (${dayjs(task.updatedAt).format('MMM DD, YYYY')})`}
+                    </Text>
+                  )}
+                </Space>
+              )}
               {task.files && task.files.length > 0 && (
-                <div>
-                  <Text strong>Attachments:</Text>
-                  <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: task.createdBy ? 8 : 0 }}>
+                  <Text type="secondary">Attachments:</Text>
+                  <div style={{ marginTop: 4 }}>
                     {task.files.map((file, index) => (
-                      <div key={index} style={{ marginBottom: 8 }}>
+                      <div key={index} style={{ marginBottom: 4 }}>
                         <a href={file.url} target="_blank" rel="noopener noreferrer">
                           {file.name}
                         </a>
@@ -407,22 +434,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, s
                   </div>
                 </div>
               )}
-              
-              {/* Show creator info */}
-              <Space direction="vertical" size={0}>
-                <Text type="secondary">
-                  Created by: {task.createdBy}
-                </Text>
-                <Text type="secondary">
-                  Created: {dayjs(task.createdAt).format('MMM DD, YYYY')}
-                </Text>
-                {task.updatedBy !== task.createdBy && (
-                  <Text type="secondary">
-                    Last updated by: {task.updatedBy} ({dayjs(task.updatedAt).format('MMM DD, YYYY')})
-                  </Text>
-                )}
-              </Space>
-            </>
+            </div>
           )}
 
           {/* Add Team Members Selection */}
@@ -1414,7 +1426,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         {/* Tasks Section - Simplified */}
         <Card style={{ marginTop: 16 }}>
           {!selectedCustomer && plans.type === 'all' ? (
-            // All customers view - Remove the extra Card wrapper
             <>
               {Object.entries(plans.data)
                 .flatMap(([customerId, plan]) => {
@@ -1464,7 +1475,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               </div>
             </>
           ) : (
-            // Single customer view
             <>
               {sections
                 .flatMap(section => section.tasks)
