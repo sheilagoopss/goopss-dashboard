@@ -1,18 +1,33 @@
-import { Button, Segmented, Tag, List, Input, Image, Card } from "antd";
+import {
+  Button,
+  Segmented,
+  Tag,
+  List,
+  Input,
+  Image,
+  Card,
+  message,
+} from "antd";
 import {
   CloseCircleFilled,
   CopyOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
 import type { SegmentedProps } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useGenerateTags } from "hooks/useTagify";
 import useEtsy from "hooks/useEtsy";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useCustomerUpdate } from "hooks/useCustomer";
+import { useAuth } from "contexts/AuthContext";
+import { ICustomer } from "types/Customer";
 
 const DescriptionHero = () => {
+  const { user } = useAuth();
   const { generateDescription, isGeneratingTags } = useGenerateTags();
   const { getEtsyConnectionUrl, isConnecting } = useEtsy();
+  const { updateCustomer } = useCustomerUpdate();
   const [mode, setMode] = useState<"image" | "text">("image");
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>("");
@@ -22,6 +37,9 @@ const DescriptionHero = () => {
     tags: string[];
     attributes: string[];
   } | null>(null);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const codeValue = searchParams.get("code");
 
   const handleGenerate = async () => {
     const response = await generateDescription(image as string, description);
@@ -45,6 +63,22 @@ const DescriptionHero = () => {
       label: "Text Description",
     },
   ];
+
+  const handleSaveToken = async (code: string) => {
+    const response = await updateCustomer(user?.id as string, {
+      etsyToken: code,
+    });
+    if (response) {
+      message.success("Etsy Store connected successfully");
+      navigate("/description-hero");
+    }
+  };
+
+  useEffect(() => {
+    if (codeValue) {
+      handleSaveToken(codeValue);
+    }
+  }, [codeValue]);
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
@@ -86,14 +120,18 @@ const DescriptionHero = () => {
             Description Hero
           </h1>
         </div>
-        <Button
-          type="primary"
-          icon={<LinkOutlined />}
-          loading={isConnecting}
-          onClick={handleConnectEtsy}
-        >
-          Connect to Etsy Store
-        </Button>
+        {!(user as ICustomer)?.etsyToken ? (
+          <Button
+            type="primary"
+            icon={<LinkOutlined />}
+            loading={isConnecting}
+            onClick={handleConnectEtsy}
+          >
+            Connect to Etsy Store
+          </Button>
+        ) : (
+          <Button disabled>Connected to Etsy Store</Button>
+        )}
       </div>
 
       <div
