@@ -59,7 +59,7 @@ export interface ICustomer {
   instagram_hashtags_goopss?: string;
 
   // Etsy
-  etsyToken?: string;
+  etsyToken?: string | null;
 }
 
 export interface IAdmin {
