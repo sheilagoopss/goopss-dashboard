@@ -840,14 +840,12 @@ const Social: React.FC = () => {
 
   return (
     <div style={{ padding: "20px" }}>
-      <div
-        style={{
-          marginBottom: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+      <div style={{
+        marginBottom: "20px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}>
         <h2>Social Media Calendar</h2>
         {isAdmin && (
           <CustomersDropdown
@@ -859,98 +857,94 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {user && ((user as ICustomer)?.isSuperCustomer || isAdmin) && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              gap: "2ch",
-              marginBottom: "1ch",
-              alignItems: "center",
-            }}
-          >
-            {selectedCustomer?.facebook?.is_connected ? (
-              <Card
-                style={{
-                  width: "fit-content",
-                }}
-              >
-                <Row gutter={16} style={{ alignItems: "center" }}>
-                  <Col>
-                    <FacebookFilled
-                      style={{ fontSize: "2rem", color: "#1877F2" }}
-                    />
-                  </Col>
-                  <Col>
-                    <Avatar
-                      src={selectedCustomer?.facebook?.profile_picture_url}
-                      size={64}
-                    />
-                  </Col>
-                  <Col>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <Typography.Text>
-                        {selectedCustomer?.facebook?.page_name}
-                      </Typography.Text>
-                      <Typography.Text type="secondary">
-                        {selectedCustomer?.facebook?.user_email}
-                      </Typography.Text>
-                    </div>
-                  </Col>
-                  <Col>
-                    <Popconfirm
-                      title="Are you sure you want to disconnect?"
-                      onConfirm={handleDisconnect}
-                      okText="Yes"
-                      cancelText="No"
+      {user && (
+        <div style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: "2ch",
+          marginBottom: "1ch",
+          alignItems: "center",
+        }}>
+          {selectedCustomer?.facebook?.is_connected ? (
+            <Card style={{ width: "fit-content" }}>
+              <Row gutter={16} style={{ alignItems: "center" }}>
+                <Col>
+                  <FacebookFilled
+                    style={{ fontSize: "2rem", color: "#1877F2" }}
+                  />
+                </Col>
+                <Col>
+                  <Avatar
+                    src={selectedCustomer?.facebook?.profile_picture_url}
+                    size={64}
+                  />
+                </Col>
+                <Col>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <Typography.Text>
+                      {selectedCustomer?.facebook?.page_name}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {selectedCustomer?.facebook?.user_email}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col>
+                  <Popconfirm
+                    title="Are you sure you want to disconnect?"
+                    onConfirm={handleDisconnect}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button
+                      type="primary"
+                      danger
+                      loading={isUpdatingCustomer}
                     >
-                      <Button
-                        type="primary"
-                        danger
-                        loading={isUpdatingCustomer}
-                      >
-                        Disconnect
-                      </Button>
-                    </Popconfirm>
-                  </Col>
-                </Row>
-              </Card>
-            ) : (
-              <FacebookButton />
-            )}
+                      Disconnect
+                    </Button>
+                  </Popconfirm>
+                </Col>
+              </Row>
+            </Card>
+          ) : (
+            <FacebookButton />
+          )}
 
-            {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
-              <PinterestButton />
-            )}
-          </div>
-        </>
+          {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+            <PinterestButton />
+          )}
+        </div>
       )}
 
-      <Card style={{ marginBottom: "20px" }}>
-        <Title level={4}>Listings</Title>
-        <Input.Search
-          placeholder="Search listings by ID or title..."
-          style={{ marginBottom: 16 }}
-          onSearch={handleSearch}
-          allowClear
-        />
-        <Table
-          dataSource={filteredListings}
-          columns={columns}
-          loading={loading}
-          pagination={{
-            total: filteredListings.length,
-            pageSize: LISTINGS_PER_PAGE,
-            current: currentPage,
-            onChange: (page) => setCurrentPage(page),
-            showSizeChanger: false,
-            showTotal: (total) => `Total ${total} listings`,
-          }}
-          rowKey="id"
-        />
-      </Card>
-      <Divider />
+      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+        <>
+          <Card style={{ marginBottom: "20px" }}>
+            <Title level={4}>Listings</Title>
+            <Input.Search
+              placeholder="Search listings by ID or title..."
+              style={{ marginBottom: 16 }}
+              onSearch={handleSearch}
+              allowClear
+            />
+            <Table
+              dataSource={filteredListings}
+              columns={columns}
+              loading={loading}
+              pagination={{
+                total: filteredListings.length,
+                pageSize: LISTINGS_PER_PAGE,
+                current: currentPage,
+                onChange: (page) => setCurrentPage(page),
+                showSizeChanger: false,
+                showTotal: (total) => `Total ${total} listings`,
+              }}
+              rowKey="id"
+            />
+          </Card>
+          <Divider />
+        </>
+      )}
 
       <div style={{ display: "flex", gap: "20px" }}>
         <div style={{ flex: 1 }}>
@@ -1087,13 +1081,15 @@ const Social: React.FC = () => {
         </div>
       </div>
 
-      <PostCreationModal
-        isOpen={isPostCreationModalOpen}
-        listing={currentListing}
-        customerId={selectedCustomer?.id || ""}
-        onSave={handleSavePost}
-        onCancel={() => setIsPostCreationModalOpen(false)}
-      />
+      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+        <PostCreationModal
+          isOpen={isPostCreationModalOpen}
+          listing={currentListing}
+          customerId={selectedCustomer?.id || ""}
+          onSave={handleSavePost}
+          onCancel={() => setIsPostCreationModalOpen(false)}
+        />
+      )}
     </div>
   );
 };
