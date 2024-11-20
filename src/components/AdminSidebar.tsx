@@ -115,120 +115,136 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   }, [openKeys]);
 
   const adminMenuItems: MenuItem[] = [
-    {
-      key: "plan",
-      icon: <PieChartOutlined />,
-      label: <span>Plan</span>,
-      children: [
-        {
-          key: "/plan",
-          icon: <PieChartOutlined />,
-          label: <Link to="/plan">Default View</Link>,
-        },
-        {
-          key: "/plan-simple-view",
-          icon: <TableOutlined />,
-          label: <Link to="/plan-simple-view">Simple View</Link>,
-        },
-        ...((user as IAdmin).role === "TeamMember" ||
-        (user as IAdmin).role === "SuperAdmin"
-          ? [
-              {
-                key: "/plan-task-rules",
-                icon: <FormOutlined />,
-                label: <Link to="/plan-task-rules">Plan Task Rules</Link>,
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      key: "customers",
-      icon: <UserOutlined />,
-      label: <span>Customers</span>,
-      children: [
-        {
-          key: "/",
-          icon: <UserOutlined />,
-          label: <Link to="/">Customers List</Link>,
-        },
-        {
-          key: "/customer-form",
-          icon: <FormOutlined />,
-          label: <Link to="/customer-form">Customer Form</Link>,
-        },
-        {
-          key: "/activity-log",
-          icon: <BarChartOutlined />,
-          label: <Link to="/activity-log">Activity Log</Link>,
-        },
-      ],
-    },
-    ...((user as IAdmin).role === "Designer" ||
+    ...((user as IAdmin).role === "Admin" ||
+    (user as IAdmin).role === "TeamMember" ||
     (user as IAdmin).role === "SuperAdmin"
       ? [
           {
-            key: "design-hub",
-            icon: <AppstoreOutlined />,
-            label: <Link to="/design-hub">Design Hub</Link>,
+            key: "plan",
+            icon: <PieChartOutlined />,
+            label: <span>Plan</span>,
+            children: [
+              {
+                key: "/plan",
+                icon: <PieChartOutlined />,
+                label: <Link to="/plan">Default View</Link>,
+              },
+              {
+                key: "/plan-simple-view",
+                icon: <TableOutlined />,
+                label: <Link to="/plan-simple-view">Simple View</Link>,
+              },
+              ...((user as IAdmin).role === "SuperAdmin"
+                ? [
+                    {
+                      key: "/plan-task-rules",
+                      icon: <FormOutlined />,
+                      label: <Link to="/plan-task-rules">Plan Task Rules</Link>,
+                    },
+                  ]
+                : []),
+            ],
+          },
+          {
+            key: "customers",
+            icon: <UserOutlined />,
+            label: <span>Customers</span>,
+            children: [
+              {
+                key: "/",
+                icon: <UserOutlined />,
+                label: <Link to="/">Customers List</Link>,
+              },
+              {
+                key: "/customer-form",
+                icon: <FormOutlined />,
+                label: <Link to="/customer-form">Customer Form</Link>,
+              },
+              ...((user as IAdmin).role === "SuperAdmin"
+                ? [
+                    {
+                      key: "/activity-log",
+                      icon: <BarChartOutlined />,
+                      label: <Link to="/activity-log">Activity Log</Link>,
+                    },
+                  ]
+                : []),
+            ],
           },
         ]
       : []),
+
     {
-      key: "listings",
-      icon: <FileTextOutlined />,
-      label: "Listings",
-      children: [
-        {
-          key: "/listings",
-          label: <Link to="/listings">Optimization</Link>,
-        },
-        {
-          key: "/listings/duplicate",
-          label: <Link to="/listings/duplicate">Duplication</Link>,
-        },
-      ],
+      key: "design-hub",
+      icon: <AppstoreOutlined />,
+      label: <Link to="/design-hub">Design Hub</Link>,
     },
-    {
-      key: "social",
-      icon: <MessageOutlined />,
-      label: "Social",
-      children: [
-        {
-          key: "/social",
-          label: <Link to="/social">Social Calendar</Link>,
-        },
-        {
-          key: "/social-insights",
-          label: <Link to="/social-insights">Social Media Insights</Link>,
-        },
-      ],
-    },
-    {
-      key: "pinterest",
-      icon: <InstagramOutlined />,
-      label: <Link to="/pinterest">Pinterest</Link>,
-    },
-    {
-      key: "ads-recommendation",
-      icon: <StarOutlined />,
-      label: <Link to="/ads-recommendation">Ads Analysis</Link>,
-    },
-    {
-      key: "store-analysis",
-      icon: <BarChartOutlined />,
-      label: <Link to="/store-analysis">Store Analysis</Link>,
-    },
-    {
-      key: "stats",
-      icon: <LineChartOutlined />,
-      label: <Link to="/stats">Stats</Link>,
-    },
-    {
-      key: "tasks",
-      icon: <ProjectOutlined />,
-      label: <Link to="/tasks">Tasks Summary</Link>,
-    },
+
+    ...((user as IAdmin).role === "SuperAdmin" ||
+    (user as IAdmin).role === "Admin" ||
+    (user as IAdmin).role === "TeamMember"
+      ? [
+          {
+            key: "listings",
+            icon: <FileTextOutlined />,
+            label: "Listings",
+            children: [
+              {
+                key: "/listings",
+                label: <Link to="/listings">Optimization</Link>,
+              },
+              {
+                key: "/listings/duplicate",
+                label: <Link to="/listings/duplicate">Duplication</Link>,
+              },
+            ],
+          },
+          {
+            key: "social",
+            icon: <MessageOutlined />,
+            label: "Social",
+            children: [
+              {
+                key: "/social",
+                label: <Link to="/social">Social Calendar</Link>,
+              },
+              {
+                key: "/social-insights",
+                label: <Link to="/social-insights">Social Media Insights</Link>,
+              },
+            ],
+          },
+          {
+            key: "pinterest",
+            icon: <InstagramOutlined />,
+            label: <Link to="/pinterest">Pinterest</Link>,
+          },
+          {
+            key: "ads-recommendation",
+            icon: <StarOutlined />,
+            label: <Link to="/ads-recommendation">Ads Analysis</Link>,
+          },
+          {
+            key: "store-analysis",
+            icon: <BarChartOutlined />,
+            label: <Link to="/store-analysis">Store Analysis</Link>,
+          },
+          {
+            key: "stats",
+            icon: <LineChartOutlined />,
+            label: <Link to="/stats">Stats</Link>,
+          },
+          ...((user as IAdmin).role === "SuperAdmin"
+            ? [
+                {
+                  key: "tasks",
+                  icon: <ProjectOutlined />,
+                  label: <Link to="/tasks">Tasks Summary</Link>,
+                },
+              ]
+            : []),
+        ]
+      : []),
     ...((user as IAdmin).role === "SuperAdmin"
       ? [
           {

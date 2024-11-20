@@ -57,6 +57,9 @@ export interface ICustomer {
   pinterest_shared_boards_goopss?: string;
   facebook_groups_goopss?: string;
   instagram_hashtags_goopss?: string;
+
+  // Etsy
+  etsyToken?: string;
 }
 
 export interface IAdmin {
