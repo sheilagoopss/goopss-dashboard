@@ -26,7 +26,7 @@ export interface PlanTask {
   task: string;
   progress: 'To Do' | 'Doing' | 'Done';
   frequency: 'Monthly' | 'One Time' | 'As Needed';
-  dueDate: string | null;
+  dueDate?: string | null;
   completedDate: string | null;
   isActive: boolean;
   notes: string;

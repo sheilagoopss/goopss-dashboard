@@ -29,9 +29,10 @@ export default function CustomerManagement() {
   const refresh = async () => {
     fetchAllCustomers().then((customers) => {
       setCustomers(customers);
-      setFilteredCustomers(
-        customers.filter((customer) => customer.package_type !== "Free"),
+      const filteredCustomers = customers.filter(
+        (customer) => customer.customer_type === 'Paid'
       );
+      setFilteredCustomers(filteredCustomers);
       setSegmentValue("Paid");
     });
   };

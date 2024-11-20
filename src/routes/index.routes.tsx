@@ -6,7 +6,8 @@ import { useAuth } from "../contexts/AuthContext";
 import CustomersDropdown from "../components/CustomersDropdown";
 import SEOListings from "../components/SEOListings";
 import PinterestAutomation from "../components/PinterestAutomation";
-import PlanComponent from "../components/Plan";
+import PlanComponent from "../components/plan/Plan";
+import PlanSimpleView from "../components/plan/PlanSimpleView";
 import Social from "../components/Social";
 import AdsRecommendation from "../components/AdsRecommendation";
 import LoginPage from "../components/auth/login";
@@ -26,8 +27,7 @@ import { Spin } from "antd";
 import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
-import { CustomerPlan } from "../components/CustomerPlan";
-import { PlanSimpleView } from "../components/plan-simple-view/PlanSimpleView";
+import { CustomerPlan } from '../components/plan/CustomerPlan';
 import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
@@ -103,8 +103,21 @@ export default function AppRoutes() {
       const customersSnapshot = await getDocs(customersCollection);
       const customersList = customersSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data(),
+        store_name: doc.data().store_name,
+        customer_type: doc.data().customer_type,
+        // Only fetch fields needed for the customer list
+        store_owner_name: doc.data().store_owner_name,
+        email: doc.data().email,
+        package_type: doc.data().package_type,
+        current_sales: doc.data().current_sales,
+        customer_id: doc.data().customer_id,
       })) as ICustomer[];
+      
+      console.log('Customer types:', customersList.map(c => ({
+        store_name: c.store_name || 'No store name',
+        customer_type: c.customer_type
+      })));
+      
       setCustomers(customersList);
     } catch (error) {
       console.error("Error fetching customers:", error);
