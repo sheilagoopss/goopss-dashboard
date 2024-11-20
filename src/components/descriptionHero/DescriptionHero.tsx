@@ -74,8 +74,18 @@ const DescriptionHero = () => {
     }
   };
 
+  const handleDisconnectEtsy = async () => {
+    const response = await updateCustomer(user?.id as string, {
+      etsyToken: null,
+    });
+    if (response) {
+      message.success("Etsy Store disconnected successfully");
+      navigate("/description-hero");
+    }
+  };
+
   useEffect(() => {
-    if (codeValue) {
+    if (codeValue && codeValue.length > 32) {
       handleSaveToken(codeValue);
     }
   }, [codeValue]);
@@ -130,7 +140,9 @@ const DescriptionHero = () => {
             Connect to Etsy Store
           </Button>
         ) : (
-          <Button disabled>Connected to Etsy Store</Button>
+          <Button type="primary" onClick={handleDisconnectEtsy}>
+            Disconnect from Etsy Store
+          </Button>
         )}
       </div>
 
