@@ -606,21 +606,34 @@ const Social: React.FC = () => {
   const fetchPostsForMonth = async (month: Date) => {
     if (!selectedCustomer) return;
 
-    const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
-    const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    // Set the start of month to the beginning of the day (00:00:00)
+    const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1, 0, 0, 0);
+    
+    // Set the end of month to the end of the last day (23:59:59)
+    const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
 
     try {
-      console.log("Fetching posts for month:", month);
+      console.log('Fetching posts for month:', month);
+      console.log('Date range:', {
+        startOfMonth: startOfMonth.toISOString(),
+        endOfMonth: endOfMonth.toISOString()
+      });
+
       const postsRef = collection(db, "socials");
       const q = query(
         postsRef,
         where("customerId", "==", selectedCustomer.id),
         where("scheduledDate", ">=", startOfMonth),
-        where("scheduledDate", "<=", endOfMonth),
+        where("scheduledDate", "<=", endOfMonth)
       );
+
       const querySnapshot = await getDocs(q);
       const fetchedPosts = querySnapshot.docs.map((doc) => {
         const data = doc.data();
+        console.log('Post data:', {
+          id: doc.id,
+          scheduledDate: data.scheduledDate.toDate()
+        });
         return {
           id: doc.id,
           ...data,
@@ -628,7 +641,9 @@ const Social: React.FC = () => {
           dateCreated: data.dateCreated.toDate(),
         } as Post;
       });
-      console.log("Fetched posts for month:", fetchedPosts);
+
+      console.log('Fetched posts:', fetchedPosts);
+
       setPosts(fetchedPosts);
       setCalendarPosts(fetchedPosts);
     } catch (error) {
@@ -673,9 +688,36 @@ const Social: React.FC = () => {
         currentMonth.getMonth(),
         day,
       );
-      const postsForDay = calendarPosts.filter(
-        (post) => post.scheduledDate.toDateString() === date.toDateString(),
-      );
+      
+      const postsForDay = calendarPosts.filter((post) => {
+        const postDate = new Date(post.scheduledDate);
+        
+        console.log('Comparing dates:', {
+          postDate: {
+            full: postDate,
+            year: postDate.getFullYear(),
+            month: postDate.getMonth(),
+            date: postDate.getDate()
+          },
+          calendarDate: {
+            full: date,
+            year: date.getFullYear(),
+            month: date.getMonth(),
+            date: date.getDate()
+          }
+        });
+
+        return (
+          postDate.getFullYear() === date.getFullYear() &&
+          postDate.getMonth() === date.getMonth() &&
+          postDate.getDate() === date.getDate()
+        );
+      });
+
+      if (day === 30) {  // Only log for November 30
+        console.log('Posts for Nov 30:', postsForDay);
+        console.log('All posts:', calendarPosts);
+      }
 
       calendarDays.push(
         <div
