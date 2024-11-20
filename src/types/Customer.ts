@@ -62,11 +62,14 @@ export interface ICustomer {
 export interface IAdmin {
   id: string;
   email: string;
+  role: AdminRole;
   name: string;
   isAdmin: true;
   avatarUrl?: string;
   canBeAssignedToTasks?: boolean;
 }
+
+export type AdminRole = "Admin" | "SuperAdmin" | "Designer" | "TeamMember";
 
 export const packageTypes = {
   acceleratorBasic: "Accelerator - Basic",
