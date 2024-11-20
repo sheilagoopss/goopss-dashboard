@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import {
   Button,
   Segmented,
@@ -11,6 +12,7 @@ import {
 import {
   CloseCircleFilled,
   CopyOutlined,
+  DisconnectOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
 import type { SegmentedProps } from "antd";
@@ -70,7 +72,7 @@ const DescriptionHero = () => {
     });
     if (response) {
       message.success("Etsy Store connected successfully");
-      navigate("/description-hero");
+      window.location.reload();
     }
   };
 
@@ -80,7 +82,7 @@ const DescriptionHero = () => {
     });
     if (response) {
       message.success("Etsy Store disconnected successfully");
-      navigate("/description-hero");
+      window.location.reload();
     }
   };
 
@@ -140,7 +142,12 @@ const DescriptionHero = () => {
             Connect to Etsy Store
           </Button>
         ) : (
-          <Button type="primary" onClick={handleDisconnectEtsy}>
+          <Button
+            icon={<DisconnectOutlined />}
+            type="primary"
+            onClick={handleDisconnectEtsy}
+            danger
+          >
             Disconnect from Etsy Store
           </Button>
         )}

@@ -27,7 +27,7 @@ import { Spin } from "antd";
 import SocialInsights from "../components/social/SocialInsights";
 import ListingDuplication from "../components/ListingDuplication";
 import PlanTaskRules from "../components/PlanTaskRules";
-import { CustomerPlan } from '../components/plan/CustomerPlan';
+import { CustomerPlan } from "../components/plan/CustomerPlan";
 import UserHomepage from "../components/UserHomepage";
 import MeetingBooking from "../components/MeetingBooking";
 import ROASCalculator from "../components/ROASCalculator";
@@ -112,12 +112,15 @@ export default function AppRoutes() {
         current_sales: doc.data().current_sales,
         customer_id: doc.data().customer_id,
       })) as ICustomer[];
-      
-      console.log('Customer types:', customersList.map(c => ({
-        store_name: c.store_name || 'No store name',
-        customer_type: c.customer_type
-      })));
-      
+
+      console.log(
+        "Customer types:",
+        customersList.map((c) => ({
+          store_name: c.store_name || "No store name",
+          customer_type: c.customer_type,
+        })),
+      );
+
       setCustomers(customersList);
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -410,6 +413,7 @@ export default function AppRoutes() {
               }
             />
             <Route path="tagify" element={<Tagify />} />
+            <Route path="store-analysis" element={<StoreAnalysis />} />
             <Route
               path="description-hero"
               element={
