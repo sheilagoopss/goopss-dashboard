@@ -920,10 +920,8 @@ const Social: React.FC = () => {
               <FacebookButton />
             )}
 
-            {isAdmin && (
-              <>
-                <PinterestButton />
-              </>
+            {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+              <PinterestButton />
             )}
           </div>
         </>
