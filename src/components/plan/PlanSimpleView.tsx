@@ -690,7 +690,9 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             section: section.title,
             progress: task.progress,
             frequency: task.frequency,
-            dueDate: getAdjustedMonthlyDueDate(task.dueDate, task.frequency),
+            dueDate: task.dueDate !== undefined 
+              ? getAdjustedMonthlyDueDate(task.dueDate, task.frequency)
+              : null,
             completedDate: task.completedDate,
             isActive: task.isActive,
             current: task.current,
@@ -1464,3 +1466,4 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     </Layout>
   )
 }
+export default PlanSimpleView;
