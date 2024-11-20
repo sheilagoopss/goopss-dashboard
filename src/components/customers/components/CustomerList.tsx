@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Table, Tag, Button, Modal, Form, Col, Row, message } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { ChartColumn, Paintbrush, Search, Share2 } from "lucide-react";
-import { ICustomer } from "../../../types/Customer";
+import { IAdmin, ICustomer } from "../../../types/Customer";
 import {
   useCustomerUpdate,
   useCustomerDelete,
@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { CustomerForm } from "../form/CustomerForm";
 import { useListingDeleteAll } from "../../../hooks/useListing";
 import dayjs from "dayjs";
+import { useAuth } from "contexts/AuthContext";
 
 interface CustomerListProps {
   customers: ICustomer[];
@@ -23,6 +24,7 @@ export default function CustomerList({
   loading,
   refresh,
 }: CustomerListProps) {
+  const { user } = useAuth();
   const [editingKey, setEditingKey] = useState("");
   const [form] = Form.useForm();
   const { isLoading: isUpdating, updateCustomer } = useCustomerUpdate();
@@ -86,26 +88,30 @@ export default function CustomerList({
               icon={<EditOutlined />}
             />
           </Col>
-          <Col>
-            <Button
-              onClick={() => handleDelete(record.id)}
-              icon={<DeleteOutlined />}
-              danger
-              loading={isDeleting}
-            />
-          </Col>
-          <Col>
-            <Button
-              onClick={() => handleDeleteAllListings(record.id)}
-              danger
-              loading={
-                isDeletingAllListings &&
-                customerIdForListingDeletion === record.id
-              }
-            >
-              Delete All Listings
-            </Button>
-          </Col>
+          {(user as IAdmin).role === "SuperAdmin" && (
+            <>
+              <Col>
+                <Button
+                  onClick={() => handleDelete(record.id)}
+                  icon={<DeleteOutlined />}
+                  danger
+                  loading={isDeleting}
+                />
+              </Col>
+              <Col>
+                <Button
+                  onClick={() => handleDeleteAllListings(record.id)}
+                  danger
+                  loading={
+                    isDeletingAllListings &&
+                    customerIdForListingDeletion === record.id
+                  }
+                >
+                  Delete All Listings
+                </Button>
+              </Col>
+            </>
+          )}
         </Row>
       ),
     },
@@ -124,7 +130,9 @@ export default function CustomerList({
       const row = await form.validateFields();
       const updatedCustomer = {
         ...row,
-        date_joined: row.date_joined ? dayjs(row.date_joined).format("YYYY-MM-DD") : undefined,
+        date_joined: row.date_joined
+          ? dayjs(row.date_joined).format("YYYY-MM-DD")
+          : undefined,
       };
       const update = await updateCustomer(editingKey, updatedCustomer);
       if (update) {
