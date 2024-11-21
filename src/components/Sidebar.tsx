@@ -19,7 +19,7 @@ import {
   Calculator,
   LogOut,
 } from "lucide-react";
-import { MessageOutlined } from "@ant-design/icons";
+import { BarChartOutlined, MessageOutlined } from "@ant-design/icons";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import logo from "../assets/images/logo.png";
@@ -27,7 +27,6 @@ import rocket from "../assets/images/rocket.png";
 import Intercom from "@intercom/messenger-js-sdk";
 import { ICustomer } from "types/Customer";
 import dayjs from "dayjs";
-
 
 const { Sider } = Layout;
 
@@ -89,12 +88,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
             width: "100%",
           }}
         >
-          <div 
+          <div
             onClick={(e) => {
               e.stopPropagation();
-              navigate('/home');
+              navigate("/home");
             }}
-            style={{ flex: 1, cursor: 'pointer' }}
+            style={{ flex: 1, cursor: "pointer" }}
           >
             Home
           </div>
@@ -108,37 +107,49 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         </div>
       ),
     },
-    ...(homeExpanded ? [{
-      key: 'my-info',
-      label: (
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate('/my-info');
-          }}
-          style={{ cursor: 'pointer', paddingLeft: '32px' }}
-        >
-          My Info
-        </div>
-      )
-    }] : []),
-    ...(!isAdmin ? [{
-      key: 'plan',
-      icon: <ClipboardList className="h-4 w-4" />,
-      label: <Link to="/plan">Plan</Link>
-    }] : []),
-    ...(isAdmin ? [{
-      key: 'customers',
-      icon: <User className="h-6 w-6" />,
-      label: 'Customers',
-      children: [
-        {
-          key: 'customers-list',
-          label: 'Customers List',
-          onClick: () => navigate('/customers')
-        }
-      ]
-    }] : []),
+    ...(homeExpanded
+      ? [
+          {
+            key: "my-info",
+            label: (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/my-info");
+                }}
+                style={{ cursor: "pointer", paddingLeft: "32px" }}
+              >
+                My Info
+              </div>
+            ),
+          },
+        ]
+      : []),
+    ...(!isAdmin
+      ? [
+          {
+            key: "plan",
+            icon: <ClipboardList className="h-4 w-4" />,
+            label: <Link to="/plan">Plan</Link>,
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            key: "customers",
+            icon: <User className="h-6 w-6" />,
+            label: "Customers",
+            children: [
+              {
+                key: "customers-list",
+                label: "Customers List",
+                onClick: () => navigate("/customers"),
+              },
+            ],
+          },
+        ]
+      : []),
     {
       key: "design-hub",
       icon: <LayoutGrid className="h-6 w-6" />,
@@ -206,6 +217,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
         ]
       : []),
     {
+      key: "store-analysis",
+      icon: <BarChartOutlined />,
+      label: <Link to="/store-analysis">Store Analysis</Link>,
+    },
+    {
       key: "ai-tools",
       type: "group" as const,
       label: "AI Tools",
@@ -238,10 +254,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               <Link to="/ads-recommendation">Ads Analysis</Link>
               <span className="coming-soon-badge">Coming Soon</span>
             </div>
-          )
-        }
-      ]
-    }
+          ),
+        },
+      ],
+    },
   ];
 
   const dropdownItems = [
