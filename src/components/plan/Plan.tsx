@@ -712,16 +712,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchDefaultSections();
   }, []);
 
-  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, planId: string) => {
+  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, customerId: string) => {
     try {
-      console.log('onEdit called:', { taskId, field, value, planId });
+      console.log('Editing task:', { taskId, field, value, customerId });
 
       // Get current plan data
-      const planRef = doc(db, 'plans', planId);
+      const planRef = doc(db, 'plans', selectedCustomer?.id || '');
       const planDoc = await getDoc(planRef);
 
       if (!planDoc.exists()) {
-        console.error('Plan not found:', planId);
+        console.error('Plan not found:', selectedCustomer?.id);
         return;
       }
 
@@ -731,12 +731,8 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
             // If value is an object (like when updating multiple fields)
-            if (field === 'task' && typeof value === 'object') {
-              // Remove any undefined values before spreading
-              const cleanedValue = Object.fromEntries(
-                Object.entries(value).filter(([_, v]) => v !== undefined)
-              );
-              return { ...task, ...cleanedValue };
+            if (typeof value === 'object') {
+              return { ...task, ...value };
             }
             // For single field updates
             return { ...task, [field]: value };
@@ -746,25 +742,27 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       }));
 
       // Update Firestore
-      await updateDoc(planRef, { sections: updatedSections });
-      console.log('Firestore updated for plan:', planId);
+      await updateDoc(planRef, { 
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
 
       // Update local state
       if (plans.type === 'all') {
-        setPlans((prevPlans: PlansState) => ({
+        setPlans(prevPlans => ({
           ...prevPlans,
           data: {
             ...prevPlans.data,
-            [planId]: {
-              ...prevPlans.data[planId],
+            [selectedCustomer?.id || '']: {
+              ...prevPlans.data[selectedCustomer?.id || ''],
               sections: updatedSections
             }
           }
         }));
       }
       setSections(updatedSections);
-      console.log('Local state updated');
 
+      message.success('Changes saved successfully');
     } catch (error) {
       console.error('Error in onEdit:', error);
       message.error('Failed to save changes');
@@ -1564,6 +1562,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     .filter(task => task.isActive)
               }
               adminList={adminList}
+              onEdit={onEdit}
             />
           </Card>
         )}
