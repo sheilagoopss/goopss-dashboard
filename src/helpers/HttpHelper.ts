@@ -35,13 +35,12 @@ class HTTPHelperService implements HTTPHelperInterface {
 
   async delete(
     url: string,
-    request: AxiosRequestConfig,
+    request?: AxiosRequestConfig,
   ): Promise<AxiosResponse | null> {
     try {
       const config: AxiosRequestConfig = {
         method: "delete",
         url,
-        data: request.data,
       };
       const response = await axios(config);
       return response;
