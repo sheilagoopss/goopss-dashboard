@@ -241,6 +241,7 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
         store_name: storeName,
         optimizationStatus: true,
         primaryImage: selectedListing.primaryImage,
+        imageCount: selectedListing.imageCount,
         createdAt: new Date().toISOString(),
       } as Listing;
 
