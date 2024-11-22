@@ -746,18 +746,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             if (typeof value === 'object') {
               // For multiple field updates
               updatedTask = {
-                id: task.id,
-                task: task.task,
-                progress: value.progress || task.progress,
-                dueDate: value.dueDate || task.dueDate,
-                completedDate: value.completedDate,
-                isActive: typeof value.isActive === 'boolean' ? value.isActive : task.isActive,
-                frequency: value.frequency || task.frequency,
-                current: typeof value.current === 'number' ? value.current : (task.current || 0),
-                goal: typeof value.goal === 'number' ? value.goal : (task.goal || 0),
-                notes: value.notes || task.notes || '',
-                section: task.section,
+                ...task, // Keep all existing fields
+                ...value, // Apply new values
+                // Ensure these fields are never undefined
                 assignedTeamMembers: value.assignedTeamMembers || task.assignedTeamMembers || [],
+                completedDate: value.completedDate || task.completedDate || null,
+                current: typeof value.current === 'number' ? value.current : task.current,
+                dueDate: value.dueDate || task.dueDate,
+                frequency: value.frequency || task.frequency,
+                goal: typeof value.goal === 'number' ? value.goal : task.goal,
+                isActive: typeof value.isActive === 'boolean' ? value.isActive : task.isActive,
+                notes: value.notes || task.notes || '',
+                progress: value.progress || task.progress,
+                task: value.task || task.task,
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               };
@@ -771,7 +772,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
               };
             }
             
-            // Debug log for updated task
             console.log('Updated task:', updatedTask);
             return updatedTask;
           }
@@ -779,14 +779,12 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         })
       }));
 
-      // Debug log for final update payload
       const updatePayload = {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
       };
       console.log('Final update payload:', updatePayload);
 
-      // Perform the update
       await updateDoc(planRef, updatePayload);
 
       // Update local state
