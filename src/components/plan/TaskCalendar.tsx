@@ -22,7 +22,7 @@ const taskColors = {
 interface TaskCalendarProps {
   tasks: PlanTask[];
   adminList: IAdmin[];
-  onEdit?: (taskId: string, field: keyof PlanTask, value: any, customerId: string) => void;
+  onEdit?: (taskId: string, field: keyof PlanTask, value: any, customerId: string) => Promise<boolean>;
 }
 
 interface CalendarEvent {
@@ -150,11 +150,13 @@ const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, adminList, onEdit })
 
   const handleSave = async () => {
     if (selectedTask && onEdit) {
-      await onEdit(selectedTask.id, 'task', tempValues, selectedTask.id);
-      setIsEditing(false);
-      setTempValues({});
-      setIsModalVisible(false);
-      setSelectedTask(null);
+      const success = await onEdit(selectedTask.id, 'task', tempValues, selectedTask.id);
+      if (success) {
+        setIsEditing(false);
+        setTempValues({});
+        setIsModalVisible(false);
+        setSelectedTask(null);
+      }
     }
   };
 
