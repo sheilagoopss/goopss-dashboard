@@ -27,11 +27,16 @@ export const endpoints = {
   },
   social: {
     schedulePost: `${API_URL}/api/v1/facebook/schedulePost`,
+    updatePost: (postId: string) =>
+      `${API_URL}/api/v1/facebook/updatePost/${postId}`,
+    deletePost: (postId: string) =>
+      `${API_URL}/api/v1/facebook/deletePost/${postId}`,
   },
   klaviyo: {
     subscribeCustomer: `${API_URL}/api/v1/klaviyo/subscribe-customer`,
   },
   etsy: {
     getConnectionUrl: `${API_URL}/api/v1/etsy/auth`,
+    getTaxonomies: `${API_URL}/api/v1/etsy/taxonomies`,
   },
 };

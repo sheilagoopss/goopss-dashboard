@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import {
   Button,
   Segmented,
@@ -7,43 +8,56 @@ import {
   Image,
   Card,
   message,
+  Row,
+  InputNumber,
+  Col,
+  Form,
+  Select,
+  Skeleton,
 } from "antd";
 import {
   CloseCircleFilled,
   CopyOutlined,
+  DisconnectOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
 import type { SegmentedProps } from "antd";
 import { useEffect, useState } from "react";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useGenerateTags } from "hooks/useTagify";
-import useEtsy from "hooks/useEtsy";
+import useEtsy, { ITaxonomy, useTaxonomy } from "hooks/useEtsy";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useCustomerUpdate } from "hooks/useCustomer";
 import { useAuth } from "contexts/AuthContext";
 import { ICustomer } from "types/Customer";
 
 const DescriptionHero = () => {
+  const [form] = Form.useForm();
   const { user } = useAuth();
   const { generateDescription, isGeneratingTags } = useGenerateTags();
   const { getEtsyConnectionUrl, isConnecting } = useEtsy();
+  const { fetchTaxonomies, isFetchingTaxonomies } = useTaxonomy();
   const { updateCustomer } = useCustomerUpdate();
   const [mode, setMode] = useState<"image" | "text">("image");
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>("");
+  const [taxonomies, setTaxonomies] = useState<ITaxonomy[]>([]);
   const [generatedData, setGeneratedData] = useState<{
     title: string;
     description: string;
     tags: string[];
     attributes: string[];
   } | null>(null);
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const codeValue = searchParams.get("code");
 
   const handleGenerate = async () => {
     const response = await generateDescription(image as string, description);
     setGeneratedData(response?.data);
+    form.setFieldsValue({
+      title: response?.data?.title,
+      description: response?.data?.description,
+    });
   };
 
   const handleConnectEtsy = async () => {
@@ -55,12 +69,12 @@ const DescriptionHero = () => {
 
   const items: SegmentedProps["options"] = [
     {
-      value: "image",
-      label: "Image Upload",
-    },
-    {
       value: "text",
       label: "Text Description",
+    },
+    {
+      value: "image",
+      label: "Image Upload",
     },
   ];
 
@@ -70,7 +84,7 @@ const DescriptionHero = () => {
     });
     if (response) {
       message.success("Etsy Store connected successfully");
-      navigate("/description-hero");
+      window.location.reload();
     }
   };
 
@@ -80,7 +94,7 @@ const DescriptionHero = () => {
     });
     if (response) {
       message.success("Etsy Store disconnected successfully");
-      navigate("/description-hero");
+      window.location.reload();
     }
   };
 
@@ -89,6 +103,12 @@ const DescriptionHero = () => {
       handleSaveToken(codeValue);
     }
   }, [codeValue]);
+
+  useEffect(() => {
+    fetchTaxonomies().then((taxonomies) => {
+      setTaxonomies(taxonomies);
+    });
+  }, []);
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
@@ -140,7 +160,12 @@ const DescriptionHero = () => {
             Connect to Etsy Store
           </Button>
         ) : (
-          <Button type="primary" onClick={handleDisconnectEtsy}>
+          <Button
+            icon={<DisconnectOutlined />}
+            type="primary"
+            onClick={handleDisconnectEtsy}
+            danger
+          >
             Disconnect from Etsy Store
           </Button>
         )}
@@ -250,109 +275,174 @@ const DescriptionHero = () => {
               padding: "24px",
             }}
           >
-            <div style={{ marginBottom: "24px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Title</h3>
-                <Button icon={<CopyOutlined />} type="text">
-                  Copy
-                </Button>
-              </div>
-              <p style={{ margin: 0 }}>{generatedData.title}</p>
-            </div>
-
-            <div style={{ marginBottom: "24px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Description</h3>
-                <Button icon={<CopyOutlined />} type="text">
-                  Copy
-                </Button>
-              </div>
-              <div style={{ color: "#666" }}>
-                <p>{generatedData.description}</p>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "24px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Tags</h3>
-                <Button icon={<CopyOutlined />} type="text">
-                  Copy
-                </Button>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {generatedData.tags.map((tag) => (
-                  <Tag
-                    key={tag}
-                    style={{
-                      backgroundColor: "#F3E8FF",
-                      color: "#000000",
-                      border: "none",
-                      borderRadius: "16px",
-                      padding: "4px 12px",
-                    }}
-                  >
-                    {tag}
-                  </Tag>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "24px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Attributes</h3>
-                <Button icon={<CopyOutlined />} type="text">
-                  Copy
-                </Button>
-              </div>
-              <List
-                dataSource={generatedData.attributes}
-                renderItem={(item) => (
-                  <List.Item
-                    style={{
-                      padding: "8px 0",
-                      borderBottom: "1px solid #f0f0f0",
-                    }}
-                  >
-                    {item}
-                  </List.Item>
-                )}
-              />
-            </div>
-
-            <Button
-              type="primary"
-              block
-              style={{
-                marginTop: "24px",
-                height: "48px",
+            <Form
+              form={form}
+              layout="vertical"
+              initialValues={{
+                title: generatedData.title,
+                description: generatedData.description,
               }}
             >
-              Push to Store
-            </Button>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item name="title" label="Title">
+                    <Input size="middle" style={{ marginTop: "8px" }} />
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item name="description" label="Description">
+                    <Input.TextArea
+                      rows={5}
+                      size="middle"
+                      style={{ marginTop: "8px" }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                {/* <div style={{ marginBottom: "24px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <h3 style={{ margin: 0 }}>Tags</h3>
+                    <Button icon={<CopyOutlined />} type="text">
+                      Copy
+                    </Button>
+                  </div>
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
+                  >
+                    {generatedData.tags.map((tag) => (
+                      <Tag
+                        key={tag}
+                        style={{
+                          backgroundColor: "#F3E8FF",
+                          color: "#000000",
+                          border: "none",
+                          borderRadius: "16px",
+                          padding: "4px 12px",
+                        }}
+                      >
+                        {tag}
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: "24px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <h3 style={{ margin: 0 }}>Attributes</h3>
+                    <Button icon={<CopyOutlined />} type="text">
+                      Copy
+                    </Button>
+                  </div>
+                  <List
+                    dataSource={generatedData.attributes}
+                    renderItem={(item) => (
+                      <List.Item
+                        style={{
+                          padding: "8px 0",
+                          borderBottom: "1px solid #f0f0f0",
+                        }}
+                      >
+                        {item}
+                      </List.Item>
+                    )}
+                  />
+                </div> */}
+
+                <Col span={12}>
+                  <Form.Item name="price" label="Price">
+                    <Input
+                      size="middle"
+                      type="number"
+                      min={0}
+                      style={{ marginTop: "24px" }}
+                      placeholder="Enter a price"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="quantity" label="Quantity">
+                    <Input
+                      size="middle"
+                      type="number"
+                      min={0}
+                      style={{ marginTop: "24px" }}
+                      placeholder="Enter a quantity"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="who_made" label="Who Made">
+                    <Select>
+                      <Select.Option value="I did">I did</Select.Option>
+                      <Select.Option value="A member of my shop">
+                        A member of my shop
+                      </Select.Option>
+                      <Select.Option value="Another company or person">
+                        Another company or person
+                      </Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="when_made" label="When Made">
+                    <Select>
+                      <Select.Option value="Made to Order">
+                        Made to Order
+                      </Select.Option>
+                      <Select.Option value={`2020-${new Date().getFullYear()}`}>
+                        {`2020-${new Date().getFullYear()}`}
+                      </Select.Option>
+                      <Select.Option value="2010-2019">2010-2019</Select.Option>
+                      <Select.Option value="before_2010">
+                        Before 2010
+                      </Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="taxonomy_id" label="Taxonomy">
+                    {isFetchingTaxonomies ? (
+                      <Skeleton.Input
+                        style={{ width: "100%" }}
+                        active
+                        size="default"
+                      />
+                    ) : (
+                      <Select>
+                        {taxonomies.map((taxonomy) => (
+                          <Select.Option value={taxonomy.id}>
+                            {taxonomy.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    )}
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Button
+                type="primary"
+                block
+                style={{
+                  marginTop: "24px",
+                  height: "48px",
+                }}
+              >
+                Push to Store
+              </Button>
+            </Form>
           </div>
         </>
       )}
