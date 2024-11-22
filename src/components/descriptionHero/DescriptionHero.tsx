@@ -2,14 +2,11 @@
 import {
   Button,
   Segmented,
-  Tag,
-  List,
   Input,
   Image,
   Card,
   message,
   Row,
-  InputNumber,
   Col,
   Form,
   Select,
@@ -17,7 +14,6 @@ import {
 } from "antd";
 import {
   CloseCircleFilled,
-  CopyOutlined,
   DisconnectOutlined,
   LinkOutlined,
 } from "@ant-design/icons";
@@ -25,11 +21,17 @@ import type { SegmentedProps } from "antd";
 import { useEffect, useState } from "react";
 import DragDropUpload from "components/common/DragDropUpload";
 import { useGenerateTags } from "hooks/useTagify";
-import useEtsy, { ITaxonomy, useTaxonomy } from "hooks/useEtsy";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import useEtsy, {
+  ITaxonomy,
+  useCreateListing,
+  useShopShippingProfile,
+  useTaxonomy,
+} from "hooks/useEtsy";
+import { useSearchParams } from "react-router-dom";
 import { useCustomerUpdate } from "hooks/useCustomer";
 import { useAuth } from "contexts/AuthContext";
 import { ICustomer } from "types/Customer";
+import { IEtsyShippingProfile } from "types/Etsy";
 
 const DescriptionHero = () => {
   const [form] = Form.useForm();
@@ -37,11 +39,17 @@ const DescriptionHero = () => {
   const { generateDescription, isGeneratingTags } = useGenerateTags();
   const { getEtsyConnectionUrl, isConnecting } = useEtsy();
   const { fetchTaxonomies, isFetchingTaxonomies } = useTaxonomy();
+  const { createListing, isCreatingListing } = useCreateListing();
+  const { fetchShopShippingProfile, isFetchingShopShippingProfile } =
+    useShopShippingProfile();
   const { updateCustomer } = useCustomerUpdate();
-  const [mode, setMode] = useState<"image" | "text">("image");
+  const [mode, setMode] = useState<"image" | "text">("text");
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>("");
   const [taxonomies, setTaxonomies] = useState<ITaxonomy[]>([]);
+  const [shopShippingProfiles, setShopShippingProfiles] = useState<
+    IEtsyShippingProfile[]
+  >([]);
   const [generatedData, setGeneratedData] = useState<{
     title: string;
     description: string;
@@ -84,17 +92,30 @@ const DescriptionHero = () => {
     });
     if (response) {
       message.success("Etsy Store connected successfully");
-      window.location.reload();
+      window.location.href = window.location.pathname;
     }
   };
 
   const handleDisconnectEtsy = async () => {
     const response = await updateCustomer(user?.id as string, {
-      etsyToken: null,
+      etsyToken: "",
     });
     if (response) {
       message.success("Etsy Store disconnected successfully");
-      window.location.reload();
+      window.location.href = window.location.pathname;
+    }
+  };
+
+  const handlePushToStore = async () => {
+    const values = await form.validateFields();
+    const response = await createListing({
+      customerId: user?.id as string,
+      ...values,
+    });
+    if (response) {
+      message.success("Listing created successfully");
+      form.resetFields();
+      setGeneratedData(null);
     }
   };
 
@@ -104,10 +125,22 @@ const DescriptionHero = () => {
     }
   }, [codeValue]);
 
-  useEffect(() => {
+  const getTaxonomies = () => {
     fetchTaxonomies().then((taxonomies) => {
       setTaxonomies(taxonomies);
     });
+  };
+  const getShopShippingProfiles = () => {
+    fetchShopShippingProfile({ customerId: user?.id as string }).then(
+      (shopShippingProfiles) => {
+        setShopShippingProfiles(shopShippingProfiles);
+      },
+    );
+  };
+
+  useEffect(() => {
+    getTaxonomies();
+    getShopShippingProfiles();
   }, []);
 
   return (
@@ -385,12 +418,12 @@ const DescriptionHero = () => {
                 <Col span={12}>
                   <Form.Item name="who_made" label="Who Made">
                     <Select>
-                      <Select.Option value="I did">I did</Select.Option>
-                      <Select.Option value="A member of my shop">
-                        A member of my shop
+                      <Select.Option value="i_did">I did</Select.Option>
+                      <Select.Option value="someone_else">
+                        Someone else
                       </Select.Option>
-                      <Select.Option value="Another company or person">
-                        Another company or person
+                      <Select.Option value="collective">
+                        Collective
                       </Select.Option>
                     </Select>
                   </Form.Item>
@@ -398,15 +431,14 @@ const DescriptionHero = () => {
                 <Col span={12}>
                   <Form.Item name="when_made" label="When Made">
                     <Select>
-                      <Select.Option value="Made to Order">
+                      <Select.Option value="made_to_order">
                         Made to Order
                       </Select.Option>
-                      <Select.Option value={`2020-${new Date().getFullYear()}`}>
-                        {`2020-${new Date().getFullYear()}`}
-                      </Select.Option>
-                      <Select.Option value="2010-2019">2010-2019</Select.Option>
-                      <Select.Option value="before_2010">
-                        Before 2010
+                      <Select.Option value="2020_2024">2020-2024</Select.Option>
+                      <Select.Option value="2010_2019">2010-2019</Select.Option>
+                      <Select.Option value="2005_2009">2005-2009</Select.Option>
+                      <Select.Option value="before_2005">
+                        Before 2005
                       </Select.Option>
                     </Select>
                   </Form.Item>
@@ -420,10 +452,47 @@ const DescriptionHero = () => {
                         size="default"
                       />
                     ) : (
-                      <Select>
-                        {taxonomies.map((taxonomy) => (
-                          <Select.Option value={taxonomy.id}>
+                      <Select
+                        onFocus={() => {
+                          if (taxonomies?.length === 0) {
+                            getTaxonomies();
+                          }
+                        }}
+                      >
+                        {taxonomies?.map((taxonomy) => (
+                          <Select.Option key={taxonomy.id} value={taxonomy.id}>
                             {taxonomy.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    )}
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="shipping_profile_id"
+                    label="Shop Shipping Profile"
+                  >
+                    {isFetchingShopShippingProfile ? (
+                      <Skeleton.Input
+                        style={{ width: "100%" }}
+                        active
+                        size="default"
+                      />
+                    ) : (
+                      <Select
+                        onFocus={() => {
+                          if (shopShippingProfiles?.length === 0) {
+                            getShopShippingProfiles();
+                          }
+                        }}
+                      >
+                        {shopShippingProfiles?.map((shopShippingProfile) => (
+                          <Select.Option
+                            key={shopShippingProfile.shipping_profile_id}
+                            value={shopShippingProfile.shipping_profile_id}
+                          >
+                            {shopShippingProfile.title}
                           </Select.Option>
                         ))}
                       </Select>
@@ -434,11 +503,14 @@ const DescriptionHero = () => {
 
               <Button
                 type="primary"
+                htmlType="submit"
                 block
                 style={{
                   marginTop: "24px",
                   height: "48px",
                 }}
+                onClick={handlePushToStore}
+                loading={isCreatingListing}
               >
                 Push to Store
               </Button>
