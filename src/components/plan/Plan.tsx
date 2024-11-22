@@ -712,40 +712,82 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     fetchDefaultSections();
   }, []);
 
-  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, customerId: string) => {
+  const onEdit = async (taskId: string, field: keyof PlanTask, value: any, customerId: string): Promise<boolean> => {
     try {
-      console.log('Editing task:', { taskId, field, value, customerId });
+      console.log('Starting edit with:', {
+        taskId,
+        field,
+        value,
+        customerId,
+        selectedCustomerId: selectedCustomer?.id
+      });
 
-      // Get current plan data
       const planRef = doc(db, 'plans', selectedCustomer?.id || '');
       const planDoc = await getDoc(planRef);
 
       if (!planDoc.exists()) {
         console.error('Plan not found:', selectedCustomer?.id);
-        return;
+        return false;
       }
 
       const plan = planDoc.data() as Plan;
+      
+      // Debug log for original task
+      const originalTask = plan.sections
+        .flatMap(section => section.tasks)
+        .find(task => task.id === taskId);
+      console.log('Original task:', originalTask);
+
       const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
-            // If value is an object (like when updating multiple fields)
+            let updatedTask;
             if (typeof value === 'object') {
-              return { ...task, ...value };
+              // For multiple field updates
+              updatedTask = {
+                id: task.id,
+                task: task.task,
+                progress: value.progress || task.progress,
+                dueDate: value.dueDate || task.dueDate,
+                completedDate: value.completedDate,
+                isActive: typeof value.isActive === 'boolean' ? value.isActive : task.isActive,
+                frequency: value.frequency || task.frequency,
+                current: typeof value.current === 'number' ? value.current : (task.current || 0),
+                goal: typeof value.goal === 'number' ? value.goal : (task.goal || 0),
+                notes: value.notes || task.notes || '',
+                section: task.section,
+                assignedTeamMembers: value.assignedTeamMembers || task.assignedTeamMembers || [],
+                updatedAt: new Date().toISOString(),
+                updatedBy: user?.email || ''
+              };
+            } else {
+              // For single field updates
+              updatedTask = {
+                ...task,
+                [field]: value,
+                updatedAt: new Date().toISOString(),
+                updatedBy: user?.email || ''
+              };
             }
-            // For single field updates
-            return { ...task, [field]: value };
+            
+            // Debug log for updated task
+            console.log('Updated task:', updatedTask);
+            return updatedTask;
           }
           return task;
         })
       }));
 
-      // Update Firestore
-      await updateDoc(planRef, { 
+      // Debug log for final update payload
+      const updatePayload = {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
-      });
+      };
+      console.log('Final update payload:', updatePayload);
+
+      // Perform the update
+      await updateDoc(planRef, updatePayload);
 
       // Update local state
       if (plans.type === 'all') {
@@ -762,10 +804,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       }
       setSections(updatedSections);
 
-      message.success('Changes saved successfully');
+      return true;
     } catch (error) {
       console.error('Error in onEdit:', error);
       message.error('Failed to save changes');
+      return false;
     }
   };
 
@@ -1434,21 +1477,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 Add Custom Task
               </Button>
             )}
-            <Row gutter={[16, 16]} className="mb-6">
-              <Col>
-                <Input
-                  placeholder="Search tasks"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: 200 }}
-                />
-              </Col>
-              <Col>
-                <Button onClick={toggleView}>
-                  {viewMode === 'list' ? 'Calendar View' : 'List View'}
-                </Button>
-              </Col>
-            </Row>
+            <Button onClick={toggleView}>
+              {viewMode === 'list' ? 'Calendar View' : 'List View'}
+            </Button>
           </Space>
         </Card>
 
