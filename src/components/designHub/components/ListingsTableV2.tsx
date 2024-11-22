@@ -105,6 +105,12 @@ const ListingsTable = ({
       ),
     },
     {
+      title: "Section",
+      dataIndex: "section",
+      sorter: (a, b) => (a.section || '').localeCompare(b.section || ''),
+      render: (section: string) => section || '-'
+    },
+    {
       title: "Uploaded Images",
       dataIndex: "uploadedImages",
       sorter: (a, b) => (a.uploadedImages || 0) - (b.uploadedImages || 0),
