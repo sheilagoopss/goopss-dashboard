@@ -133,7 +133,9 @@ const DescriptionHero = () => {
   const getShopShippingProfiles = () => {
     fetchShopShippingProfile({ customerId: user?.id as string }).then(
       (shopShippingProfiles) => {
-        setShopShippingProfiles(shopShippingProfiles);
+        if (Array.isArray(shopShippingProfiles) && shopShippingProfiles?.length > 0) {
+          setShopShippingProfiles(shopShippingProfiles);
+        }
       },
     );
   };
@@ -482,14 +484,15 @@ const DescriptionHero = () => {
                     ) : (
                       <Select
                         onFocus={() => {
-                          if (shopShippingProfiles?.length === 0) {
+                          if (Array.isArray(shopShippingProfiles) && shopShippingProfiles?.length === 0) {
                             getShopShippingProfiles();
                           }
                         }}
                       >
-                        {shopShippingProfiles?.map((shopShippingProfile) => (
-                          <Select.Option
-                            key={shopShippingProfile.shipping_profile_id}
+                        {Array.isArray(shopShippingProfiles) &&
+                          shopShippingProfiles?.map((shopShippingProfile) => (
+                            <Select.Option
+                              key={shopShippingProfile.shipping_profile_id}
                             value={shopShippingProfile.shipping_profile_id}
                           >
                             {shopShippingProfile.title}
