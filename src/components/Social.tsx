@@ -7,8 +7,6 @@ import {
   addDoc,
   updateDoc,
   doc,
-  limit,
-  startAfter,
   orderBy,
   getDoc,
 } from "firebase/firestore";
@@ -35,17 +33,21 @@ import {
   Col,
   Row,
 } from "antd";
-import FacebookLoginPopup from "./FacebookLoginPopup";
 import FacebookButton from "./common/FacebookButton";
 import PinterestButton from "./common/PinterestButton";
-import dayjs, { locale } from "dayjs";
-import { useFacebookSchedule, useSocialDelete, useSocialUpdate } from "hooks/useSocial";
+import dayjs from "dayjs";
+import {
+  useFacebookSchedule,
+  useSocialDelete,
+  useSocialUpdate,
+} from "hooks/useSocial";
 import {
   DeleteOutlined,
   EditOutlined,
   FacebookFilled,
   FacebookOutlined,
   InstagramOutlined,
+  PinterestFilled,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
 
@@ -447,7 +449,7 @@ const PostEditModal: React.FC<{
 
     const basePost = {
       id: post.id,
-      scheduledDate, 
+      scheduledDate,
       dateCreated: new Date(),
       listingId: post.listingId || "",
       customerId,
@@ -510,7 +512,12 @@ const PostEditModal: React.FC<{
             </Button>
           </Popconfirm>
         ) : (
-          <Button key="save" type="primary" onClick={handleSave} loading={isUpdating}>
+          <Button
+            key="save"
+            type="primary"
+            onClick={handleSave}
+            loading={isUpdating}
+          >
             Update
           </Button>
         ),
@@ -1012,7 +1019,7 @@ const Social: React.FC = () => {
     setSelectedDatePosts(posts);
   };
 
-  const handleSaveEditedPost = async (editedPost:Post) => {
+  const handleSaveEditedPost = async (editedPost: Post) => {
     try {
       await updatePost({ post: editedPost });
       // Refresh listings and posts
@@ -1085,6 +1092,23 @@ const Social: React.FC = () => {
       setSelectedCustomer({
         ...selectedCustomer,
         facebook: {
+          is_connected: false,
+        },
+      });
+    }
+  };
+  const handleDisconnectPinterest = async () => {
+    if (!selectedCustomer) return;
+    const updatedCustomer = await updateCustomer(selectedCustomer.id, {
+      pinterest: {
+        is_connected: false,
+      },
+    });
+
+    if (updatedCustomer) {
+      setSelectedCustomer({
+        ...selectedCustomer,
+        pinterest: {
           is_connected: false,
         },
       });
@@ -1170,7 +1194,53 @@ const Social: React.FC = () => {
           )}
 
           {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
-            <PinterestButton />
+            <>
+              {selectedCustomer?.pinterest?.is_connected ? (
+                <Card style={{ width: "fit-content" }}>
+                  <Row gutter={16} style={{ alignItems: "center" }}>
+                    <Col>
+                      <PinterestFilled
+                        style={{ fontSize: "2rem", color: "#1877F2" }}
+                      />
+                    </Col>
+                    <Col>
+                      <Avatar
+                        src={selectedCustomer?.pinterest?.profile_picture_url}
+                        size={64}
+                      />
+                    </Col>
+                    <Col>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <Typography.Text>
+                          {selectedCustomer?.pinterest?.page_name}
+                        </Typography.Text>
+                        <Typography.Text type="secondary">
+                          {selectedCustomer?.pinterest?.user_email}
+                        </Typography.Text>
+                      </div>
+                    </Col>
+                    <Col>
+                      <Popconfirm
+                        title="Are you sure you want to disconnect?"
+                        onConfirm={handleDisconnectPinterest}
+                        okText="Yes"
+                        cancelText="No"
+                      >
+                        <Button
+                          type="primary"
+                          danger
+                          loading={isUpdatingCustomer}
+                        >
+                          Disconnect
+                        </Button>
+                      </Popconfirm>
+                    </Col>
+                  </Row>
+                </Card>
+              ) : (
+                <PinterestButton />
+              )}
+            </>
           )}
         </div>
       )}

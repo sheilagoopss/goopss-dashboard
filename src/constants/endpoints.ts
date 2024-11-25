@@ -38,5 +38,8 @@ export const endpoints = {
   etsy: {
     getConnectionUrl: `${API_URL}/api/v1/etsy/auth`,
     getTaxonomies: `${API_URL}/api/v1/etsy/taxonomies`,
+    createListing: `${API_URL}/api/v1/etsy/create-listing`,
+    getShopShippingProfile: (customerId: string) =>
+      `${API_URL}/api/v1/etsy/shop-shipping-profile/${customerId}`,
   },
 };
