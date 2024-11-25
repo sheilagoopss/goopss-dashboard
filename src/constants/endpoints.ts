@@ -14,6 +14,8 @@ export const endpoints = {
   },
   pinterest: {
     login: `${API_URL}/api/v1/auth/pinterest`,
+    boards: (customerId: string) =>
+      `${API_URL}/api/v1/pinterest/boards/${customerId}`,
   },
   listingImage: {
     download: (imageId: string) =>
@@ -41,5 +43,9 @@ export const endpoints = {
     createListing: `${API_URL}/api/v1/etsy/create-listing`,
     getShopShippingProfile: (customerId: string) =>
       `${API_URL}/api/v1/etsy/shop-shipping-profile/${customerId}`,
+    getListings: (customerId: string) =>
+      `${API_URL}/api/v1/etsy/listings/${customerId}`,
+    updateListing: (listingId: string) =>
+      `${API_URL}/api/v1/etsy/update-listing/${listingId}`,
   },
 };
