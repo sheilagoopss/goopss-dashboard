@@ -32,6 +32,9 @@ import {
   Avatar,
   Col,
   Row,
+  Form,
+  Select,
+  Skeleton,
 } from "antd";
 import FacebookButton from "./common/FacebookButton";
 import PinterestButton from "./common/PinterestButton";
@@ -50,6 +53,7 @@ import {
   PinterestFilled,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
+import { usePinterestBoard } from "hooks/usePinterest";
 
 interface EtsyListing {
   id: string;
@@ -59,6 +63,7 @@ interface EtsyListing {
   primaryImage?: string;
   totalSales?: number;
   dailyViews?: number;
+  etsyLink?: string;
 }
 
 interface Post {
@@ -82,12 +87,14 @@ const PostCreationModal: React.FC<{
   onSave: (posts: Omit<Post, "id">[]) => void;
   onCancel: () => void;
 }> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
+  const { fetchBoards, isFetchingBoards } = usePinterestBoard();
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">(
-    "facebook",
-  );
+  const [platform, setPlatform] = useState<
+    "facebook" | "instagram" | "both" | "pinterest"
+  >("facebook");
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
+  const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
 
   useEffect(() => {
     setScheduledDate(null);
@@ -247,6 +254,12 @@ const PostCreationModal: React.FC<{
     onCancel();
   };
 
+  useEffect(() => {
+    fetchBoards({ customerId }).then((values) => {
+      console.log({ values });
+    });
+  }, [customerId]);
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
@@ -289,6 +302,8 @@ const PostCreationModal: React.FC<{
           <Radio value="facebook">Facebook</Radio>
           <Radio value="instagram">Instagram</Radio>
           <Radio value="both">Both</Radio>
+          <Divider />
+          <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
         <Button onClick={handleGenerateContent} type="default">
           Generate Content
@@ -325,6 +340,60 @@ const PostCreationModal: React.FC<{
                 marginTop: "8px",
               }}
             />
+          </div>
+        )}
+        {platform === "pinterest" && (
+          <div>
+            <Form layout="vertical">
+              <div style={{ display: "flex", gap: "2ch" }}>
+                <Image
+                  src={listing?.primaryImage}
+                  alt={listing?.listingTitle}
+                  width={200}
+                />
+                <Typography.Link href={listing?.etsyLink} target="_blank">
+                  <Typography.Text strong>Link: </Typography.Text>
+                  {listing?.etsyLink}
+                </Typography.Link>
+              </div>
+
+              <Form.Item
+                label="Title"
+                name="pinterestTitle"
+                rules={[{ required: true, message: "Please enter a title" }]}
+              >
+                <Input placeholder="Enter Pinterest post title" />
+              </Form.Item>
+              <Form.Item
+                label="Description"
+                name="pinterestDescription"
+                rules={[
+                  { required: true, message: "Please enter a description" },
+                ]}
+              >
+                <TextArea
+                  placeholder="Enter Pinterest post description"
+                  autoSize={{ minRows: 4, maxRows: 8 }}
+                />
+              </Form.Item>
+              {isFetchingBoards ? (
+                <Skeleton.Input active />
+              ) : (
+                <Form.Item
+                  label="Select Board"
+                  name="pinterestBoard"
+                  rules={[{ required: true, message: "Please select a board" }]}
+                >
+                  <Select placeholder="Select a Pinterest board">
+                    {pinterestBoards.map((board) => (
+                      <Select.Option value={board.id}>
+                        {board.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              )}
+            </Form>
           </div>
         )}
       </Space>
@@ -704,6 +773,7 @@ const Social: React.FC = () => {
         const listingsList = listingsSnapshot.docs.map(
           (doc) =>
             ({
+              ...doc.data(),
               id: doc.id,
               listingID: doc.data().listingID,
               listingTitle: doc.data().listingTitle,
