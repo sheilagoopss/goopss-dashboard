@@ -27,7 +27,8 @@ import {
   Upload,
   Divider,
   Row,
-  Col
+  Col,
+  Alert
 } from 'antd'
 import { 
   CalendarOutlined, 
@@ -39,7 +40,8 @@ import {
   WarningOutlined,
   ReloadOutlined,
   PlusOutlined,
-  UploadOutlined
+  UploadOutlined,
+  FilterOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useAuth } from '../../contexts/AuthContext'
@@ -543,6 +545,17 @@ interface TaskFile {
   uploadedAt: string;
 }
 
+// Add at the top with other constants
+const DEFAULT_FILTERS: SavedFilters = {
+  showActiveOnly: true,
+  showMyTasks: true,
+  progressFilter: 'To Do and Doing',
+  search: '',
+  searchInput: '',
+  frequencyFilter: 'Monthly and As Needed',
+  teamMemberFilter: 'all'
+};
+
 const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { isAdmin, user } = useAuth();
   const { fetchPlan, updatePlan, updateTask, checkMonthlyProgress } = usePlan();
@@ -553,11 +566,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const PAGE_SIZE = 10;
 
   // All state declarations
-  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
-  const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? '');
-  const [search, setSearch] = useState(savedFilters?.search ?? '');
-  const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(savedFilters?.frequencyFilter ?? 'All');
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? DEFAULT_FILTERS.showActiveOnly);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(
+    savedFilters?.progressFilter ?? DEFAULT_FILTERS.progressFilter
+  );
+  const [searchInput, setSearchInput] = useState(savedFilters?.searchInput ?? DEFAULT_FILTERS.searchInput);
+  const [search, setSearch] = useState(savedFilters?.search ?? DEFAULT_FILTERS.search);
+  const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(
+    savedFilters?.frequencyFilter ?? DEFAULT_FILTERS.frequencyFilter
+  );
   const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
   const [sections, setSections] = useState<PlanSection[]>([]);
@@ -579,12 +596,13 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [customTaskForm] = Form.useForm();
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([]);
   const [adminList, setAdminList] = useState<IAdmin[]>([]);
-  const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all');
-  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
+  const [teamMemberFilter, setTeamMemberFilter] = useState(savedFilters?.teamMemberFilter ?? DEFAULT_FILTERS.teamMemberFilter);
+  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? DEFAULT_FILTERS.showMyTasks);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [progressOptions, setProgressOptions] = useState(['Not Started', 'In Progress', 'Done']);
+  const [useDefaultFilters, setUseDefaultFilters] = useState(false);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -957,14 +975,17 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
-  // Add handleResetFilters function
+  // Update the handleResetFilters function to clear everything instead
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
     setSearch('');
+    setSearchInput('');
     setFrequencyFilter('All');
     setTeamMemberFilter('all');
     setShowMyTasks(false);
+    
+    // Clear saved filters
     localStorage.removeItem('planFilters');
   };
 
@@ -985,7 +1006,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   // Update the view switching logic
   const handleViewChange = async (viewType: 'all' | 'single') => {
     try {
-      // Save current filter states
+      // Get current filters from state
       const currentFilters = {
         showActiveOnly,
         progressFilter,
@@ -995,7 +1016,17 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         teamMemberFilter,
         showMyTasks
       };
-      console.log('Preserving filters:', currentFilters);
+
+      // Get saved filters from storage
+      const savedFilters = getFiltersFromStorage();
+
+      // Combine current, saved, and default filters with priority:
+      // current > saved > default
+      const filtersToApply = {
+        ...DEFAULT_FILTERS,
+        ...savedFilters,
+        ...currentFilters
+      };
 
       if (viewType === 'all') {
         setSelectedCustomer(null);
@@ -1005,15 +1036,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
           selectedCustomer: null
         }));
         await loadAllPlans();
-
-        // Restore filters after loading
-        setShowActiveOnly(currentFilters.showActiveOnly);
-        setProgressFilter(currentFilters.progressFilter);
-        setSearch(currentFilters.search);
-        setSearchInput(currentFilters.searchInput);
-        setFrequencyFilter(currentFilters.frequencyFilter);
-        setTeamMemberFilter(currentFilters.teamMemberFilter);
-        setShowMyTasks(currentFilters.showMyTasks);
       } else {
         if (selectedCustomer) {
           setPlans(prev => ({
@@ -1022,17 +1044,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
             selectedCustomer
           }));
           await loadPlan();
-
-          // Restore filters after loading
-          setShowActiveOnly(currentFilters.showActiveOnly);
-          setProgressFilter(currentFilters.progressFilter);
-          setSearch(currentFilters.search);
-          setSearchInput(currentFilters.searchInput);
-          setFrequencyFilter(currentFilters.frequencyFilter);
-          setTeamMemberFilter(currentFilters.teamMemberFilter);
-          setShowMyTasks(currentFilters.showMyTasks);
         }
       }
+
+      // Apply the combined filters
+      setShowActiveOnly(filtersToApply.showActiveOnly);
+      setProgressFilter(filtersToApply.progressFilter);
+      setSearch(filtersToApply.search);
+      setSearchInput(filtersToApply.searchInput);
+      setFrequencyFilter(filtersToApply.frequencyFilter);
+      setTeamMemberFilter(filtersToApply.teamMemberFilter);
+      setShowMyTasks(filtersToApply.showMyTasks);
+
+      // Save the combined filters to storage
+      saveFiltersToStorage(filtersToApply);
+
     } catch (error) {
       console.error('Error switching views:', error);
       message.error('Failed to switch views');
@@ -1048,57 +1074,63 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
   // Update customer selection handler
   const handleCustomerSelect = async (customerId: string | null) => {
-    // Save current filter states
-    const currentFilters = {
-      showActiveOnly,
-      progressFilter,
-      search,
-      searchInput,
-      frequencyFilter,
-      teamMemberFilter,
-      showMyTasks
-    };
+    try {
+      // Get current filters
+      const currentFilters = {
+        showActiveOnly,
+        progressFilter,
+        search,
+        searchInput,
+        frequencyFilter,
+        teamMemberFilter,
+        showMyTasks
+      };
 
-    const customer = customers.find(c => c.id === customerId) || null;
-    setSelectedCustomer(customer);
-    
-    if (customer) {
-      console.log('Found customer:', customer);
+      // Get saved filters
+      const savedFilters = getFiltersFromStorage();
+
+      // Combine filters with priority
+      const filtersToApply = {
+        ...DEFAULT_FILTERS,
+        ...savedFilters,
+        ...currentFilters
+      };
+
+      const customer = customers.find(c => c.id === customerId) || null;
+      setSelectedCustomer(customer);
       
-      // Check if customer has a plan
-      const planRef = doc(db, 'plans', customer.id);
-      const planDoc = await getDoc(planRef);
-      
-      console.log('Plan exists:', planDoc.exists());
-      
-      if (!planDoc.exists()) {
-        console.log('Creating new plan for customer');
-        await createPlanForCustomer(customer);  // This will use package-specific rules
+      if (customer) {
+        setPlans(prev => ({
+          ...prev,
+          type: 'single',
+          selectedCustomer: customer
+        }));
+        await loadPlan();
+      } else {
+        setPlans(prev => ({
+          ...prev,
+          type: 'all',
+          selectedCustomer: null
+        }));
+        await loadAllPlans();
       }
 
-      setPlans(prev => ({
-        ...prev,
-        type: 'single',
-        selectedCustomer: customer
-      }));
-      await loadPlan();
-    } else {
-      setPlans(prev => ({
-        ...prev,
-        type: 'all',
-        selectedCustomer: null
-      }));
-      await loadAllPlans();
-    }
+      // Apply the combined filters
+      setShowActiveOnly(filtersToApply.showActiveOnly);
+      setProgressFilter(filtersToApply.progressFilter);
+      setSearch(filtersToApply.search);
+      setSearchInput(filtersToApply.searchInput);
+      setFrequencyFilter(filtersToApply.frequencyFilter);
+      setTeamMemberFilter(filtersToApply.teamMemberFilter);
+      setShowMyTasks(filtersToApply.showMyTasks);
 
-    // Restore filters after loading
-    setShowActiveOnly(currentFilters.showActiveOnly);
-    setProgressFilter(currentFilters.progressFilter);
-    setSearch(currentFilters.search);
-    setSearchInput(currentFilters.searchInput);
-    setFrequencyFilter(currentFilters.frequencyFilter);
-    setTeamMemberFilter(currentFilters.teamMemberFilter);
-    setShowMyTasks(currentFilters.showMyTasks);
+      // Save the combined filters to storage
+      saveFiltersToStorage(filtersToApply);
+
+    } catch (error) {
+      console.error('Error selecting customer:', error);
+      message.error('Failed to select customer');
+    }
   };
 
   // Add interface for form values
@@ -1396,93 +1428,155 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
         {/* Filters Card */}
         <Card style={{ marginTop: 16 }}>
-          <Space wrap>
-            <Space>
-              <Switch
-                checked={showActiveOnly}
-                onChange={setShowActiveOnly}
-              />
-              <Text>Show Active Only</Text>
-            </Space>
-            <Space>
-              <Switch
-                checked={showMyTasks}
-                onChange={setShowMyTasks}
-              />
-              <Text>My Tasks</Text>
-            </Space>
-            <Select
-              style={{ width: 150 }}
-              value={progressFilter}
-              onChange={(value: 'All' | 'To Do and Doing' | 'Done') => setProgressFilter(value)}
-            >
-              <Option value="All">All Progress</Option>
-              <Option value="To Do and Doing">To Do & Doing</Option>
-              <Option value="Done">Done</Option>
-            </Select>
-            <Search
-              placeholder="Search tasks..."
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              onSearch={(value) => {
-                setSearch(value);
-              }}
-              allowClear
-              style={{ width: 200 }}
-            />
-            <Select
-              style={{ width: 200 }}
-              value={frequencyFilter}
-              onChange={setFrequencyFilter}
-              placeholder="Filter by frequency"
-            >
-              <Option value="All">All Frequencies</Option>
-              <Option value="One Time">One Time</Option>
-              <Option value="Monthly">Monthly</Option>
-              <Option value="As Needed">As Needed</Option>
-              <Option value="Monthly and As Needed">Monthly & As Needed</Option>
-            </Select>
-            <Select
-              style={{ width: 200 }}
-              value={teamMemberFilter}
-              onChange={setTeamMemberFilter}
-              placeholder="Filter by team member"
-            >
-              <Option value="all">All Team Members</Option>
-              {adminList
-                .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
-                .map((admin: IAdmin) => (
-                  <Option key={admin.email} value={admin.email}>
-                    <Space>
-                      <Avatar 
-                        size="small"
-                        style={{ backgroundColor: '#1890ff' }}
-                        src={admin.avatarUrl}
-                      >
-                        {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
-                      </Avatar>
-                      {admin.name || admin.email}
-                    </Space>
-                  </Option>
-                ))}
-            </Select>
-            <Button 
-              icon={<ReloadOutlined />} 
-              onClick={handleResetFilters}
-              title="Reset all filters"
-            />
-            {selectedCustomer && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setNewCustomTaskModal(true)}
-              >
-                Add Custom Task
-              </Button>
-            )}
-            <Button onClick={toggleView}>
-              {viewMode === 'list' ? 'Calendar View' : 'List View'}
-            </Button>
+          <Alert
+            message="Filter Tips"
+            description={
+              <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                <li>Click "Use Default View" for the recommended view (monthly and as needed active tasks assigned to you)</li>
+              </ul>
+            }
+            type="info"
+            showIcon
+            closable
+            style={{ marginBottom: 16 }}
+          />
+          
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            {/* First row */}
+            <Row>
+              <Space direction="vertical" size="small">
+                <Text type="secondary">Quick Filters:</Text>
+                <Space wrap>
+                  <Tooltip title="Show only active tasks and monthly tasks assigned to you">
+                    <Button
+                      type={useDefaultFilters ? "primary" : "default"}
+                      icon={<FilterOutlined />}
+                      onClick={() => {
+                        const newState = !useDefaultFilters;
+                        setUseDefaultFilters(newState);
+                        if (newState) {
+                          setShowActiveOnly(DEFAULT_FILTERS.showActiveOnly);
+                          setProgressFilter(DEFAULT_FILTERS.progressFilter);
+                          setSearch(DEFAULT_FILTERS.search);
+                          setSearchInput(DEFAULT_FILTERS.searchInput);
+                          setFrequencyFilter(DEFAULT_FILTERS.frequencyFilter);
+                          setTeamMemberFilter(DEFAULT_FILTERS.teamMemberFilter);
+                          setShowMyTasks(DEFAULT_FILTERS.showMyTasks);
+                        } else {
+                          const savedFilters = getFiltersFromStorage();
+                          if (savedFilters) {
+                            setShowActiveOnly(savedFilters.showActiveOnly);
+                            setProgressFilter(savedFilters.progressFilter);
+                            setSearch(savedFilters.search);
+                            setSearchInput(savedFilters.searchInput);
+                            setFrequencyFilter(savedFilters.frequencyFilter);
+                            setTeamMemberFilter(savedFilters.teamMemberFilter);
+                            setShowMyTasks(savedFilters.showMyTasks);
+                          }
+                        }
+                      }}
+                    >
+                      {useDefaultFilters ? "Using Default View" : "Use Default View"}
+                    </Button>
+                  </Tooltip>
+                  <Space>
+                    <Tooltip title="Show only tasks that are currently active">
+                      <Switch
+                        checked={showActiveOnly}
+                        onChange={setShowActiveOnly}
+                      />
+                      <Text>Show Active Only</Text>
+                    </Tooltip>
+                  </Space>
+                  <Space>
+                    <Tooltip title="Show only tasks assigned to you">
+                      <Switch
+                        checked={showMyTasks}
+                        onChange={setShowMyTasks}
+                      />
+                      <Text>My Tasks</Text>
+                    </Tooltip>
+                  </Space>
+                </Space>
+              </Space>
+            </Row>
+            
+            <Divider style={{ margin: '12px 0' }}>
+              <Text type="secondary">Advanced Filters</Text>
+            </Divider>
+            
+            {/* Second row */}
+            <Row>
+              <Space wrap>
+                <Search
+                  placeholder="Search tasks..."
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  onSearch={(value) => {
+                    setSearch(value);
+                  }}
+                  allowClear
+                  style={{ width: 200 }}
+                />
+                <Select
+                  style={{ width: 150 }}
+                  value={progressFilter}
+                  onChange={(value: 'All' | 'To Do and Doing' | 'Done') => setProgressFilter(value)}
+                >
+                  <Option value="All">All Progress</Option>
+                  <Option value="To Do and Doing">To Do & Doing</Option>
+                  <Option value="Done">Done</Option>
+                </Select>
+                <Select
+                  style={{ width: 200 }}
+                  value={frequencyFilter}
+                  onChange={setFrequencyFilter}
+                  placeholder="Filter by frequency"
+                >
+                  <Option value="All">All Frequencies</Option>
+                  <Option value="One Time">One Time</Option>
+                  <Option value="Monthly">Monthly</Option>
+                  <Option value="As Needed">As Needed</Option>
+                  <Option value="Monthly and As Needed">Monthly & As Needed</Option>
+                </Select>
+                <Select
+                  style={{ width: 200 }}
+                  value={teamMemberFilter}
+                  onChange={setTeamMemberFilter}
+                  placeholder="Filter by team member"
+                >
+                  <Option value="all">All Team Members</Option>
+                  {adminList
+                    .filter((admin: IAdmin) => admin.canBeAssignedToTasks)
+                    .map((admin: IAdmin) => (
+                      <Option key={admin.email} value={admin.email}>
+                        <Space>
+                          <Avatar 
+                            size="small"
+                            style={{ backgroundColor: '#1890ff' }}
+                            src={admin.avatarUrl}
+                          >
+                            {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
+                          </Avatar>
+                          {admin.name || admin.email}
+                        </Space>
+                      </Option>
+                    ))}
+                </Select>
+                {selectedCustomer && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setNewCustomTaskModal(true)}
+                  >
+                    Add Custom Task
+                  </Button>
+                )}
+                <Button onClick={toggleView}>
+                  {viewMode === 'list' ? 'Calendar View' : 'List View'}
+                </Button>
+              </Space>
+            </Row>
           </Space>
         </Card>
 
