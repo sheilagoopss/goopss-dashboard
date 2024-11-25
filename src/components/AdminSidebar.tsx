@@ -115,9 +115,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   }, [openKeys]);
 
   const adminMenuItems: MenuItem[] = [
-    ...((user as IAdmin).role === "Admin" ||
-    (user as IAdmin).role === "TeamMember" ||
-    (user as IAdmin).role === "SuperAdmin"
+    ...((user as IAdmin).role === 'Designer' ||
+    (user as IAdmin).role === 'Admin' ||
+    (user as IAdmin).role === 'TeamMember' ||
+    (user as IAdmin).role === 'SuperAdmin'
       ? [
           {
             key: "plan",
@@ -140,32 +141,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
                       key: "/plan-task-rules",
                       icon: <FormOutlined />,
                       label: <Link to="/plan-task-rules">Plan Task Rules</Link>,
-                    },
-                  ]
-                : []),
-            ],
-          },
-          {
-            key: "customers",
-            icon: <UserOutlined />,
-            label: <span>Customers</span>,
-            children: [
-              {
-                key: "/",
-                icon: <UserOutlined />,
-                label: <Link to="/">Customers List</Link>,
-              },
-              {
-                key: "/customer-form",
-                icon: <FormOutlined />,
-                label: <Link to="/customer-form">Customer Form</Link>,
-              },
-              ...((user as IAdmin).role === "SuperAdmin"
-                ? [
-                    {
-                      key: "/activity-log",
-                      icon: <BarChartOutlined />,
-                      label: <Link to="/activity-log">Activity Log</Link>,
                     },
                   ]
                 : []),

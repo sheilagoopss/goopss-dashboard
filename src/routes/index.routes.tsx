@@ -205,6 +205,30 @@ export default function AppRoutes() {
 
   const designerRoutes = [
     <Route path="design-hub" element={<DesignHubV2 />} />,
+    <Route
+      path="plan"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <PlanComponent
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+          />
+        </div>
+      }
+    />,
+    <Route
+      path="plan-simple-view"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <PlanSimpleView
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+          />
+        </div>
+      }
+    />,
   ];
 
   const teamMemberRoutes = [
