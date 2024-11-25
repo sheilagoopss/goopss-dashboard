@@ -105,12 +105,14 @@ export default function AppRoutes() {
         id: doc.id,
         store_name: doc.data().store_name,
         customer_type: doc.data().customer_type,
-        // Only fetch fields needed for the customer list
         store_owner_name: doc.data().store_owner_name,
         email: doc.data().email,
         package_type: doc.data().package_type,
         current_sales: doc.data().current_sales,
         customer_id: doc.data().customer_id,
+        logo: doc.data().logo,
+        isActive: doc.data().isActive,
+        date_joined: doc.data().date_joined
       })) as ICustomer[];
 
       console.log(
