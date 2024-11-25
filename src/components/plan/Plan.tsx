@@ -719,14 +719,16 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         field,
         value,
         customerId,
-        selectedCustomerId: selectedCustomer?.id
+        selectedCustomerId: selectedCustomer?.id,
+        plansType: plans.type
       });
 
-      const planRef = doc(db, 'plans', selectedCustomer?.id || '');
+      // Use the passed customerId instead of selectedCustomer?.id for "all" view
+      const planRef = doc(db, 'plans', customerId);
       const planDoc = await getDoc(planRef);
 
       if (!planDoc.exists()) {
-        console.error('Plan not found:', selectedCustomer?.id);
+        console.error('Plan not found:', customerId);
         return false;
       }
 
@@ -791,16 +793,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       if (plans.type === 'all') {
         setPlans(prevPlans => ({
           ...prevPlans,
+          type: 'all',
+          selectedCustomer: null,
           data: {
             ...prevPlans.data,
-            [selectedCustomer?.id || '']: {
-              ...prevPlans.data[selectedCustomer?.id || ''],
+            [customerId]: {  // Use customerId here
+              ...prevPlans.data[customerId],
               sections: updatedSections
             }
           }
         }));
+      } else {
+        setSections(updatedSections);
       }
-      setSections(updatedSections);
 
       return true;
     } catch (error) {
