@@ -115,6 +115,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   }, [openKeys]);
 
   const adminMenuItems: MenuItem[] = [
+    // Plan menu for all roles including Designer
     ...((user as IAdmin).role === 'Designer' ||
     (user as IAdmin).role === 'Admin' ||
     (user as IAdmin).role === 'TeamMember' ||
@@ -144,6 +145,32 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
                     },
                   ]
                 : []),
+            ],
+          },
+        ]
+      : []),
+
+    // Customers menu only for Admin, TeamMember, and SuperAdmin
+    ...((user as IAdmin).role === 'Admin' ||
+    (user as IAdmin).role === 'TeamMember' ||
+    (user as IAdmin).role === 'SuperAdmin'
+      ? [
+          {
+            key: "customers",
+            icon: <UserOutlined />,
+            label: <span>Customers</span>,
+            children: [
+              {
+                key: "/",
+                icon: <UserOutlined />,
+                label: <Link to="/">Customers List</Link>,
+              },
+              {
+                key: "/customer-form",
+                icon: <FormOutlined />,
+                label: <Link to="/customer-form">Customer Form</Link>,
+              },
+              // ... more menu items
             ],
           },
         ]
