@@ -15,12 +15,16 @@ export default function Analytics({
   handleCSVExport,
 }: AnalyticsProps) {
   const totalOwners = customers.length;
-  const payingCustomers = customers.filter(
-    (owner) => owner.customer_type === "Paid"
+  
+  const activePayingCustomers = customers.filter(
+    (owner) => owner.isActive && owner.customer_type === "Paid"
   ).length;
-  const freeCustomers = customers.filter(
-    (owner) => owner.customer_type === "Free"
+  
+  const activeFreeCustomers = customers.filter(
+    (owner) => owner.isActive && owner.customer_type === "Free"
   ).length;
+
+  const inactiveCustomers = customers.filter(customer => !customer.isActive).length;
 
   return (
     <Card>
@@ -29,10 +33,13 @@ export default function Analytics({
           <Statistic title="Total Store Owners" value={totalOwners} />
         </Col>
         <Col span={4}>
-          <Statistic title="Paying Customers" value={payingCustomers} />
+          <Statistic title="Paying Customers" value={activePayingCustomers} />
         </Col>
-        <Col span={6}>
-          <Statistic title="Free Customers" value={freeCustomers} />
+        <Col span={4}>
+          <Statistic title="Free Customers" value={activeFreeCustomers} />
+        </Col>
+        <Col span={4}>
+          <Statistic title="Inactive Customers" value={inactiveCustomers} />
         </Col>
         <Col>
           <Button onClick={handleCSVExport}>Export store owners list</Button>
