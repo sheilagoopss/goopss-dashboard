@@ -41,5 +41,9 @@ export const endpoints = {
     createListing: `${API_URL}/api/v1/etsy/create-listing`,
     getShopShippingProfile: (customerId: string) =>
       `${API_URL}/api/v1/etsy/shop-shipping-profile/${customerId}`,
+    getListings: (customerId: string) =>
+      `${API_URL}/api/v1/etsy/listings/${customerId}`,
+    updateListing: (listingId: string) =>
+      `${API_URL}/api/v1/etsy/update-listing/${listingId}`,
   },
 };
