@@ -969,6 +969,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                     customer.customer_type === 'Paid' && 
                     (showInactive || customer.isActive)
                   )
+                  .sort((a, b) => {
+                    // Sort by date_joined in descending order (most recent first)
+                    if (!a.date_joined || !b.date_joined) return 0;
+                    return dayjs(b.date_joined).valueOf() - dayjs(a.date_joined).valueOf();
+                  })
                   .map((customer) => (
                     <Option 
                       key={customer.id} 
