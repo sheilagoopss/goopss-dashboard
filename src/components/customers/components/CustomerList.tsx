@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, type Key } from "react";
 import { Table, Tag, Button, Modal, Form, Col, Row, message } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { ChartColumn, Paintbrush, Search, Share2 } from "lucide-react";
@@ -12,6 +12,8 @@ import { CustomerForm } from "../form/CustomerForm";
 import { useListingDeleteAll } from "../../../hooks/useListing";
 import dayjs from "dayjs";
 import { useAuth } from "contexts/AuthContext";
+import { doc, updateDoc, getDoc, collection, writeBatch, getDocs } from "firebase/firestore";
+import { db } from "../../../firebase/config";
 
 interface CustomerListProps {
   customers: ICustomer[];
@@ -70,13 +72,21 @@ export default function CustomerList({
       sorter: (a: ICustomer, b: ICustomer) =>
         (a.current_sales || 0) - (b.current_sales || 0),
     },
-    // {
-    //   title: "Date Joined",
-    //   dataIndex: "date_joined",
-    //   key: "date_joined",
-    //   sorter: (a: Customer, b: Customer) =>
-    //     new Date(a.date_joined).getTime() - new Date(b.date_joined).getTime(),
-    // },
+    {
+      title: "Status",
+      key: "status",
+      width: 100,
+      render: (_: any, record: ICustomer) => (
+        <Tag color={record.isActive ? "green" : "red"}>
+          {record.isActive ? "Active" : "Inactive"}
+        </Tag>
+      ),
+      filters: [
+        { text: "Active", value: true },
+        { text: "Inactive", value: false }
+      ],
+      onFilter: (value: boolean | Key, record: ICustomer) => record.isActive === value
+    },
     {
       title: "",
       key: "actions",
@@ -97,6 +107,15 @@ export default function CustomerList({
                   danger
                   loading={isDeleting}
                 />
+              </Col>
+              <Col>
+                <Button
+                  onClick={() => handleStatusChange(record)}
+                  type={record.isActive ? "default" : "primary"}
+                  danger={record.isActive}
+                >
+                  {record.isActive ? "Deactivate" : "Reactivate"}
+                </Button>
               </Col>
               <Col>
                 <Button
@@ -181,6 +200,44 @@ export default function CustomerList({
         }
       },
     });
+  };
+
+  const handleStatusChange = async (customer: ICustomer) => {
+    try {
+      const customerRef = doc(db, 'customers', customer.id);
+      const newStatus = !customer.isActive;
+      
+      await updateDoc(customerRef, {
+        isActive: newStatus,
+        deactivatedAt: newStatus ? null : new Date().toISOString(),
+        deactivatedBy: newStatus ? null : user?.email
+      });
+
+      // If deactivating, also update all tasks to inactive
+      if (!newStatus) {
+        const planRef = doc(db, 'plans', customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const plan = planDoc.data();
+          const updatedSections = plan.sections.map((section: any) => ({
+            ...section,
+            tasks: section.tasks.map((task: any) => ({
+              ...task,
+              isActive: false
+            }))
+          }));
+
+          await updateDoc(planRef, { sections: updatedSections });
+        }
+      }
+
+      message.success(`Customer ${newStatus ? 'reactivated' : 'deactivated'} successfully`);
+      refresh();
+    } catch (error) {
+      console.error('Error updating customer status:', error);
+      message.error('Failed to update customer status');
+    }
   };
 
   const expandedRowRender = (record: ICustomer) => (

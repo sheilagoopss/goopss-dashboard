@@ -1,7 +1,7 @@
 import { endpoints } from "constants/endpoints";
 import HttpHelper from "helpers/HttpHelper";
 import { useCallback, useState } from "react";
-import { IEtsyListing, IEtsyShippingProfile } from "types/Etsy";
+import { IEtsyFetchedListing, IEtsyListing, IEtsyListingUpdate, IEtsyShippingProfile } from "types/Etsy";
 
 export interface ITaxonomy {
   id: number;
@@ -73,12 +73,40 @@ export const useCreateListing = () => {
   return { createListing, isCreatingListing };
 };
 
+export const useUpdateListing = () => {
+  const [isUpdatingListing, setIsUpdatingListing] = useState(false);
+
+  const updateListing = useCallback(
+    async (listing: IEtsyListingUpdate): Promise<IEtsyListing | null> => {
+      setIsUpdatingListing(true);
+      try {
+        const response = await HttpHelper.patch(endpoints.etsy.updateListing(listing.listingId), {
+          data: listing,
+        });
+        return response?.data?.data;
+      } catch (error) {
+        console.error("Error updating listing:", error);
+        return null;
+      } finally {
+        setIsUpdatingListing(false);
+      }
+    },
+    [],
+  );
+
+  return { updateListing, isUpdatingListing };
+};
+
 export const useShopShippingProfile = () => {
   const [isFetchingShopShippingProfile, setIsFetchingShopShippingProfile] =
     useState(false);
 
   const fetchShopShippingProfile = useCallback(
-    async ({ customerId }: { customerId: string }): Promise<IEtsyShippingProfile[]> => {
+    async ({
+      customerId,
+    }: {
+      customerId: string;
+    }): Promise<IEtsyShippingProfile[]> => {
       setIsFetchingShopShippingProfile(true);
       try {
         const response = await HttpHelper.get(
@@ -96,6 +124,30 @@ export const useShopShippingProfile = () => {
   );
 
   return { fetchShopShippingProfile, isFetchingShopShippingProfile };
+};
+
+export const useEtsyListings = () => {
+  const [isFetchingEtsyListings, setIsFetchingEtsyListings] = useState(false);
+
+  const fetchEtsyListings = useCallback(
+    async ({ customerId }: { customerId: string }): Promise<IEtsyFetchedListing[]> => {
+      setIsFetchingEtsyListings(true);
+      try {
+        const response = await HttpHelper.get(
+          endpoints.etsy.getListings(customerId),
+        );
+        return response?.data?.data?.results || [];
+      } catch (error) {
+        console.error("Error fetching Etsy listings:", error);
+        return [];
+      } finally {
+        setIsFetchingEtsyListings(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchEtsyListings, isFetchingEtsyListings };
 };
 
 export default useEtsy;
