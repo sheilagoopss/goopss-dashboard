@@ -4,6 +4,7 @@ export enum COLLECTIONS {
   feedbackPrompts = "feedbackPrompts",
   images = "images",
   listings = "listings",
+  listingOptimizationPrompts = "listingOptimizationPrompts",
   planTaskRules = "planTaskRules",
   plans = "plans",
   socials = "socials",

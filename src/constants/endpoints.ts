@@ -49,4 +49,8 @@ export const endpoints = {
     updateListing: (listingId: string) =>
       `${API_URL}/api/v1/etsy/update-listing/${listingId}`,
   },
+  optimizeEtsy: {
+    feedback: `${API_URL}/api/v1/optimizeEtsy/feedback`,
+    setAIPrompt: `${API_URL}/api/v1/optimizeEtsy/set-ai-prompt`,
+  },
 };
