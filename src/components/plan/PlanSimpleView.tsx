@@ -939,73 +939,66 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     fetchAdmins();
   }, []);
 
+  // Add state for showing inactive customers
+  const [showInactive, setShowInactive] = useState(false);
+
   return (
     <Layout>
       <Content style={{ padding: '16px' }}>
         <Card>
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Select a customer"
-              value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
-              onChange={async (value) => {  // Make this async
-                console.log('Selected value:', value);
-                
-                if (value === 'all-paid') {
-                  setSelectedCustomer(null);
-                  loadAllPlans();
-                } else {
-                  const customer = customers.find(c => c.id === value);
-                  if (customer) {
-                    console.log('Found customer:', customer);
-                    
-                    // Check if plan exists
-                    const planRef = doc(db, 'plans', customer.id);
-                    const planDoc = await getDoc(planRef);
-                    
-                    console.log('Plan exists:', planDoc.exists());
-                    
-                    if (!planDoc.exists()) {
-                      console.log('Creating new plan for customer');
-                      await createPlanForCustomer(customer);
-                    }
-                    
-                    setSelectedCustomer(customer);
-                  }
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Select a customer"
+                value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
+                onChange={handleCustomerSelect}
+                size="large"
+                listHeight={400}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }
-              }}
-              size="large"
-              showSearch
-              optionFilterProp="label"  // Change this from children to label
-              filterOption={(input, option) => {
-                if (!option?.label) return false;
-                return option.label.toString().toLowerCase().includes(input.toLowerCase());
-              }}
-            >
-              <Option value="all-paid">All Customers</Option>
-              <Option key="divider" disabled>──────────────</Option>
-              {customers
-                .filter(customer => customer.customer_type === 'Paid')
-                .map((customer) => (
-                  <Option 
-                    key={customer.id} 
-                    value={customer.id}
-                    label={`${customer.store_name} - ${customer.store_owner_name}`}  // Add label prop
-                  >
-                    <Space>
-                      {customer.logo && (
-                        <img 
-                          src={customer.logo} 
-                          alt={customer.store_name} 
-                          style={{ width: 20, height: 20, borderRadius: '50%' }} 
-                        />
-                      )}
-                      {customer.store_name} - {customer.store_owner_name}
-                    </Space>
-                  </Option>
-                ))}
-            </Select>
+              >
+                <Option value="all-paid">All Customers</Option>
+                <Option key="divider" disabled>──────────────</Option>
+                {customers
+                  .filter(customer => 
+                    customer.customer_type === 'Paid' && 
+                    (showInactive || customer.isActive)
+                  )
+                  .map((customer) => (
+                    <Option 
+                      key={customer.id} 
+                      value={customer.id}
+                      label={`${customer.store_name} - ${customer.store_owner_name}`}
+                    >
+                      <Space>
+                        {customer.logo && (
+                          <img 
+                            src={customer.logo} 
+                            alt={customer.store_name} 
+                            style={{ width: 20, height: 20, borderRadius: '50%' }} 
+                          />
+                        )}
+                        {customer.store_name} - {customer.store_owner_name}
+                        {!customer.isActive && <Tag color="red">Inactive</Tag>}
+                      </Space>
+                    </Option>
+                  ))}
+              </Select>
+              <Tooltip title="Show inactive customers">
+                <Switch
+                  size="small"
+                  checked={showInactive}
+                  onChange={setShowInactive}
+                  checkedChildren="Showing Inactive"
+                  unCheckedChildren="Show Inactive"
+                />
+              </Tooltip>
+            </Space>
           </Space>
         </Card>
 
