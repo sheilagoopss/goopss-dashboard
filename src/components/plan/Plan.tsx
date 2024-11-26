@@ -603,6 +603,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [searchQuery, setSearchQuery] = useState('');
   const [progressOptions, setProgressOptions] = useState(['Not Started', 'In Progress', 'Done']);
   const [useDefaultFilters, setUseDefaultFilters] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -1383,46 +1384,57 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         <Card>
           <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Select a customer"
-              value={selectedCustomer ? selectedCustomer.id : plans.type === 'all' ? 'all-paid' : undefined}
-              onChange={handleCustomerSelect}
-              size="large"
-              listHeight={400}
-              showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              <Select.Option key="all-paid" value="all-paid">
-                All Customers
-              </Select.Option>
-              <Select.Option key="divider" disabled>
-                ──────────────
-              </Select.Option>
-              {customers
-                .filter(customer => customer.customer_type === 'Paid')
-                .map((customer) => (
-                  <Select.Option 
-                    key={customer.id} 
-                    value={customer.id}
-                    label={`${customer.store_name} - ${customer.store_owner_name}`}
-                  >
-                    <Space>
-                      {customer.logo && (
-                        <img 
-                          src={customer.logo} 
-                          alt={customer.store_name} 
-                          style={{ width: 20, height: 20, borderRadius: '50%' }} 
-                        />
-                      )}
-                      {customer.store_name} - {customer.store_owner_name}
-                    </Space>
-                  </Select.Option>
-                ))}
-            </Select>
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Select a customer"
+                value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
+                onChange={handleCustomerSelect}
+                size="large"
+                listHeight={400}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
+                }
+              >
+                <Option value="all-paid">All Customers</Option>
+                <Option key="divider" disabled>──────────────</Option>
+                {customers
+                  .filter(customer => 
+                    customer.customer_type === 'Paid' && 
+                    (showInactive || customer.isActive)
+                  )
+                  .map((customer) => (
+                    <Option 
+                      key={customer.id} 
+                      value={customer.id}
+                      label={`${customer.store_name} - ${customer.store_owner_name}`}
+                    >
+                      <Space>
+                        {customer.logo && (
+                          <img 
+                            src={customer.logo} 
+                            alt={customer.store_name} 
+                            style={{ width: 20, height: 20, borderRadius: '50%' }} 
+                          />
+                        )}
+                        {customer.store_name} - {customer.store_owner_name}
+                        {!customer.isActive && <Tag color="red">Inactive</Tag>}
+                      </Space>
+                    </Option>
+                  ))}
+              </Select>
+              <Tooltip title="Show inactive customers">
+                <Switch
+                  size="small"
+                  checked={showInactive}
+                  onChange={setShowInactive}
+                  checkedChildren="Showing Inactive"
+                  unCheckedChildren="Show Inactive"
+                />
+              </Tooltip>
+            </Space>
           </Space>
         </Card>
 
