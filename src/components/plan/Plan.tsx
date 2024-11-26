@@ -1615,12 +1615,27 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       .map(task => ({ customer, task }));
                   })
                   .sort((a, b) => {
-                    if (!a.task.dueDate && !b.task.dueDate) return 0;
-                    if (!a.task.dueDate) return 1;
+                    // First sort by due date
+                    if (!a.task.dueDate && !b.task.dueDate) {
+                      // If neither has a due date, sort by customer join date
+                      const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+                      const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+                      return joinDateB.valueOf() - joinDateA.valueOf();
+                    }
+                    if (!a.task.dueDate) return 1;  // Tasks without due dates go last
                     if (!b.task.dueDate) return -1;
+
+                    // Compare due dates
                     const dateA = dayjs(a.task.dueDate);
                     const dateB = dayjs(b.task.dueDate);
-                    return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                    const dateDiff = dateA.valueOf() - dateB.valueOf();
+                    
+                    if (dateDiff !== 0) return dateDiff;
+
+                    // If due dates are equal, sort by customer join date
+                    const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+                    const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+                    return joinDateB.valueOf() - joinDateA.valueOf();
                   })
                   .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
                   .map(({ customer, task }) => (
