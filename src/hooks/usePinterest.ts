@@ -13,7 +13,7 @@ export const usePinterestBoard = () => {
         const boards = await HttpHelper.get(
           endpoints.pinterest.boards(customerId),
         );
-        return boards?.data || [];
+        return boards?.data?.data || [];
       } catch (error) {
         console.error("Error fetching boards:", error);
         return [];
@@ -25,4 +25,47 @@ export const usePinterestBoard = () => {
   );
 
   return { fetchBoards, isFetchingBoards };
+};
+
+export const useCreatePinterestPin = () => {
+  const [isCreatingPin, setIsCreatingPin] = useState(false);
+
+  const createPin = useCallback(
+    async ({
+      customerId,
+      boardId,
+      content,
+    }: {
+      customerId: string;
+      boardId: string;
+      content?: {
+        title?: string;
+        description?: string;
+        link?: string;
+        media_source?: {
+          source_type?: string;
+          url?: string;
+        };
+      };
+    }) => {
+      setIsCreatingPin(true);
+      try {
+        const pin = await HttpHelper.post(endpoints.pinterest.pin, {
+          data: {
+            content: { ...content, board_id: boardId },
+            customerId,
+          },
+        });
+        return pin?.data?.data || {};
+      } catch (error) {
+        console.error("Error creating pin:", error);
+        return {};
+      } finally {
+        setIsCreatingPin(false);
+      }
+    },
+    [],
+  );
+
+  return { createPin, isCreatingPin };
 };

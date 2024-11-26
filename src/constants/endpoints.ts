@@ -16,6 +16,7 @@ export const endpoints = {
     login: `${API_URL}/api/v1/auth/pinterest`,
     boards: (customerId: string) =>
       `${API_URL}/api/v1/pinterest/boards/${customerId}`,
+    pin: `${API_URL}/api/v1/pinterest/board/pin`,
   },
   listingImage: {
     download: (imageId: string) =>
