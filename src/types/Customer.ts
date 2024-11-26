@@ -60,6 +60,10 @@ export interface ICustomer {
 
   // Etsy
   etsyToken?: string | null;
+
+  isActive: boolean;
+  deactivatedAt?: string;
+  deactivatedBy?: string;
 }
 
 export interface IAdmin {
