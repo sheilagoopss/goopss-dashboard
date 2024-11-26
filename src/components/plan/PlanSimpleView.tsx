@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PlanTaskRule } from '../../types/PlanTasks';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import FirebaseHelper from '../../helpers/FirebaseHelper';
+import type { TableColumnsType } from 'antd';
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -43,18 +44,17 @@ interface TableRecord {
   customer: ICustomer;
   task: string;
   section: string;
-  progress: string;
-  frequency: string;
+  progress: 'To Do' | 'Doing' | 'Done';
+  frequency: 'Monthly' | 'One Time' | 'As Needed';
   dueDate: string | null;
   completedDate: string | null;
   isActive: boolean;
   current: number;
   goal: number;
   notes: string;
-  id: string;  // Task ID
+  id: string;
   updatedAt: string;
   updatedBy: string;
-  // Add new fields for custom tasks
   files?: TaskFile[];
   createdBy?: string;
   createdAt?: string;
@@ -514,12 +514,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     }
   };
 
-  const columns = [
+  const columns: TableColumnsType<TableRecord> = [
     {
       title: 'Store Name',
       dataIndex: 'store_name',
       key: 'store_name',
-      render: (text: string, record: any) => (
+      render: (text: string, record: TableRecord) => (
         <Space direction="vertical" size={4}>
           <Space>
             <Avatar src={record.customer.logo} icon={<UserOutlined />} />
@@ -690,10 +690,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             section: section.title,
             progress: task.progress,
             frequency: task.frequency,
-            dueDate: task.dueDate !== undefined 
-              ? getAdjustedMonthlyDueDate(task.dueDate, task.frequency)
-              : null,
-            completedDate: task.completedDate,
+            dueDate: task.dueDate || null,
+            completedDate: task.completedDate || null,
             isActive: task.isActive,
             current: task.current,
             goal: task.goal,
@@ -710,12 +708,27 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     });
 
     return allTasks.sort((a, b) => {
-      if (!a.dueDate && !b.dueDate) return 0;
-      if (!a.dueDate) return 1;
+      // First sort by due date
+      if (!a.dueDate && !b.dueDate) {
+        // If neither has a due date, sort by customer join date
+        const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+        const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+        return joinDateB.valueOf() - joinDateA.valueOf();
+      }
+      if (!a.dueDate) return 1;  // Tasks without due dates go last
       if (!b.dueDate) return -1;
+
+      // Compare due dates first
       const dateA = dayjs(a.dueDate);
       const dateB = dayjs(b.dueDate);
-      return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+      const dateDiff = dateA.valueOf() - dateB.valueOf();
+      
+      if (dateDiff !== 0) return dateDiff;
+
+      // If due dates are equal, sort by customer join date (most recent first)
+      const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+      const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+      return joinDateB.valueOf() - joinDateA.valueOf();
     });
   }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user]);
 
@@ -1114,7 +1127,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           loading={isLoading}
           rowSelection={{
             type: 'checkbox',
-            onChange: (_, selectedRows) => {
+            onChange: (_, selectedRows: TableRecord[]) => {
               setSelectedRows(selectedRows);
             },
             selectedRowKeys: selectedRows.map(row => row.key),
