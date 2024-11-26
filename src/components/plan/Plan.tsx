@@ -742,7 +742,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         plansType: plans.type
       });
 
-      // Use the passed customerId instead of selectedCustomer?.id for "all" view
       const planRef = doc(db, 'plans', customerId);
       const planDoc = await getDoc(planRef);
 
@@ -753,23 +752,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
       const plan = planDoc.data() as Plan;
       
-      // Debug log for original task
-      const originalTask = plan.sections
-        .flatMap(section => section.tasks)
-        .find(task => task.id === taskId);
-      console.log('Original task:', originalTask);
-
       const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
             let updatedTask;
             if (typeof value === 'object') {
-              // For multiple field updates
               updatedTask = {
-                ...task, // Keep all existing fields
-                ...value, // Apply new values
-                // Ensure these fields are never undefined
+                ...task,
+                ...value,
                 assignedTeamMembers: value.assignedTeamMembers || task.assignedTeamMembers || [],
                 completedDate: value.completedDate || task.completedDate || null,
                 current: typeof value.current === 'number' ? value.current : task.current,
@@ -784,7 +775,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 updatedBy: user?.email || ''
               };
             } else {
-              // For single field updates
               updatedTask = {
                 ...task,
                 [field]: value,
@@ -792,8 +782,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 updatedBy: user?.email || ''
               };
             }
-            
-            console.log('Updated task:', updatedTask);
             return updatedTask;
           }
           return task;
@@ -804,25 +792,25 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         sections: updatedSections,
         updatedAt: new Date().toISOString()
       };
-      console.log('Final update payload:', updatePayload);
 
       await updateDoc(planRef, updatePayload);
 
-      // Update local state
+      // Update both local states regardless of view type
       if (plans.type === 'all') {
         setPlans(prevPlans => ({
           ...prevPlans,
-          type: 'all',
-          selectedCustomer: null,
           data: {
             ...prevPlans.data,
-            [customerId]: {  // Use customerId here
+            [customerId]: {
               ...prevPlans.data[customerId],
               sections: updatedSections
             }
           }
         }));
-      } else {
+      }
+      
+      // Always update sections state for single customer view
+      if (selectedCustomer?.id === customerId) {
         setSections(updatedSections);
       }
 
