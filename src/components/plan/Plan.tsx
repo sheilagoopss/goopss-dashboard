@@ -742,7 +742,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         plansType: plans.type
       });
 
-      // Use the passed customerId instead of selectedCustomer?.id for "all" view
       const planRef = doc(db, 'plans', customerId);
       const planDoc = await getDoc(planRef);
 
@@ -753,23 +752,15 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
 
       const plan = planDoc.data() as Plan;
       
-      // Debug log for original task
-      const originalTask = plan.sections
-        .flatMap(section => section.tasks)
-        .find(task => task.id === taskId);
-      console.log('Original task:', originalTask);
-
       const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === taskId) {
             let updatedTask;
             if (typeof value === 'object') {
-              // For multiple field updates
               updatedTask = {
-                ...task, // Keep all existing fields
-                ...value, // Apply new values
-                // Ensure these fields are never undefined
+                ...task,
+                ...value,
                 assignedTeamMembers: value.assignedTeamMembers || task.assignedTeamMembers || [],
                 completedDate: value.completedDate || task.completedDate || null,
                 current: typeof value.current === 'number' ? value.current : task.current,
@@ -784,7 +775,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 updatedBy: user?.email || ''
               };
             } else {
-              // For single field updates
               updatedTask = {
                 ...task,
                 [field]: value,
@@ -792,8 +782,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 updatedBy: user?.email || ''
               };
             }
-            
-            console.log('Updated task:', updatedTask);
             return updatedTask;
           }
           return task;
@@ -804,25 +792,25 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         sections: updatedSections,
         updatedAt: new Date().toISOString()
       };
-      console.log('Final update payload:', updatePayload);
 
       await updateDoc(planRef, updatePayload);
 
-      // Update local state
+      // Update both local states regardless of view type
       if (plans.type === 'all') {
         setPlans(prevPlans => ({
           ...prevPlans,
-          type: 'all',
-          selectedCustomer: null,
           data: {
             ...prevPlans.data,
-            [customerId]: {  // Use customerId here
+            [customerId]: {
               ...prevPlans.data[customerId],
               sections: updatedSections
             }
           }
         }));
-      } else {
+      }
+      
+      // Always update sections state for single customer view
+      if (selectedCustomer?.id === customerId) {
         setSections(updatedSections);
       }
 
@@ -1405,6 +1393,11 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     customer.customer_type === 'Paid' && 
                     (showInactive || customer.isActive)
                   )
+                  .sort((a, b) => {
+                    // Sort by date_joined in descending order (most recent first)
+                    if (!a.date_joined || !b.date_joined) return 0;
+                    return dayjs(b.date_joined).valueOf() - dayjs(a.date_joined).valueOf();
+                  })
                   .map((customer) => (
                     <Option 
                       key={customer.id} 
@@ -1610,12 +1603,27 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       .map(task => ({ customer, task }));
                   })
                   .sort((a, b) => {
-                    if (!a.task.dueDate && !b.task.dueDate) return 0;
-                    if (!a.task.dueDate) return 1;
+                    // First sort by due date
+                    if (!a.task.dueDate && !b.task.dueDate) {
+                      // If neither has a due date, sort by customer join date
+                      const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+                      const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+                      return joinDateB.valueOf() - joinDateA.valueOf();
+                    }
+                    if (!a.task.dueDate) return 1;  // Tasks without due dates go last
                     if (!b.task.dueDate) return -1;
+
+                    // Compare due dates
                     const dateA = dayjs(a.task.dueDate);
                     const dateB = dayjs(b.task.dueDate);
-                    return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
+                    const dateDiff = dateA.valueOf() - dateB.valueOf();
+                    
+                    if (dateDiff !== 0) return dateDiff;
+
+                    // If due dates are equal, sort by customer join date
+                    const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
+                    const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
+                    return joinDateB.valueOf() - joinDateA.valueOf();
                   })
                   .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
                   .map(({ customer, task }) => (
