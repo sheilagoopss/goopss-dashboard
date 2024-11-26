@@ -18,6 +18,7 @@ import {
   IEtsyListingUpdate,
 } from "types/Etsy";
 import ListingEdit from "./components/ListingEdit";
+import AnalyzeListing from "./components/AnalyzeListing";
 
 interface EtsyListingsProps {
   customerId: string;
@@ -29,6 +30,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
   const { updateListing, isUpdatingListing } = useUpdateListing();
   const [selectedListing, setSelectedListing] =
     useState<IEtsyListingEdit | null>(null);
+  const [optimizingListing, setOptimizingListing] = useState<IEtsyFetchedListing | null>(null);
 
   const refetch = () => {
     fetchEtsyListings({ customerId }).then((listing) => {
@@ -99,7 +101,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
                     </div>
                   }
                   key={item.listing_id}
-                  extra={
+                  extra={[
                     <Button
                       type="primary"
                       onClick={() => {
@@ -113,8 +115,11 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
                       }}
                     >
                       Edit
-                    </Button>
-                  }
+                    </Button>,
+                    <Button onClick={() => setOptimizingListing(item)}>
+                      Analyze
+                    </Button>,
+                  ]}
                 >
                   <Typography.Paragraph>
                     <span style={{ fontWeight: "bold" }}>ID: </span>
@@ -171,6 +176,17 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
                 handleUpdate={handleUpdate}
                 isUpdating={isUpdatingListing}
               />
+            )}
+          </Modal>
+          <Modal
+            title="Analyzing Listing"
+            open={!!optimizingListing}
+            footer={null}
+            onCancel={() => setOptimizingListing(null)}
+            width={"80%"}
+          >
+            {optimizingListing && (
+              <AnalyzeListing listing={optimizingListing} />
             )}
           </Modal>
         </>
