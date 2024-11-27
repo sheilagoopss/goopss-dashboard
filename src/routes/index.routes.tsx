@@ -381,9 +381,9 @@ export default function AppRoutes() {
         }
       >
         {isAdmin ? (
-          (user as IAdmin).role === "SuperAdmin" ? (
+          (user as IAdmin)?.role === "SuperAdmin" ? (
             superAdminRoutes
-          ) : ["TeamMember", "Admin"].includes((user as IAdmin).role) ? (
+          ) : ["TeamMember", "Admin"].includes((user as IAdmin)?.role) ? (
             teamMemberRoutes
           ) : (
             designerRoutes

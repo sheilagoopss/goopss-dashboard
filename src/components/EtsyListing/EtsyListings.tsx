@@ -30,7 +30,8 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
   const { updateListing, isUpdatingListing } = useUpdateListing();
   const [selectedListing, setSelectedListing] =
     useState<IEtsyListingEdit | null>(null);
-  const [optimizingListing, setOptimizingListing] = useState<IEtsyFetchedListing | null>(null);
+  const [optimizingListing, setOptimizingListing] =
+    useState<IEtsyFetchedListing | null>(null);
 
   const refetch = () => {
     fetchEtsyListings({ customerId }).then((listing) => {
@@ -186,7 +187,10 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
             width={"80%"}
           >
             {optimizingListing && (
-              <AnalyzeListing listing={optimizingListing} />
+              <AnalyzeListing
+                listing={optimizingListing}
+                customerId={customerId}
+              />
             )}
           </Modal>
         </>
