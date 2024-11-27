@@ -12,11 +12,7 @@ const PinterestButton: React.FC<PinterestButtonProps> = ({ email }) => {
       callbackUrl: window.location.href,
       email: email,
     });
-    window.open(
-      `${endpoints.pinterest.login}?${queryParams}`,
-      "Pinterest Login",
-      "width=600,height=600",
-    );
+    window.open(`${endpoints.pinterest.login}?${queryParams}`, "_blank");
   }
 
   return (

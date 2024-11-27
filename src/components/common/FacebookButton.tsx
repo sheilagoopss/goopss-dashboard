@@ -12,11 +12,7 @@ const FacebookButton: React.FC<FacebookButtonProps> = ({ email }) => {
       callbackUrl: window.location.href,
       email: email,
     });
-    window.open(
-      `${endpoints.facebook.login}?${queryParams}`,
-      "Facebook Login",
-      "width=600,height=600",
-    );
+    window.open(`${endpoints.facebook.login}?${queryParams}`, "_blank");
   }
 
   return (

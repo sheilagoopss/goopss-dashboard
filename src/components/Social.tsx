@@ -1321,7 +1321,7 @@ const Social: React.FC = () => {
                   <Row gutter={16} style={{ alignItems: "center" }}>
                     <Col>
                       <PinterestFilled
-                        style={{ fontSize: "2rem", color: "#1877F2" }}
+                        style={{ fontSize: "2rem", color: "#E60023" }}
                       />
                     </Col>
                     <Col>
