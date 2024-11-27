@@ -1359,7 +1359,7 @@ const Social: React.FC = () => {
                   </Row>
                 </Card>
               ) : (
-                <PinterestButton />
+                <PinterestButton email={selectedCustomer?.email || ""}/>
               )}
             </>
           )}
