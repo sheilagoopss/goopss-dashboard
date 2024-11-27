@@ -2,10 +2,15 @@ import { PinterestOutlined } from "@ant-design/icons";
 import { Button } from "antd";
 import { endpoints } from "../../constants/endpoints";
 
-const PinterestButton = () => {
+interface PinterestButtonProps {
+  email: string;
+}
+
+const PinterestButton: React.FC<PinterestButtonProps> = ({ email }) => {
   async function handlePinterestLogin() {
     let queryParams = new URLSearchParams({
       callbackUrl: window.location.href,
+      email: email,
     });
     window.open(
       `${endpoints.pinterest.login}?${queryParams}`,
