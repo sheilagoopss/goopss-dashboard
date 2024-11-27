@@ -3,7 +3,7 @@ export interface ISocialPost {
   content: string;
   scheduledDate: Date;
   dateCreated: Date;
-  platform: "facebook" | "instagram" | "pinterest";
+  platform: "facebook" | "instagram" | "pinterest" | "facebookGroup";
   listingId: string;
   customerId: string;
   imageUrl?: string;
