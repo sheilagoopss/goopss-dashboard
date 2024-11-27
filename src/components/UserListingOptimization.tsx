@@ -20,9 +20,10 @@ import {
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 import DOMPurify from "dompurify";
-import { Segmented, Spin } from "antd";
+import { Button, Modal, Segmented, Spin } from "antd";
 import EtsyListings from "./EtsyListing/EtsyListings";
 import { ICustomer } from "types/Customer";
+import Setting from "./EtsyListing/components/Setting";
 
 interface Listing {
   id: string;

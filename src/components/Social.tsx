@@ -53,7 +53,8 @@ import {
   PinterestFilled,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
-import { usePinterestBoard } from "hooks/usePinterest";
+import { useCreatePinterestPin, usePinterestBoard } from "hooks/usePinterest";
+import { ISocialPost } from "types/Social";
 
 interface EtsyListing {
   id: string;
@@ -66,17 +67,6 @@ interface EtsyListing {
   etsyLink?: string;
 }
 
-interface Post {
-  id: string;
-  content: string;
-  scheduledDate: Date;
-  dateCreated: Date;
-  platform: "facebook" | "instagram";
-  listingId: string;
-  customerId: string;
-  imageUrl?: string;
-}
-
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
@@ -84,9 +74,10 @@ const PostCreationModal: React.FC<{
   isOpen: boolean;
   listing: EtsyListing | null;
   customerId: string;
-  onSave: (posts: Omit<Post, "id">[]) => void;
+  onSave: (posts: Omit<ISocialPost, "id">[]) => Promise<boolean>;
   onCancel: () => void;
 }> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
+  const [form] = Form.useForm();
   const { fetchBoards, isFetchingBoards } = usePinterestBoard();
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [platform, setPlatform] = useState<
@@ -204,7 +195,7 @@ const PostCreationModal: React.FC<{
       customerId,
     };
 
-    let postsToSave: Omit<Post, "id">[] = [];
+    let postsToSave: Omit<ISocialPost, "id">[] = [];
 
     if (platform === "both") {
       if (facebookContent.trim()) {
@@ -233,6 +224,27 @@ const PostCreationModal: React.FC<{
         platform: "instagram",
         content: instagramContent,
       });
+    } else if (platform === "pinterest") {
+      const values = form.getFieldsValue();
+      const data = {
+        boardId: values.pinterestBoard,
+        content: {
+          title: values.pinterestTitle,
+          description: values.pinterestDescription,
+          link: listing?.etsyLink,
+          media_source: {
+            source_type: "image_url",
+            url: listing?.primaryImage,
+          },
+        },
+        customerId,
+      };
+      postsToSave.push({
+        ...basePost,
+        content: data.content.title || "",
+        platform: "pinterest",
+        pinterest: data,
+      });
     }
 
     if (postsToSave.length === 0) {
@@ -243,7 +255,11 @@ const PostCreationModal: React.FC<{
       return;
     }
 
-    onSave(postsToSave);
+    onSave(postsToSave).then((success) => {
+      if (success) {
+        form.resetFields();
+      }
+    });
   };
 
   const handleCancel = () => {
@@ -255,8 +271,8 @@ const PostCreationModal: React.FC<{
   };
 
   useEffect(() => {
-    fetchBoards({ customerId }).then((values) => {
-      console.log({ values });
+    fetchBoards({ customerId }).then((boards) => {
+      setPinterestBoards(boards);
     });
   }, [customerId]);
 
@@ -344,7 +360,7 @@ const PostCreationModal: React.FC<{
         )}
         {platform === "pinterest" && (
           <div>
-            <Form layout="vertical">
+            <Form layout="vertical" form={form}>
               <div style={{ display: "flex", gap: "2ch" }}>
                 <Image
                   src={listing?.primaryImage}
@@ -404,8 +420,8 @@ const PostEditModal: React.FC<{
   isOpen: boolean;
   listing: EtsyListing | null;
   customerId: string;
-  post: Post;
-  onSave: (post: Post) => void;
+  post: ISocialPost;
+  onSave: (post: ISocialPost) => void;
   onCancel: () => void;
   isUpdating: boolean;
 }> = ({ isOpen, listing, customerId, onSave, onCancel, post, isUpdating }) => {
@@ -524,7 +540,7 @@ const PostEditModal: React.FC<{
       customerId,
     };
 
-    let postsToSave: Post | null = null;
+    let postsToSave: ISocialPost | null = null;
 
     if (post.platform === "facebook" && facebookContent.trim()) {
       postsToSave = {
@@ -650,6 +666,7 @@ const PostEditModal: React.FC<{
 const Social: React.FC = () => {
   const { isAdmin, user } = useAuth();
   const { schedulePosts, isScheduling } = useFacebookSchedule();
+  const { createPin, isCreatingPin } = useCreatePinterestPin();
   const { updatePost, isUpdating } = useSocialUpdate();
   const { deletePost, isDeleting } = useSocialDelete();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
@@ -668,15 +685,15 @@ const Social: React.FC = () => {
   const [currentListing, setCurrentListing] = useState<EtsyListing | null>(
     null,
   );
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<ISocialPost[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [calendarPosts, setCalendarPosts] = useState<Post[]>([]);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [selectedDatePosts, setSelectedDatePosts] = useState<Post[]>([]);
+  const [calendarPosts, setCalendarPosts] = useState<ISocialPost[]>([]);
+  const [selectedPost, setSelectedPost] = useState<ISocialPost | null>(null);
+  const [selectedDatePosts, setSelectedDatePosts] = useState<ISocialPost[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [lastVisible, setLastVisible] = useState<any>(null);
   const LISTINGS_PER_PAGE = 5;
-  const [editablePost, setEditablePost] = useState<Post | null>(null);
+  const [editablePost, setEditablePost] = useState<ISocialPost | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
@@ -827,15 +844,17 @@ const Social: React.FC = () => {
     setIsPostCreationModalOpen(true);
   };
 
-  const handleSavePost = async (newPosts: Omit<Post, "id">[]) => {
+  const handleSavePost = async (
+    newPosts: Omit<ISocialPost, "id">[],
+  ): Promise<boolean> => {
     if (!selectedCustomer) {
       console.error("No customer selected");
-      return;
+      return false;
     }
 
     try {
       const socialCollection = collection(db, "socials");
-      let savedPosts: Post[] = [];
+      let savedPosts: ISocialPost[] = [];
 
       for (const post of newPosts) {
         if (!post.content.trim()) {
@@ -858,7 +877,7 @@ const Social: React.FC = () => {
 
       if (savedPosts.length === 0) {
         console.error("No posts were saved due to empty content");
-        return;
+        return false;
       }
 
       // Update the scheduled_post_date in the listing
@@ -868,18 +887,48 @@ const Social: React.FC = () => {
           scheduled_post_date: savedPosts[0].scheduledDate.toISOString(),
         });
       }
-      const schedulePostPromises = savedPosts.map((post) =>
-        schedulePosts({
-          customerId: selectedCustomer.id,
-          postId: post.id,
-        }),
-      );
-      const schedulePostResponses = await Promise.all(schedulePostPromises);
-      console.log("Schedule post responses:", schedulePostResponses);
 
-      if (schedulePostResponses.some((response) => !response?.data)) {
-        console.error("Error scheduling posts:", schedulePostResponses);
+      switch (savedPosts[0].platform) {
+        case "pinterest":
+          {
+            const createPinPromises = savedPosts.map((post) =>
+              createPin({
+                customerId: selectedCustomer.id,
+                boardId: post.pinterest?.boardId || "",
+                content: post.pinterest?.content,
+              }),
+            );
+            const createPinResponses = await Promise.all(createPinPromises);
+            console.log("Create pin responses:", createPinResponses);
+
+            if (createPinResponses.some((response) => !response?.data)) {
+              console.error("Error creating pins:", createPinResponses);
+            }
+          }
+          break;
+        case "facebook":
+          {
+            const schedulePostPromises = savedPosts.map((post) =>
+              schedulePosts({
+                customerId: selectedCustomer.id,
+                postId: post.id,
+              }),
+            );
+            const schedulePostResponses =
+              await Promise.all(schedulePostPromises);
+            console.log("Schedule post responses:", schedulePostResponses);
+
+            if (schedulePostResponses.some((response) => !response?.data)) {
+              console.error("Error scheduling posts:", schedulePostResponses);
+            }
+          }
+          break;
+        case "instagram":
+          break;
+        default:
+          break;
       }
+
       // Update local state
       setPosts((prevPosts) => [...prevPosts, ...savedPosts]);
       setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
@@ -892,8 +941,10 @@ const Social: React.FC = () => {
 
       setIsPostCreationModalOpen(false);
       setCurrentListing(null);
+      return true;
     } catch (error) {
       console.error("Error saving post:", error);
+      return false;
     }
   };
 
@@ -915,7 +966,7 @@ const Social: React.FC = () => {
               ...doc.data(),
               scheduledDate: doc.data().scheduledDate.toDate(),
               dateCreated: doc.data().dateCreated.toDate(),
-            }) as Post,
+            }) as ISocialPost,
         );
         console.log("Fetched posts:", postsList);
         setPosts(postsList);
@@ -979,7 +1030,7 @@ const Social: React.FC = () => {
           ...data,
           scheduledDate: data.scheduledDate.toDate(),
           dateCreated: data.dateCreated.toDate(),
-        } as Post;
+        } as ISocialPost;
       });
 
       console.log("Fetched posts:", fetchedPosts);
@@ -1084,12 +1135,12 @@ const Social: React.FC = () => {
     return calendarDays;
   };
 
-  const handleDateClick = (date: Date, posts: Post[]) => {
+  const handleDateClick = (date: Date, posts: ISocialPost[]) => {
     setSelectedDate(date);
     setSelectedDatePosts(posts);
   };
 
-  const handleSaveEditedPost = async (editedPost: Post) => {
+  const handleSaveEditedPost = async (editedPost: ISocialPost) => {
     try {
       await updatePost({ post: editedPost });
       // Refresh listings and posts
@@ -1103,7 +1154,7 @@ const Social: React.FC = () => {
     }
   };
 
-  const handleDeletePost = async (post: Post) => {
+  const handleDeletePost = async (post: ISocialPost) => {
     await deletePost({ post });
   };
 
@@ -1185,7 +1236,7 @@ const Social: React.FC = () => {
     }
   };
 
-  const handleEditPost = (post: Post) => {
+  const handleEditPost = (post: ISocialPost) => {
     setEditablePost(post);
     setIsEditModalOpen(true);
   };

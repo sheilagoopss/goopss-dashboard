@@ -12,6 +12,7 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 import { optimizeText } from '../services/OptimizationService';
 import Papa from 'papaparse';
 import dayjs from 'dayjs';
+import Setting from './EtsyListing/components/Setting';
 
 const { Text } = Typography;
 const LISTINGS_PER_PAGE = 10;
@@ -98,12 +99,12 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
   const [hideDuplicated, setHideDuplicated] = useState(false);
   const [newListingId, setNewListingId] = useState('');
   const { createTask } = useTaskCreate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [duplicatedListings, setDuplicatedListings] = useState<Record<string, Listing[]>>({});
   const [selectedSegment, setSelectedSegment] = useState<'duplication' | 'duplicates'>('duplication');
   const [duplicateListings, setDuplicateListings] = useState<Listing[]>([]);
   const [isTagsModalVisible, setIsTagsModalVisible] = useState(false);
-  const [tagCollections, setTagCollections] = useState<string>('');
+  const [tagCollections, setTagCollections] = useState<string>(''); 
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -1093,6 +1094,12 @@ const ListingDuplication: React.FC<ListingDuplicationProps> = ({ customerId, sto
             />
           </Space>
         </Tabs.TabPane>
+
+        {isAdmin && (
+          <Tabs.TabPane key="settings" tab="Settings">
+            <Setting />
+          </Tabs.TabPane>
+        )}
       </Tabs>
 
       <Modal
