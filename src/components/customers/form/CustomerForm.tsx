@@ -56,6 +56,18 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
       <Form.Item name="phone" label="Phone">
         <Input />
       </Form.Item>
+      <Form.Item
+        name="logo"
+        label="Logo URL"
+        rules={[
+          { required: true, message: 'Logo URL is required' },
+          { type: 'url', message: 'Please enter a valid URL' }
+        ]}
+      >
+        <Input 
+          disabled={loading}
+        />
+      </Form.Item>
       <Row gutter={[16, 6]}>
         <Col span={12}>
           <Form.Item
@@ -92,7 +104,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
             label="Date Joined"
             rules={[{ required: true }]}
           >
-            <DatePicker allowClear defaultValue={dayjs()} />
+            <DatePicker allowClear />
           </Form.Item>
         </Col>
         <Col span={8}>
