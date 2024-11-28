@@ -1,15 +1,22 @@
-import { Form, Input, Spin, Typography } from "antd";
+import { ReloadOutlined, SaveOutlined } from "@ant-design/icons";
+import { Button, Form, Input, message, Spin } from "antd";
 import { Content } from "antd/es/layout/layout";
+import { useUpdateListing } from "hooks/useEtsy";
 import { useOptimizeEtsyListing } from "hooks/useOptimzeEtsy";
 import { useEffect, useMemo, useState } from "react";
-import { IEtsyFetchedListing } from "types/Etsy";
+import { IEtsyFetchedListing, IEtsyListingUpdate } from "types/Etsy";
 
 interface IAnalyzeListingProps {
   listing: IEtsyFetchedListing;
+  customerId: string;
 }
 
-const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({ listing }) => {
+const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({
+  listing,
+  customerId,
+}) => {
   const [form] = Form.useForm();
+  const { updateListing, isUpdatingListing } = useUpdateListing();
   const { generateFeedback, isGenerating } = useOptimizeEtsyListing();
   const [feedbacks, setFeedbacks] = useState<{
     titleFeedback: string;
@@ -21,27 +28,49 @@ const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({ listing }) => {
     tagsFeedback: "",
   });
 
+  const handleUpdate = () => {
+    const values = form.getFieldsValue();
+    if (!listing?.listing_id) return;
+
+    const data: IEtsyListingUpdate = {
+      customerId,
+      listingId: String(listing?.listing_id),
+      title: values.title,
+      description: values.description,
+      tags: values.tags?.split(",")?.map((tag: string) => tag.trim()),
+    };
+    updateListing(data).then((res) => {
+      message.success("Listing updated successfully");
+    });
+  };
+
   const optimizationFeedback = useMemo(() => {
     return async () => {
       return await generateFeedback({
         tags: listing.tags.join(","),
         description: listing.description,
         title: listing.title,
+      }).then((feedback) => {
+        if (feedback?.data) {
+          setFeedbacks(feedback.data);
+          form.setFieldsValue({
+            title: feedback.data.titleFeedback,
+            description: feedback.data.descriptionFeedback,
+            tags: feedback.data.tagsFeedback,
+          });
+        }
       });
     };
-  }, [generateFeedback, listing.description, listing.tags, listing.title]);
+  }, [
+    form,
+    generateFeedback,
+    listing.description,
+    listing.tags,
+    listing.title,
+  ]);
 
   useEffect(() => {
-    optimizationFeedback().then((feedback) => {
-      if (feedback?.data) {
-        setFeedbacks(feedback.data);
-        form.setFieldsValue({
-          title: feedback.data.titleFeedback,
-          description: feedback.data.descriptionFeedback,
-          tags: feedback.data.tagsFeedback,
-        });
-      }
-    });
+    optimizationFeedback();
   }, [optimizationFeedback, form]);
 
   return (
@@ -60,6 +89,7 @@ const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({ listing }) => {
             description: feedbacks.descriptionFeedback,
             tags: feedbacks.tagsFeedback,
           }}
+          onFinish={handleUpdate}
         >
           <Form.Item
             label="Title"
@@ -99,6 +129,21 @@ const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({ listing }) => {
           >
             <Input.TextArea rows={1} />
           </Form.Item>
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "2ch" }}
+          >
+            <Button onClick={optimizationFeedback} icon={<ReloadOutlined />}>
+              Analyze again
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={isUpdatingListing}
+              icon={<SaveOutlined />}
+            >
+              Update Listing
+            </Button>
+          </div>
         </Form>
       )}
     </Content>

@@ -81,20 +81,24 @@ const PostCreationModal: React.FC<{
   const { fetchBoards, isFetchingBoards } = usePinterestBoard();
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [platform, setPlatform] = useState<
-    "facebook" | "instagram" | "both" | "pinterest"
+    "facebook" | "instagram" | "both" | "pinterest" | "facebookGroup"
   >("facebook");
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
+  const [facebookGroupContent, setFacebookGroupContent] = useState("");
   const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
+  const [isGeneratingContent, setIsGeneratingContent] = useState(false);
 
   useEffect(() => {
     setScheduledDate(null);
     setPlatform("facebook");
     setFacebookContent("");
     setInstagramContent("");
+    setFacebookGroupContent("");
   }, [isOpen, listing, customerId]);
 
   const handleGenerateContent = async () => {
+    setIsGeneratingContent(true);
     try {
       // First fetch customer data
       const customerDoc = await getDoc(doc(db, "customers", customerId));
@@ -173,12 +177,15 @@ const PostCreationModal: React.FC<{
         // Always set both contents regardless of platform selection
         setFacebookContent(firstResult.facebook_post || "");
         setInstagramContent(firstResult.instagram_post || "");
+        setFacebookGroupContent(firstResult.facebook_post || "");
       } else {
         throw new Error("Failed to generate content. Please try again.");
       }
     } catch (error) {
       console.error("Error generating content:", error);
       message.error("Failed to generate content. Please try again.");
+    } finally {
+      setIsGeneratingContent(false);
     }
   };
 
@@ -217,6 +224,12 @@ const PostCreationModal: React.FC<{
         ...basePost,
         platform: "facebook",
         content: facebookContent,
+      });
+    } else if (platform === "facebookGroup" && facebookGroupContent.trim()) {
+      postsToSave.push({
+        ...basePost,
+        platform: "facebookGroup",
+        content: facebookGroupContent,
       });
     } else if (platform === "instagram" && instagramContent.trim()) {
       postsToSave.push({
@@ -267,6 +280,7 @@ const PostCreationModal: React.FC<{
     setPlatform("facebook");
     setFacebookContent("");
     setInstagramContent("");
+    setFacebookGroupContent("");
     onCancel();
   };
 
@@ -316,14 +330,21 @@ const PostCreationModal: React.FC<{
           value={platform}
         >
           <Radio value="facebook">Facebook</Radio>
+          <Radio value="facebookGroup">Facebook Group</Radio>
           <Radio value="instagram">Instagram</Radio>
           <Radio value="both">Both</Radio>
           <Divider />
           <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
-        <Button onClick={handleGenerateContent} type="default">
-          Generate Content
-        </Button>
+        {platform !== "pinterest" && (
+          <Button
+            onClick={handleGenerateContent}
+            type="default"
+            loading={isGeneratingContent}
+          >
+            Generate Content
+          </Button>
+        )}
 
         {(platform === "facebook" || platform === "both") && (
           <div>
@@ -332,6 +353,23 @@ const PostCreationModal: React.FC<{
               value={facebookContent}
               onChange={(e) => setFacebookContent(e.target.value)}
               placeholder="Facebook content"
+              autoSize={{ minRows: 6, maxRows: 12 }}
+              style={{
+                whiteSpace: "pre-line",
+                fontSize: "14px",
+                marginTop: "8px",
+              }}
+            />
+          </div>
+        )}
+
+        {platform === "facebookGroup" && (
+          <div>
+            <Text strong>Facebook Group Content:</Text>
+            <TextArea
+              value={facebookGroupContent}
+              onChange={(e) => setFacebookGroupContent(e.target.value)}
+              placeholder="Facebook Group content"
               autoSize={{ minRows: 6, maxRows: 12 }}
               style={{
                 whiteSpace: "pre-line",
@@ -1321,7 +1359,7 @@ const Social: React.FC = () => {
                   <Row gutter={16} style={{ alignItems: "center" }}>
                     <Col>
                       <PinterestFilled
-                        style={{ fontSize: "2rem", color: "#1877F2" }}
+                        style={{ fontSize: "2rem", color: "#E60023" }}
                       />
                     </Col>
                     <Col>
@@ -1359,7 +1397,7 @@ const Social: React.FC = () => {
                   </Row>
                 </Card>
               ) : (
-                <PinterestButton />
+                <PinterestButton email={selectedCustomer?.email || ""} />
               )}
             </>
           )}
