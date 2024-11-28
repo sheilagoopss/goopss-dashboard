@@ -35,10 +35,7 @@ import {
   CheckCircleOutlined, 
   EditOutlined, 
   FileTextOutlined,
-  SortAscendingOutlined,
   UserOutlined,
-  WarningOutlined,
-  ReloadOutlined,
   PlusOutlined,
   UploadOutlined,
   FilterOutlined
@@ -82,16 +79,10 @@ interface TaskCardProps {
   adminList: IAdmin[];
 }
 
-const dropdownStyle = {
-  height: '50px',
-  fontSize: '16px'
-};
-
 const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer, sections, updateTask, isOverdue, adminList }) => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [tempValues, setTempValues] = useState<Partial<PlanTask>>({});
-  const [originalValues, setOriginalValues] = useState<Partial<PlanTask>>({});
 
   const handleProgressChange = (value: 'To Do' | 'Doing' | 'Done') => {
     const updates: Partial<PlanTask> = {
@@ -525,17 +516,17 @@ interface PlansState {
   data: { [customerId: string]: Plan };
 }
 
-// Add debounce utility at the top
-const debounce = <T extends (...args: any[]) => void>(
-  func: T,
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
+// // Add debounce utility at the top
+// const debounce = <T extends (...args: any[]) => void>(
+//   func: T,
+//   wait: number
+// ): ((...args: Parameters<T>) => void) => {
+//   let timeout: NodeJS.Timeout;
+//   return (...args: Parameters<T>) => {
+//     clearTimeout(timeout);
+//     timeout = setTimeout(() => func(...args), wait);
+//   };
+// };
 
 // Add interface for file type
 interface TaskFile {
@@ -575,7 +566,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [frequencyFilter, setFrequencyFilter] = useState<FrequencyFilterType>(
     savedFilters?.frequencyFilter ?? DEFAULT_FILTERS.frequencyFilter
   );
-  const [paginationState, setPaginationState] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [plans, setPlans] = useState<PlansState>({ 
@@ -586,7 +576,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
   const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
   const [editMode, setEditMode] = useState(false);
-  const [defaultSections, setDefaultSections] = useState<string[]>([]);
   const [newTaskModal, setNewTaskModal] = useState<{
     visible: boolean;
     sectionTitle: string;
@@ -600,10 +589,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? DEFAULT_FILTERS.showMyTasks);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [progressOptions, setProgressOptions] = useState(['Not Started', 'In Progress', 'Done']);
   const [useDefaultFilters, setUseDefaultFilters] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [defaultSections, setDefaultSections] = useState<string[]>([]);
 
   // Helper functions
   const isOverdue = (dueDate: string | null) => {
@@ -611,13 +599,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     const today = dayjs().startOf('day');
     const dueDay = dayjs(dueDate).startOf('day');
     return dueDay.isBefore(today);
-  };
-
-  const isDueThisWeek = (dueDate: string | null) => {
-    if (!dueDate) return false;
-    const today = dayjs().startOf('day');
-    const dueDay = dayjs(dueDate).startOf('day');
-    return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'));
   };
 
   // Single loadAllPlans function
@@ -848,88 +829,24 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }))
     .filter(section => section.tasks.length > 0);
 
-  const handleAddTask = (sectionTitle: string) => {
-    setNewTaskModal({
-      visible: true,
-      sectionTitle,
-      taskName: ''
-    });
-  };
+  // Deprecated - replaced by "Add Custom Task" button and modal
+  // const handleAddTask = (sectionTitle: string) => {
+  //   setNewTaskModal({
+  //     visible: true,
+  //     sectionTitle,
+  //     taskName: ''
+  //   });
+  // };
 
-  const handleCreateTask = async () => {
-    if (!selectedCustomer || !newTaskModal.taskName.trim()) return;
+  // Deprecated - replaced by handleCustomTaskSave
+  // const handleCreateTask = async () => {
+  //   if (!selectedCustomer || !newTaskModal.taskName.trim()) return;
+  //   // ... implementation
+  // };
 
-    try {
-      const newTask: PlanTask = {
-        id: `custom-${Date.now()}`,
-        task: newTaskModal.taskName.trim(),
-        progress: 'To Do' as const,
-        isActive: true,
-        notes: '',
-        frequency: 'One Time',
-        dueDate: null,
-        completedDate: null,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || '',
-        current: 0,
-        goal: 0,
-      };
-
-      const planRef = doc(db, 'plans', selectedCustomer.id);
-      const planDoc = await getDoc(planRef);
-      
-      if (!planDoc.exists()) {
-        throw new Error('Plan not found');
-      }
-
-      const updatedSections = sections.map(section => {
-        if (section.title === newTaskModal.sectionTitle) {
-          return {
-            ...section,
-            tasks: [...section.tasks, newTask]
-          };
-        }
-        return section;
-      });
-
-      await updateDoc(planRef, {
-        sections: updatedSections,
-        updatedAt: new Date().toISOString()
-      });
-
-      setSections(updatedSections);
-      setNewTaskModal({ visible: false, sectionTitle: '', taskName: '' });
-      message.success('Task added successfully');
-    } catch (error) {
-      console.error('Error adding new task:', error);
-      message.error('Failed to add task');
-    }
-  };
-
-  const fetchAllPlans = async () => {
-    const plans: { [customerId: string]: Plan } = {};
-    const paidCustomers = customers.filter(c => c.customer_type === 'Paid');
-    
-    // Fetch all plans in parallel
-    await Promise.all(
-      paidCustomers.map(async (customer) => {
-        const planRef = doc(db, 'plans', customer.id);
-        const planDoc = await getDoc(planRef);
-        
-        if (planDoc.exists()) {
-          plans[customer.id] = planDoc.data() as Plan;
-        }
-      })
-    );
-    
-    return plans;
-  };
-
-  // Add state for dropdown value
-  const [selectedValue, setSelectedValue] = useState<string>('all-paid');
-
-  // Add this state to track if we're switching to all customers
-  const [switchingToAll, setSwitchingToAll] = useState(false);
+  // Unused states related to fetchAllPlans
+  // const [selectedValue, setSelectedValue] = useState<string>('all-paid');
+  // const [switchingToAll, setSwitchingToAll] = useState(false);
 
   // At the top of the component, log when plans state changes
   useEffect(() => {
@@ -964,20 +881,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
     }
   };
 
-  // Update the handleResetFilters function to clear everything instead
-  const handleResetFilters = () => {
-    setShowActiveOnly(false);
-    setProgressFilter('All');
-    setSearch('');
-    setSearchInput('');
-    setFrequencyFilter('All');
-    setTeamMemberFilter('all');
-    setShowMyTasks(false);
-    
-    // Clear saved filters
-    localStorage.removeItem('planFilters');
-  };
-
   // Add useEffect to save filters
   useEffect(() => {
     const filters: SavedFilters = {
@@ -993,66 +896,21 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
   }, [showActiveOnly, progressFilter, search, searchInput, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   // Update the view switching logic
-  const handleViewChange = async (viewType: 'all' | 'single') => {
-    try {
-      // Get current filters from state
-      const currentFilters = {
-        showActiveOnly,
-        progressFilter,
-        search,
-        searchInput,
-        frequencyFilter,
-        teamMemberFilter,
-        showMyTasks
-      };
-
-      // Get saved filters from storage
-      const savedFilters = getFiltersFromStorage();
-
-      // Combine current, saved, and default filters with priority:
-      // current > saved > default
-      const filtersToApply = {
-        ...DEFAULT_FILTERS,
-        ...savedFilters,
-        ...currentFilters
-      };
-
-      if (viewType === 'all') {
-        setSelectedCustomer(null);
-        setPlans(prev => ({
-          ...prev,
-          type: 'all',
-          selectedCustomer: null
-        }));
-        await loadAllPlans();
-      } else {
-        if (selectedCustomer) {
-          setPlans(prev => ({
-            ...prev,
-            type: 'single',
-            selectedCustomer
-          }));
-          await loadPlan();
-        }
-      }
-
-      // Apply the combined filters
-      setShowActiveOnly(filtersToApply.showActiveOnly);
-      setProgressFilter(filtersToApply.progressFilter);
-      setSearch(filtersToApply.search);
-      setSearchInput(filtersToApply.searchInput);
-      setFrequencyFilter(filtersToApply.frequencyFilter);
-      setTeamMemberFilter(filtersToApply.teamMemberFilter);
-      setShowMyTasks(filtersToApply.showMyTasks);
-
-      // Save the combined filters to storage
-      saveFiltersToStorage(filtersToApply);
-
-    } catch (error) {
-      console.error('Error switching views:', error);
-      message.error('Failed to switch views');
-    }
-  };
+  // const handleViewChange = async (viewType: 'all' | 'single') => {
+  //   try {
+  //     // Get current filters from state
+  //     const currentFilters = {
+  //       showActiveOnly,
+  //       progressFilter,
+  //       search,
+  //       searchInput,
+  //       frequencyFilter,
+  //       teamMemberFilter,
+  //       showMyTasks
+  //     };
+  //     // ... rest of function
+  //   }
+  // };
 
   // Update initial load to load all plans by default
   useEffect(() => {
@@ -1121,18 +979,6 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       message.error('Failed to select customer');
     }
   };
-
-  // Add interface for form values
-  interface CustomTaskFormValues {
-    task: string;
-    section: string;
-    frequency: 'Monthly' | 'One Time' | 'As Needed';
-    dueDate?: dayjs.Dayjs;
-    monthlyDueDate?: number;
-    requiresGoal: boolean;
-    defaultGoal?: number;
-    defaultCurrent?: number;
-  }
 
   // Add this function before the return statement
   const handleCustomTaskSave = async (values: any) => {
@@ -1668,19 +1514,19 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     return dateA.isBefore(dateB) ? -1 : dateA.isAfter(dateB) ? 1 : 0;
                   })
                   .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-                  .map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      editMode={editMode}
-                      onEdit={onEdit}
-                      customer={selectedCustomer}
-                      sections={sections}
-                      updateTask={updateTask}
-                      isOverdue={isOverdue}
-                      adminList={adminList}
-                    />
-                  ))}
+                    .map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        editMode={editMode}
+                        onEdit={onEdit}
+                        customer={selectedCustomer}
+                        sections={sections}
+                        updateTask={updateTask}
+                        isOverdue={isOverdue}
+                        adminList={adminList}
+                      />
+                    ))}
                 <div style={{ marginTop: 16, textAlign: 'right' }}>
                   <Pagination
                     current={currentPage}
