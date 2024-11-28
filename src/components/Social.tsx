@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
-import { Facebook, Instagram } from "lucide-react";
 import CustomersDropdown from "./CustomersDropdown";
 import { ICustomer } from "../types/Customer";
 import {
@@ -48,9 +47,9 @@ import {
   DeleteOutlined,
   EditOutlined,
   FacebookFilled,
-  FacebookOutlined,
-  InstagramOutlined,
+  InstagramFilled,
   PinterestFilled,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
 import { useCreatePinterestPin, usePinterestBoard } from "hooks/usePinterest";
@@ -332,7 +331,7 @@ const PostCreationModal: React.FC<{
           <Radio value="facebook">Facebook</Radio>
           <Radio value="facebookGroup">Facebook Group</Radio>
           <Radio value="instagram">Instagram</Radio>
-          <Radio value="both">Both</Radio>
+          <Radio value="both">Facebook Page & Instagram</Radio>
           <Divider />
           <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
@@ -647,9 +646,9 @@ const PostEditModal: React.FC<{
       ]}
     >
       {post.platform === "facebook" ? (
-        <FacebookOutlined />
+        <FacebookFilled />
       ) : (
-        <InstagramOutlined />
+        <InstagramFilled />
       )}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <DatePicker
@@ -1160,9 +1159,13 @@ const Social: React.FC = () => {
           {postsForDay.map((post) => (
             <div key={post.id} className={`post-indicator ${post.platform}`}>
               {post.platform === "facebook" ? (
-                <Facebook size={16} />
+                <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+              ) : post.platform === "facebookGroup" ? (
+                <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+              ) : post.platform === "pinterest" ? (
+                <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
               ) : (
-                <Instagram size={16} />
+                <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
               )}
             </div>
           ))}
@@ -1548,9 +1551,13 @@ const Social: React.FC = () => {
                     }}
                   >
                     {post.platform === "facebook" ? (
-                      <Facebook size={16} />
+                      <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                    ) : post.platform === "facebookGroup" ? (
+                      <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                    ) : post.platform === "pinterest" ? (
+                      <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
                     ) : (
-                      <Instagram size={16} />
+                      <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
                     )}
                     <span style={{ marginLeft: "5px", fontWeight: "bold" }}>
                       {post.platform}
