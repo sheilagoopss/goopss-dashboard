@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { Select, Space, Switch, Tooltip, Tag } from "antd";
+import { Select, Space, Switch, Tooltip, Tag, Button } from "antd";
 import { ICustomer } from "../types/Customer";
+import { useAuth } from "contexts/AuthContext";
+import { ExternalLink } from "lucide-react";
 
 interface CustomersDropdownProps {
   customers: ICustomer[];
@@ -15,6 +17,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   setSelectedCustomer,
   isAdmin,
 }) => {
+  const { toggleAdminMode, setCustomer } = useAuth();
   const [showInactive, setShowInactive] = useState(false);
 
   if (!isAdmin) return null;
@@ -22,6 +25,12 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   const filteredCustomers = customers.filter(
     (c) => c.customer_type === "Paid" && (showInactive ? true : c.isActive),
   );
+
+  const handleToggleAdmin = () => {
+    setCustomer(selectedCustomer);
+    toggleAdminMode();
+    window.open(window.location.href, "_blank");
+  };
 
   return (
     <Space direction="vertical" size="small">
@@ -64,15 +73,27 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
         ))}
       </Select>
       {isAdmin && (
-        <Tooltip title="Show inactive customers">
-          <Switch
-            size="small"
-            checked={showInactive}
-            onChange={setShowInactive}
-            checkedChildren="Showing Inactive"
-            unCheckedChildren="Show Inactive"
-          />
-        </Tooltip>
+        <div style={{ display: "flex", flexDirection: "row", gap: "2ch" }}>
+          <Tooltip title="Show inactive customers">
+            <Switch
+              checked={showInactive}
+              onChange={setShowInactive}
+              checkedChildren="Showing Inactive"
+              unCheckedChildren="Show Inactive"
+            />
+          </Tooltip>
+          <Tooltip title="Open admin in new window">
+            <Button
+              size="small"
+              type="link"
+              onClick={handleToggleAdmin}
+              icon={<ExternalLink size={"1.5ch"} />}
+              disabled={!selectedCustomer}
+            >
+              Customer View
+            </Button>
+          </Tooltip>
+        </div>
       )}
     </Space>
   );

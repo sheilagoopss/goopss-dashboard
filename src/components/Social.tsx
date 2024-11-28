@@ -645,11 +645,7 @@ const PostEditModal: React.FC<{
         ),
       ]}
     >
-      {post.platform === "facebook" ? (
-        <FacebookFilled />
-      ) : (
-        <InstagramFilled />
-      )}
+      {post.platform === "facebook" ? <FacebookFilled /> : <InstagramFilled />}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <DatePicker
           showTime
@@ -701,7 +697,7 @@ const PostEditModal: React.FC<{
 };
 
 const Social: React.FC = () => {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, customerData } = useAuth();
   const { schedulePosts, isScheduling } = useFacebookSchedule();
   const { createPin, isCreatingPin } = useCreatePinterestPin();
   const { updatePost, isUpdating } = useSocialUpdate();
@@ -792,7 +788,7 @@ const Social: React.FC = () => {
         if (isAdmin) {
           q = query(customersCollection);
         } else {
-          q = query(customersCollection, where("email", "==", user?.email));
+          q = query(customersCollection, where("email", "==", customerData?.email));
         }
 
         const querySnapshot = await getDocs(q);
@@ -810,7 +806,7 @@ const Social: React.FC = () => {
     };
 
     fetchCustomers();
-  }, [isAdmin, user]);
+  }, [isAdmin, customerData]);
 
   const fetchListings = async () => {
     if (selectedCustomer) {
@@ -936,7 +932,6 @@ const Social: React.FC = () => {
               }),
             );
             const createPinResponses = await Promise.all(createPinPromises);
-            console.log("Create pin responses:", createPinResponses);
 
             if (createPinResponses.some((response) => !response?.data)) {
               console.error("Error creating pins:", createPinResponses);
@@ -953,7 +948,6 @@ const Social: React.FC = () => {
             );
             const schedulePostResponses =
               await Promise.all(schedulePostPromises);
-            console.log("Schedule post responses:", schedulePostResponses);
 
             if (schedulePostResponses.some((response) => !response?.data)) {
               console.error("Error scheduling posts:", schedulePostResponses);
@@ -969,8 +963,6 @@ const Social: React.FC = () => {
       // Update local state
       setPosts((prevPosts) => [...prevPosts, ...savedPosts]);
       setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
-
-      console.log("Posts saved to Firestore:", savedPosts);
 
       // Refresh listings and posts
       fetchListings();
@@ -988,14 +980,12 @@ const Social: React.FC = () => {
   const fetchPosts = async () => {
     if (selectedCustomer) {
       try {
-        console.log("Fetching posts for customer:", selectedCustomer.id);
         const socialCollection = collection(db, "socials");
         const q = query(
           socialCollection,
           where("customerId", "==", selectedCustomer.id),
         );
         const socialSnapshot = await getDocs(q);
-        console.log("Number of posts fetched:", socialSnapshot.size);
         const postsList = socialSnapshot.docs.map(
           (doc) =>
             ({
@@ -1005,7 +995,6 @@ const Social: React.FC = () => {
               dateCreated: doc.data().dateCreated.toDate(),
             }) as ISocialPost,
         );
-        console.log("Fetched posts:", postsList);
         setPosts(postsList);
       } catch (error) {
         console.error("Error fetching posts:", error);
@@ -1041,12 +1030,6 @@ const Social: React.FC = () => {
     );
 
     try {
-      console.log("Fetching posts for month:", month);
-      console.log("Date range:", {
-        startOfMonth: startOfMonth.toISOString(),
-        endOfMonth: endOfMonth.toISOString(),
-      });
-
       const postsRef = collection(db, "socials");
       const q = query(
         postsRef,
@@ -1058,19 +1041,13 @@ const Social: React.FC = () => {
       const querySnapshot = await getDocs(q);
       const fetchedPosts = querySnapshot.docs.map((doc) => {
         const data = doc.data();
-        console.log("Post data:", {
-          id: doc.id,
-          scheduledDate: data.scheduledDate.toDate(),
-        });
         return {
           id: doc.id,
           ...data,
-          scheduledDate: data.scheduledDate.toDate(),
-          dateCreated: data.dateCreated.toDate(),
+          scheduledDate: typeof data.scheduledDate === "string" ? new Date(data.scheduledDate) : data.scheduledDate.toDate(),
+          dateCreated: typeof data.dateCreated === "string" ? new Date(data.dateCreated) : data.dateCreated.toDate(),
         } as ISocialPost;
       });
-
-      console.log("Fetched posts:", fetchedPosts);
 
       setPosts(fetchedPosts);
       setCalendarPosts(fetchedPosts);
@@ -1120,6 +1097,9 @@ const Social: React.FC = () => {
       const postsForDay = calendarPosts.filter((post) => {
         const postDate = new Date(post.scheduledDate);
 
+        // if (post.id === "vdy0Lihm8VNg0Uic4B1K") {
+        //   console.log("postDate", postDate);
+        // }
         // console.log("Comparing dates:", {
         //   postDate: {
         //     full: postDate,
@@ -1159,13 +1139,19 @@ const Social: React.FC = () => {
           {postsForDay.map((post) => (
             <div key={post.id} className={`post-indicator ${post.platform}`}>
               {post.platform === "facebook" ? (
-                <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                <FacebookFilled
+                  style={{ fontSize: "16px", color: "#1877F2" }}
+                />
               ) : post.platform === "facebookGroup" ? (
-                <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                <TeamOutlined style={{ fontSize: "16px", color: "#1877F2" }} />
               ) : post.platform === "pinterest" ? (
-                <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
+                <PinterestFilled
+                  style={{ fontSize: "16px", color: "#E60023" }}
+                />
               ) : (
-                <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
+                <InstagramFilled
+                  style={{ fontSize: "16px", color: "#E4405F" }}
+                />
               )}
             </div>
           ))}
@@ -1199,16 +1185,7 @@ const Social: React.FC = () => {
     await deletePost({ post });
   };
 
-  useEffect(() => {
-    console.log("Current listing updated:", currentListing);
-  }, [currentListing]);
-
-  useEffect(() => {
-    console.log("Post creation modal open state:", isPostCreationModalOpen);
-  }, [isPostCreationModalOpen]);
-
   const handleFacebookLoginSuccess = async (accessToken: string) => {
-    console.log("Logged in successfully, Access Token:", accessToken);
 
     try {
       // Use the API URL from environment variable
@@ -1224,7 +1201,6 @@ const Social: React.FC = () => {
       );
 
       const data = await response.json();
-      console.log("User data:", data);
       // Process user data or perform additional actions here
     } catch (error) {
       console.error("Error:", error);
@@ -1303,7 +1279,7 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {user && (
+      {customerData && (
         <div
           style={{
             display: "flex",
@@ -1355,7 +1331,7 @@ const Social: React.FC = () => {
             <FacebookButton email={selectedCustomer?.email || ""} />
           )}
 
-          {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+          {(isAdmin || customerData?.isSuperCustomer) && (
             <>
               {selectedCustomer?.pinterest?.is_connected ? (
                 <Card style={{ width: "fit-content" }}>
@@ -1407,7 +1383,7 @@ const Social: React.FC = () => {
         </div>
       )}
 
-      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+      {(isAdmin || customerData?.isSuperCustomer) && (
         <>
           <Card style={{ marginBottom: "20px" }}>
             <Title level={4}>Listings</Title>
@@ -1551,13 +1527,21 @@ const Social: React.FC = () => {
                     }}
                   >
                     {post.platform === "facebook" ? (
-                      <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                      <FacebookFilled
+                        style={{ fontSize: "16px", color: "#1877F2" }}
+                      />
                     ) : post.platform === "facebookGroup" ? (
-                      <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                      <TeamOutlined
+                        style={{ fontSize: "16px", color: "#1877F2" }}
+                      />
                     ) : post.platform === "pinterest" ? (
-                      <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
+                      <PinterestFilled
+                        style={{ fontSize: "16px", color: "#E60023" }}
+                      />
                     ) : (
-                      <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
+                      <InstagramFilled
+                        style={{ fontSize: "16px", color: "#E4405F" }}
+                      />
                     )}
                     <span style={{ marginLeft: "5px", fontWeight: "bold" }}>
                       {post.platform}
@@ -1599,7 +1583,7 @@ const Social: React.FC = () => {
         </div>
       </div>
 
-      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+      {(isAdmin || customerData?.isSuperCustomer) && (
         <PostCreationModal
           isOpen={isPostCreationModalOpen}
           listing={currentListing}

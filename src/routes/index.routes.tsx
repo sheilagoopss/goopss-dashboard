@@ -37,7 +37,7 @@ import DescriptionHero from "components/descriptionHero/DescriptionHero";
 import RoleManagement from "components/roleManagement/RoleManagement";
 
 export default function AppRoutes() {
-  const { isAdmin, user, loading } = useAuth();
+  const { isAdmin, user, loading, customerData } = useAuth();
   const location = useLocation();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -48,10 +48,7 @@ export default function AppRoutes() {
 
   // Move trackUserEvent inside the component
   const trackUserEvent = (eventName: string, eventData: any) => {
-    if (!isAdmin && user) {
-      const customerData = customers.find(
-        (c: ICustomer) => c.customer_id === user.id,
-      );
+    if (!isAdmin && customerData) {
       ReactGA.event({
         category: "User Activity",
         action: eventName,
@@ -65,28 +62,18 @@ export default function AppRoutes() {
   useEffect(() => {
     // @ts-ignore
     window.trackUserEvent = trackUserEvent;
-  }, [isAdmin, user, customers]);
+  }, [isAdmin, customerData, customers]);
 
   // Initialize GA once when component mounts
   useEffect(() => {
-    if (user && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
-      console.log("Initializing GA for non-admin user:", {
-        userId: user.id,
-        userType: userType,
-        isAdmin: isAdmin,
-      });
+    if (customerData && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
       ReactGA.initialize(process.env.REACT_APP_GA_MEASUREMENT_ID);
     }
-  }, [isAdmin, user, userType]);
+  }, [isAdmin, customerData, userType]);
 
   // Track page views when route changes
   useEffect(() => {
-    if (user && !isAdmin) {
-      const customerData = customers.find((c) => c.customer_id === user.id);
-      console.log("Tracking pageview for non-admin user:", {
-        page: location.pathname,
-        store: customerData?.store_name,
-      });
+    if (customerData && !isAdmin) {
       ReactGA.send({
         hitType: "pageview",
         page: location.pathname,
@@ -94,7 +81,7 @@ export default function AppRoutes() {
         userType: userType,
       });
     }
-  }, [location, isAdmin, user, userType, customers]);
+  }, [location, isAdmin, customerData, userType, customers]);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
@@ -112,16 +99,8 @@ export default function AppRoutes() {
         customer_id: doc.data().customer_id,
         logo: doc.data().logo,
         isActive: doc.data().isActive,
-        date_joined: doc.data().date_joined
+        date_joined: doc.data().date_joined,
       })) as ICustomer[];
-
-      console.log(
-        "Customer types:",
-        customersList.map((c) => ({
-          store_name: c.store_name || "No store name",
-          customer_type: c.customer_type,
-        })),
-      );
 
       setCustomers(customersList);
     } catch (error) {
@@ -129,45 +108,14 @@ export default function AppRoutes() {
     }
   };
 
-  // Add function to fetch current user's type
-  const fetchUserType = async () => {
-    if (!user?.id) return;
-    setIsLoading(true);
-    try {
-      console.log("Fetching user type for ID:", user.id);
-      const userDoc = await getDocs(
-        query(collection(db, "customers"), where("customer_id", "==", user.id)),
-      );
-      console.log(
-        "Query result:",
-        userDoc.docs.map((doc) => doc.data()),
-      );
-      if (!userDoc.empty) {
-        const userData = userDoc.docs[0].data() as ICustomer;
-        console.log("Found user data:", userData);
-        setUserType(userData.customer_type);
-      } else {
-        console.log("No user document found");
-        setUserType("Free");
-      }
-    } catch (error) {
-      console.error("Error fetching user type:", error);
-      setUserType("Free");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
       setIsLoading(false);
-    } else if (user?.id) {
-      fetchUserType();
+    } else if (customerData?.id) {
+      setUserType(customerData.customer_type);
     }
-  }, [isAdmin, user]);
-
-  console.log("Current state:", { isAdmin, userType, isLoading });
+  }, [isAdmin, customerData]);
 
   // Loading component
   const LoadingScreen = () => (
@@ -186,22 +134,18 @@ export default function AppRoutes() {
     </div>
   );
 
-  // Only show loading screen if we're checking an existing auth state
-  if (loading && user === undefined) {
+  if (loading) {
     return <LoadingScreen />;
   }
 
-  // Protected route wrapper
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (loading && user === undefined) {
+    if (loading) {
       return <LoadingScreen />;
     }
 
-    if (!user) {
-      console.log("No user found, redirecting to login");
+    if (!customerData && !user) {
       return <Navigate to="/login" replace />;
     }
-    console.log("User found, rendering protected content");
     return <>{children}</>;
   };
 

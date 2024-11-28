@@ -7,9 +7,12 @@ import {
   Divider,
   Card,
   Collapse,
+  Image,
+  List,
+  Tag,
 } from "antd";
 import dayjs from "dayjs";
-import { IStat } from "../../../types/Stat";
+import { IStat, SearchTermsStructure } from "../../../types/Stat";
 
 interface StatListProps {
   stats: IStat[];
@@ -48,20 +51,23 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
         <Title level={5}>{record.thisYear?.daterange}</Title>
         <Paragraph>Metrics</Paragraph>
         <Row gutter={[16, 0]}>
-          {Object.keys(record.thisYear?.metrics).sort().map((key) => (
-            <Col span={6}>
-              <Card bordered={false}>
-                <Statistic
-                  title={key}
-                  value={
-                    record.thisYear?.metrics?.[
-                      key as keyof typeof record.thisYear.metrics
-                    ]
-                  }
-                />
-              </Card>
-            </Col>
-          ))}
+          {record.thisYear?.metrics &&
+            Object.keys(record.thisYear?.metrics)
+              .sort()
+              .map((key) => (
+                <Col span={6}>
+                  <Card bordered={false}>
+                    <Statistic
+                      title={key}
+                      value={
+                        record.thisYear?.metrics?.[
+                          key as keyof typeof record.thisYear.metrics
+                        ]
+                      }
+                    />
+                  </Card>
+                </Col>
+              ))}
         </Row>
         <Divider dashed />
         <Collapse
@@ -71,18 +77,94 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
               label: "Traffic Source",
               children: (
                 <Row gutter={[16, 6]}>
-                  {Object.keys(record.thisYear?.trafficSource)?.sort()?.map((key) => (
-                    <Col span={6}>
-                      <Statistic
-                        title={key}
-                        value={
-                          record.thisYear?.trafficSource?.[
-                            key as keyof typeof record.thisYear.trafficSource
-                          ]
+                  {record.thisYear?.trafficSource &&
+                    Object.keys(record.thisYear?.trafficSource)
+                      ?.sort()
+                      ?.map((key) => (
+                        <Col span={6}>
+                          <Statistic
+                            title={key}
+                            value={
+                              record.thisYear?.trafficSource?.[
+                                key as keyof typeof record.thisYear.trafficSource
+                              ]
+                            }
+                          />
+                        </Col>
+                      ))}
+                </Row>
+              ),
+            },
+          ]}
+        />
+        <Divider dashed />
+        <Collapse
+          items={[
+            {
+              key: "1",
+              label: "Traffic Analysis",
+              children: (
+                <Row gutter={[16, 6]}>
+                  <Collapse style={{ width: "100%" }}>
+                    <Collapse.Panel header="Search Terms" key="1">
+                      <List
+                        dataSource={
+                          (
+                            record.thisYear?.trafficAnalysis?.data?.capturedData?.find(
+                              (value) => value.name === "Search Terms",
+                            ) as SearchTermsStructure
+                          )?.data || []
                         }
+                        renderItem={(item) => (
+                          <List.Item key={item.searchTerm}>
+                            <Typography.Text strong>
+                              {item.searchTerm}
+                            </Typography.Text>
+                            <Typography.Text type="secondary">
+                              {item.visits}
+                            </Typography.Text>
+                          </List.Item>
+                        )}
                       />
-                    </Col>
-                  ))}
+                    </Collapse.Panel>
+                  </Collapse>
+                  <Collapse style={{ width: "100%" }}>
+                    <Collapse.Panel header="Listings" key="1">
+                      <List
+                        dataSource={
+                          record.thisYear?.trafficAnalysis?.listingsData
+                        }
+                        renderItem={(listing) => (
+                          <Row
+                            gutter={[16, 0]}
+                            key={listing.link}
+                            style={{ borderBottom: "1px solid #f0f0f0" }}
+                          >
+                            <Col>
+                              <Image
+                                src={listing.image}
+                                width={50}
+                                height={50}
+                                preview={false}
+                              />
+                            </Col>
+                            <Col span={18}>
+                              <Typography.Text strong>
+                                {listing.title}
+                              </Typography.Text>
+                              <br />
+                              <Typography.Link href={listing.link}>
+                                {listing.link}
+                              </Typography.Link>
+                            </Col>
+                            <Col span={4}>
+                              <Typography.Text>{listing.views}</Typography.Text>
+                            </Col>
+                          </Row>
+                        )}
+                      />
+                    </Collapse.Panel>
+                  </Collapse>
                 </Row>
               ),
             },
@@ -94,20 +176,23 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
         <Title level={5}>{record.last30Days.daterange}</Title>
         <Paragraph>Metrics</Paragraph>
         <Row gutter={[16, 0]}>
-          {Object.keys(record.last30Days?.metrics)?.map((key) => (
-            <Col span={6}>
-              <Card bordered={false}>
-                <Statistic
-                  title={key}
-                  value={
-                    record.last30Days?.metrics?.[
-                      key as keyof typeof record.last30Days.metrics
-                    ]
-                  }
-                />
-              </Card>
-            </Col>
-          ))}
+          {record.last30Days?.metrics &&
+            Object.keys(record.last30Days?.metrics)
+              ?.sort()
+              ?.map((key) => (
+                <Col span={6}>
+                  <Card bordered={false}>
+                    <Statistic
+                      title={key}
+                      value={
+                        record.last30Days?.metrics?.[
+                          key as keyof typeof record.last30Days.metrics
+                        ]
+                      }
+                    />
+                  </Card>
+                </Col>
+              ))}
         </Row>
         <Divider dashed />
         <Collapse
@@ -117,18 +202,94 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
               label: "Traffic Source",
               children: (
                 <Row gutter={[16, 6]}>
-                  {Object.keys(record.last30Days?.trafficSource)?.map((key) => (
-                    <Col span={6}>
-                      <Statistic
-                        title={key}
-                        value={
-                          record.last30Days?.trafficSource?.[
-                            key as keyof typeof record.last30Days.trafficSource
-                          ]
+                  {record.last30Days?.trafficSource &&
+                    Object.keys(record.last30Days?.trafficSource)
+                      ?.sort()
+                      ?.map((key) => (
+                        <Col span={6}>
+                          <Statistic
+                            title={key}
+                            value={
+                              record.last30Days?.trafficSource?.[
+                                key as keyof typeof record.last30Days.trafficSource
+                              ]
+                            }
+                          />
+                        </Col>
+                      ))}
+                </Row>
+              ),
+            },
+          ]}
+        />
+        <Divider dashed />
+        <Collapse
+          items={[
+            {
+              key: "1",
+              label: "Traffic Analysis",
+              children: (
+                <Row gutter={[16, 6]}>
+                  <Collapse style={{ width: "100%" }}>
+                    <Collapse.Panel header="Search Terms" key="1">
+                      <List
+                        dataSource={
+                          (
+                            record.last30Days?.trafficAnalysis?.data?.capturedData?.find(
+                              (value) => value.name === "Search Terms",
+                            ) as SearchTermsStructure
+                          )?.data || []
                         }
+                        renderItem={(item) => (
+                          <List.Item key={item.searchTerm}>
+                            <Typography.Text strong>
+                              {item.searchTerm}
+                            </Typography.Text>
+                            <Typography.Text type="secondary">
+                              {item.visits}
+                            </Typography.Text>
+                          </List.Item>
+                        )}
                       />
-                    </Col>
-                  ))}
+                    </Collapse.Panel>
+                  </Collapse>
+                  <Collapse style={{ width: "100%" }}>
+                    <Collapse.Panel header="Listings" key="1">
+                      <List
+                        dataSource={
+                          record.last30Days?.trafficAnalysis?.listingsData
+                        }
+                        renderItem={(listing) => (
+                          <Row
+                            gutter={[16, 0]}
+                            key={listing.link}
+                            style={{ borderBottom: "1px solid #f0f0f0" }}
+                          >
+                            <Col>
+                              <Image
+                                src={listing.image}
+                                width={50}
+                                height={50}
+                                preview={false}
+                              />
+                            </Col>
+                            <Col span={18}>
+                              <Typography.Text strong>
+                                {listing.title}
+                              </Typography.Text>
+                              <br />
+                              <Typography.Link href={listing.link}>
+                                {listing.link}
+                              </Typography.Link>
+                            </Col>
+                            <Col span={4}>
+                              <Typography.Text>{listing.views}</Typography.Text>
+                            </Col>
+                          </Row>
+                        )}
+                      />
+                    </Collapse.Panel>
+                  </Collapse>
                 </Row>
               ),
             },
