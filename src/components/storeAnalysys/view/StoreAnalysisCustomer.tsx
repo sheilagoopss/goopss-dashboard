@@ -11,7 +11,7 @@ import { SCRAPE_DATA, ScrapeDataKeys } from "../components/ScrapeDataModal";
 import Paragraph from "antd/es/typography/Paragraph";
 
 const StoreAnalysisCustomer: React.FC = () => {
-  const { user } = useAuth();
+  const { customerData } = useAuth();
   const { fetchCustomerStoreAnalytics, isLoading: isFetchingStoreAnalytics } =
     useCustomerStoreAnalyticsFetch();
   const [storeAnalytics, setStoreAnalytics] = useState<
@@ -19,17 +19,17 @@ const StoreAnalysisCustomer: React.FC = () => {
   >(undefined);
 
   const refresh = () => {
-    if (!(user as ICustomer)?.customer_id) {
+    if (!customerData?.customer_id) {
       return;
     }
-    fetchCustomerStoreAnalytics((user as ICustomer).customer_id).then((res) => {
+    fetchCustomerStoreAnalytics(customerData.customer_id).then((res) => {
       setStoreAnalytics(res?.at(0));
     });
   };
 
   useEffect(() => {
     refresh();
-  }, [(user as ICustomer)?.customer_id]);
+  }, [customerData?.customer_id]);
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -50,7 +50,7 @@ const StoreAnalysisCustomer: React.FC = () => {
         </div>
       )}
 
-      {(user as ICustomer) && (
+      {customerData && (
         <div
           style={{
             backgroundColor: "white",
@@ -62,8 +62,8 @@ const StoreAnalysisCustomer: React.FC = () => {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <img
-              src={(user as ICustomer).logo || "/placeholder-logo.png"}
-              alt={`${(user as ICustomer).store_name} logo`}
+              src={customerData.logo || "/placeholder-logo.png"}
+              alt={`${customerData.store_name} logo`}
               style={{ width: "64px", height: "64px", borderRadius: "50%" }}
             />
             <div>
@@ -74,13 +74,13 @@ const StoreAnalysisCustomer: React.FC = () => {
                   margin: "0 0 4px 0",
                 }}
               >
-                {(user as ICustomer).store_name}
+                {customerData.store_name}
               </h2>
               <p style={{ color: "#666", margin: "0 0 4px 0" }}>
-                {(user as ICustomer).store_owner_name}
+                {customerData.store_owner_name}
               </p>
               <p style={{ fontSize: "14px", color: "#888", margin: "0" }}>
-                Customer ID: {(user as ICustomer).customer_id}
+                Customer ID: {customerData.customer_id}
               </p>
             </div>
           </div>
@@ -89,11 +89,11 @@ const StoreAnalysisCustomer: React.FC = () => {
 
       {/* Add your store analysis content here */}
       <div>
-        {(user as ICustomer) && (
+        {customerData && (
           <>
             <Row gutter={[16, 16]}>
               <Col span={24}>
-                Store analysis for {(user as ICustomer).store_name}
+                Store analysis for {customerData?.store_name}
               </Col>
               <div
                 style={{

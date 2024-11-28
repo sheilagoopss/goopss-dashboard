@@ -30,12 +30,11 @@ import useEtsy, {
 import { useSearchParams } from "react-router-dom";
 import { useCustomerUpdate } from "hooks/useCustomer";
 import { useAuth } from "contexts/AuthContext";
-import { ICustomer } from "types/Customer";
 import { IEtsyShippingProfile } from "types/Etsy";
 
 const DescriptionHero = () => {
   const [form] = Form.useForm();
-  const { user } = useAuth();
+  const { customerData } = useAuth();
   const { generateDescription, isGeneratingTags } = useGenerateTags();
   const { getEtsyConnectionUrl, isConnecting } = useEtsy();
   const { fetchTaxonomies, isFetchingTaxonomies } = useTaxonomy();
@@ -87,7 +86,7 @@ const DescriptionHero = () => {
   ];
 
   const handleSaveToken = async (code: string) => {
-    const response = await updateCustomer(user?.id as string, {
+    const response = await updateCustomer(customerData?.id as string, {
       etsyToken: code,
     });
     if (response) {
@@ -97,7 +96,7 @@ const DescriptionHero = () => {
   };
 
   const handleDisconnectEtsy = async () => {
-    const response = await updateCustomer(user?.id as string, {
+    const response = await updateCustomer(customerData?.id as string, {
       etsyToken: "",
     });
     if (response) {
@@ -109,7 +108,7 @@ const DescriptionHero = () => {
   const handlePushToStore = async () => {
     const values = await form.validateFields();
     const response = await createListing({
-      customerId: user?.id as string,
+      customerId: customerData?.id as string,
       ...values,
     });
     if (response) {
@@ -131,7 +130,7 @@ const DescriptionHero = () => {
     });
   };
   const getShopShippingProfiles = () => {
-    fetchShopShippingProfile({ customerId: user?.id as string }).then(
+    fetchShopShippingProfile({ customerId: customerData?.id as string }).then(
       (shopShippingProfiles) => {
         if (Array.isArray(shopShippingProfiles) && shopShippingProfiles?.length > 0) {
           setShopShippingProfiles(shopShippingProfiles);
@@ -185,7 +184,7 @@ const DescriptionHero = () => {
             Description Hero
           </h1>
         </div>
-        {!(user as ICustomer)?.etsyToken ? (
+        {!customerData?.etsyToken ? (
           <Button
             type="primary"
             icon={<LinkOutlined />}

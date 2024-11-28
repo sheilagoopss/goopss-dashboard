@@ -38,7 +38,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { customerData } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -47,16 +47,16 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
-    } else if ((user as ICustomer)?.store_name) {
-      console.log("User store name:", (user as ICustomer).store_name);
-      fetchListings((user as ICustomer).store_name);
+    } else if (customerData?.store_name) {
+      console.log("User store name:", customerData.store_name);
+      fetchListings(customerData.store_name);
     } else {
       console.error("User or store name is undefined");
       setError(
         "User information is missing. Please try logging out and back in.",
       );
     }
-  }, [isAdmin, user]);
+  }, [isAdmin, customerData]);
 
   const fetchCustomers = async () => {
     try {
@@ -149,7 +149,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
   const handleCardClick = (listingId: string) => {
     const storeName = isAdmin
       ? selectedCustomer?.store_name
-      : (user as ICustomer)?.store_name;
+      : customerData?.store_name;
     if (storeName) {
       const url = getEtsyListingUrl(storeName, listingId);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -180,7 +180,7 @@ const AdsRecommendation: React.FC<AdsRecommendationProps> = ({
         )}
       </div>
 
-      {!isAdmin && user && <p>Store: {(user as ICustomer).store_name}</p>}
+      {!isAdmin && customerData && <p>Store: {customerData.store_name}</p>}
 
       {listings.length === 0 ? (
         <p>

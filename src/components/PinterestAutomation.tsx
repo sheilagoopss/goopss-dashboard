@@ -131,7 +131,7 @@ const styles = {
 };
 
 function PinterestAutomation() {
-  const { user, isAdmin } = useAuth();
+  const { customerData, isAdmin } = useAuth();
   const [isPinterestConnected, setIsPinterestConnected] = useState(false);
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
@@ -181,7 +181,7 @@ function PinterestAutomation() {
         if (isAdmin) {
           q = query(customersCollection);
         } else {
-          q = query(customersCollection, where("email", "==", user?.email));
+          q = query(customersCollection, where("email", "==", customerData?.email));
         }
 
         const querySnapshot = await getDocs(q);
@@ -197,16 +197,16 @@ function PinterestAutomation() {
     };
 
     fetchCustomers();
-  }, [isAdmin, user]);
+  }, [isAdmin, customerData]);
 
   useEffect(() => {
     // If there's a logged-in user, set their store as the only option
-    if (user) {
+    if (customerData) {
       setStores([
-        { id: 1, name: (user as ICustomer).store_name, pinterestAccount: "" },
+        { id: 1, name: customerData.store_name, pinterestAccount: "" },
       ]);
     }
-  }, [user]);
+  }, [customerData]);
 
   const addStore = () => {
     const newStore = {

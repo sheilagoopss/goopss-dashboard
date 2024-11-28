@@ -32,7 +32,7 @@ import { IUserActivity } from "types/UserActivityLog";
 import { useSubscribeCustomer } from "hooks/useKlaviyo";
 
 interface AuthContextType {
-  user: ICustomer | IAdmin | null | undefined;
+  user: IAdmin | null | undefined;
   isAdmin: boolean;
   login: (params: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -62,9 +62,7 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<ICustomer | IAdmin | null | undefined>(
-    undefined,
-  );
+  const [user, setUser] = useState<IAdmin | null | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
@@ -91,7 +89,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const customerDoc = customers.find((doc) => doc.email === user.user.email);
 
     if (customerDoc) {
-      setUser(customerDoc);
       setCustomerData(customerDoc);
       setIsAdmin(false);
       await userActivityLog(customerDoc);
@@ -129,7 +126,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         if (customer) {
           await userActivityLog(customer);
           await subscribeCustomer(customer.email, customer.store_owner_name);
-          setUser(customer);
           setCustomerData(customer);
           setIsAdmin(false);
         }
@@ -249,8 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const setCustomer = (customer: ICustomer | null) => {
-    setUser(customer);
-    console.log("customer", customer);
+    setCustomerData(customer);
   };
 
   return (

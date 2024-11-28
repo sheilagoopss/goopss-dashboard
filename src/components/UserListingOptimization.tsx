@@ -794,7 +794,7 @@ const DuplicationCard = ({ listing }: { listing: Listing }) => {
 };
 
 export default function UserListingOptimization() {
-  const { customerData, user } = useAuth();
+  const { customerData } = useAuth();
   const [activeTab, setActiveTab] = useState("optimized");
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
@@ -821,7 +821,7 @@ export default function UserListingOptimization() {
       subtitle:
         "These listings have been replicated to expand your reach across multiple platforms.",
     },
-    ...((user as ICustomer).isSuperCustomer
+    ...(customerData?.isSuperCustomer
       ? [
           {
             id: "etsy",
@@ -941,7 +941,7 @@ export default function UserListingOptimization() {
         setIsLoading(false);
       }
     };
-
+    console.log({ customerData });
     fetchListings();
   }, [customerData, activeTab]);
 
