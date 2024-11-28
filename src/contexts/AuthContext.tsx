@@ -124,7 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         } as ICustomer);
         const customer = await FirebaseHelper.findOne<ICustomer>(
           "customers",
-          created,
+          created.id,
         );
         if (customer) {
           await userActivityLog(customer);
@@ -203,9 +203,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       await handleLoginUser(resp);
     } catch (error) {
-      message.error(
-        "Failed to log in with Google: " + (error as Error).message,
-      );
+      console.error("Error signing in with Google: ", error);
     } finally {
       setGoogleLoggingIn(false);
     }
