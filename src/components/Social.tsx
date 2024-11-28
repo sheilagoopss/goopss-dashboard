@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
-import { Facebook, Instagram } from "lucide-react";
 import CustomersDropdown from "./CustomersDropdown";
 import { ICustomer } from "../types/Customer";
 import {
@@ -48,9 +47,9 @@ import {
   DeleteOutlined,
   EditOutlined,
   FacebookFilled,
-  FacebookOutlined,
-  InstagramOutlined,
+  InstagramFilled,
   PinterestFilled,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
 import { useCreatePinterestPin, usePinterestBoard } from "hooks/usePinterest";
@@ -81,20 +80,24 @@ const PostCreationModal: React.FC<{
   const { fetchBoards, isFetchingBoards } = usePinterestBoard();
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [platform, setPlatform] = useState<
-    "facebook" | "instagram" | "both" | "pinterest"
+    "facebook" | "instagram" | "both" | "pinterest" | "facebookGroup"
   >("facebook");
   const [facebookContent, setFacebookContent] = useState("");
   const [instagramContent, setInstagramContent] = useState("");
+  const [facebookGroupContent, setFacebookGroupContent] = useState("");
   const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
+  const [isGeneratingContent, setIsGeneratingContent] = useState(false);
 
   useEffect(() => {
     setScheduledDate(null);
     setPlatform("facebook");
     setFacebookContent("");
     setInstagramContent("");
+    setFacebookGroupContent("");
   }, [isOpen, listing, customerId]);
 
   const handleGenerateContent = async () => {
+    setIsGeneratingContent(true);
     try {
       // First fetch customer data
       const customerDoc = await getDoc(doc(db, "customers", customerId));
@@ -173,12 +176,15 @@ const PostCreationModal: React.FC<{
         // Always set both contents regardless of platform selection
         setFacebookContent(firstResult.facebook_post || "");
         setInstagramContent(firstResult.instagram_post || "");
+        setFacebookGroupContent(firstResult.facebook_post || "");
       } else {
         throw new Error("Failed to generate content. Please try again.");
       }
     } catch (error) {
       console.error("Error generating content:", error);
       message.error("Failed to generate content. Please try again.");
+    } finally {
+      setIsGeneratingContent(false);
     }
   };
 
@@ -217,6 +223,12 @@ const PostCreationModal: React.FC<{
         ...basePost,
         platform: "facebook",
         content: facebookContent,
+      });
+    } else if (platform === "facebookGroup" && facebookGroupContent.trim()) {
+      postsToSave.push({
+        ...basePost,
+        platform: "facebookGroup",
+        content: facebookGroupContent,
       });
     } else if (platform === "instagram" && instagramContent.trim()) {
       postsToSave.push({
@@ -267,6 +279,7 @@ const PostCreationModal: React.FC<{
     setPlatform("facebook");
     setFacebookContent("");
     setInstagramContent("");
+    setFacebookGroupContent("");
     onCancel();
   };
 
@@ -316,14 +329,21 @@ const PostCreationModal: React.FC<{
           value={platform}
         >
           <Radio value="facebook">Facebook</Radio>
+          <Radio value="facebookGroup">Facebook Group</Radio>
           <Radio value="instagram">Instagram</Radio>
-          <Radio value="both">Both</Radio>
+          <Radio value="both">Facebook Page & Instagram</Radio>
           <Divider />
           <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
-        <Button onClick={handleGenerateContent} type="default">
-          Generate Content
-        </Button>
+        {platform !== "pinterest" && (
+          <Button
+            onClick={handleGenerateContent}
+            type="default"
+            loading={isGeneratingContent}
+          >
+            Generate Content
+          </Button>
+        )}
 
         {(platform === "facebook" || platform === "both") && (
           <div>
@@ -332,6 +352,23 @@ const PostCreationModal: React.FC<{
               value={facebookContent}
               onChange={(e) => setFacebookContent(e.target.value)}
               placeholder="Facebook content"
+              autoSize={{ minRows: 6, maxRows: 12 }}
+              style={{
+                whiteSpace: "pre-line",
+                fontSize: "14px",
+                marginTop: "8px",
+              }}
+            />
+          </div>
+        )}
+
+        {platform === "facebookGroup" && (
+          <div>
+            <Text strong>Facebook Group Content:</Text>
+            <TextArea
+              value={facebookGroupContent}
+              onChange={(e) => setFacebookGroupContent(e.target.value)}
+              placeholder="Facebook Group content"
               autoSize={{ minRows: 6, maxRows: 12 }}
               style={{
                 whiteSpace: "pre-line",
@@ -609,9 +646,9 @@ const PostEditModal: React.FC<{
       ]}
     >
       {post.platform === "facebook" ? (
-        <FacebookOutlined />
+        <FacebookFilled />
       ) : (
-        <InstagramOutlined />
+        <InstagramFilled />
       )}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <DatePicker
@@ -1122,9 +1159,13 @@ const Social: React.FC = () => {
           {postsForDay.map((post) => (
             <div key={post.id} className={`post-indicator ${post.platform}`}>
               {post.platform === "facebook" ? (
-                <Facebook size={16} />
+                <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+              ) : post.platform === "facebookGroup" ? (
+                <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+              ) : post.platform === "pinterest" ? (
+                <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
               ) : (
-                <Instagram size={16} />
+                <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
               )}
             </div>
           ))}
@@ -1359,7 +1400,7 @@ const Social: React.FC = () => {
                   </Row>
                 </Card>
               ) : (
-                <PinterestButton email={selectedCustomer?.email || ""}/>
+                <PinterestButton email={selectedCustomer?.email || ""} />
               )}
             </>
           )}
@@ -1510,9 +1551,13 @@ const Social: React.FC = () => {
                     }}
                   >
                     {post.platform === "facebook" ? (
-                      <Facebook size={16} />
+                      <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                    ) : post.platform === "facebookGroup" ? (
+                      <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                    ) : post.platform === "pinterest" ? (
+                      <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
                     ) : (
-                      <Instagram size={16} />
+                      <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
                     )}
                     <span style={{ marginLeft: "5px", fontWeight: "bold" }}>
                       {post.platform}

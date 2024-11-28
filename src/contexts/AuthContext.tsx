@@ -42,6 +42,7 @@ interface AuthContextType {
   googleLoggingIn: boolean;
   loading: boolean;
   customerData: ICustomer | null;
+  setCustomer: (customer: ICustomer | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -55,6 +56,7 @@ const AuthContext = createContext<AuthContextType>({
   googleLoggingIn: false,
   loading: true,
   customerData: null,
+  setCustomer: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
@@ -246,6 +248,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setIsAdmin(!isAdmin);
   };
 
+  const setCustomer = (customer: ICustomer | null) => {
+    setUser(customer);
+    console.log("customer", customer);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -259,6 +266,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         googleLoggingIn,
         loading,
         customerData,
+        setCustomer,
       }}
     >
       {children}
