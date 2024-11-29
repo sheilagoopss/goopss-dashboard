@@ -1,4 +1,5 @@
 import { ICustomer } from './Customer';
+import type { SubTask } from './PlanTasks';
 
 interface MonthlyProgress {
   month: string;  // Format: 'YYYY-MM'
@@ -24,22 +25,25 @@ export interface MonthlyHistory {
 export interface PlanTask {
   id: string;
   task: string;
+  section: string;
   progress: 'To Do' | 'Doing' | 'Done';
-  frequency: 'Monthly' | 'One Time' | 'As Needed';
-  dueDate?: string | null;
-  completedDate: string | null;
   isActive: boolean;
   notes: string;
-  current: number;
-  goal: number;
-  updatedAt: string;
-  updatedBy: string;
+  frequency: 'One Time' | 'Monthly' | 'As Needed';
+  dueDate: string | null;
+  completedDate: string | null;
+  current?: number;
+  goal?: number;
+  order?: number;
+  daysAfterJoin?: number | null;
+  subtasks?: SubTask[];
+  monthlyHistory?: MonthlyHistory[];
   files?: TaskFile[];
   createdBy?: string;
   createdAt?: string;
-  monthlyHistory?: MonthlyHistory[];
+  updatedAt: string;
+  updatedBy: string;
   assignedTeamMembers?: string[];
-  section?: string;
 }
 
 export interface PlanSection {

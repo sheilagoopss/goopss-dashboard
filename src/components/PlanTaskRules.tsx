@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Typography, Card, Table, Button, Space, Modal, Form, Input, Select, InputNumber, Alert, DatePicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType } from '../types/PlanTasks';
 import { PlanSection, PlanTask } from '../types/Plan';
 import { usePlanTaskRules } from '../hooks/usePlanTaskRules';
@@ -13,6 +13,7 @@ import type { Dayjs } from 'dayjs';
 import { ICustomer } from '../types/Customer';
 import type { Plan } from '../types/Plan';
 import { defaultPlanTaskRules } from '../data/defaultPlanTaskRules';
+import type { SubTask } from '../types/PlanTasks';
 
 const packageTypes = {
   acceleratorBasic: 'Accelerator - Basic',
@@ -29,18 +30,52 @@ const { Title } = Typography;
 const { Option } = Select;
 
 const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
-  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
-    // Monthly tasks: Use monthlyDueDate
-    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
-  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
-    // As Needed tasks or tasks with daysAfterJoin = 0: No due date
+  console.log('Calculating due date - Input:', {
+    customer: {
+      id: customer.id,
+      date_joined: customer.date_joined,
+      store_name: customer.store_name
+    },
+    rule: {
+      id: rule.id,
+      task: rule.task,
+      frequency: rule.frequency,
+      daysAfterJoin: rule.daysAfterJoin,
+      monthlyDueDate: rule.monthlyDueDate
+    }
+  });
+
+  let dueDate = null;
+
+  if (!customer.date_joined) {
+    console.log('No join date found for customer');
     return null;
-  } else {
-    // One Time tasks: Based on join date
-    return dayjs(customer.date_joined)
-      .add(rule.daysAfterJoin || 0, 'day')
-      .format('YYYY-MM-DD');
   }
+
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    dueDate = dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+    console.log('Monthly task - Due date set to:', dueDate);
+  } else if (rule.frequency === 'As Needed') {
+    console.log('As Needed task - No due date needed');
+    dueDate = null;
+  } else if (rule.frequency === 'One Time' && rule.daysAfterJoin) {
+    dueDate = dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin, 'day')
+      .format('YYYY-MM-DD');
+    console.log('One Time task - Due date calculated:', {
+      joinDate: customer.date_joined,
+      daysAfterJoin: rule.daysAfterJoin,
+      calculatedDueDate: dueDate
+    });
+  } else {
+    console.log('No due date calculation applied:', {
+      frequency: rule.frequency,
+      daysAfterJoin: rule.daysAfterJoin
+    });
+  }
+
+  console.log('Final due date:', dueDate);
+  return dueDate;
 };
 
 const PlanTaskRulesComponent: React.FC = () => {
@@ -111,6 +146,24 @@ const PlanTaskRulesComponent: React.FC = () => {
 
   const columns = [
     {
+      title: 'Order',
+      dataIndex: 'order',
+      key: 'order',
+      width: 80,
+      sorter: {
+        compare: (a: PlanTaskRule, b: PlanTaskRule) => {
+          // Handle undefined/null values
+          const orderA = a.order ?? Number.MAX_VALUE;
+          const orderB = b.order ?? Number.MAX_VALUE;
+          return orderA - orderB;  // Ascending order: 1, 2, 3...
+        },
+        multiple: 1
+      },
+      sortDirections: ['ascend' as const, 'descend' as const],
+      defaultSortOrder: 'ascend' as const,
+      render: (order: number) => order || '-'  // Show dash for missing order numbers
+    },
+    {
       title: 'Task',
       dataIndex: 'task',
       key: 'task',
@@ -129,6 +182,18 @@ const PlanTaskRulesComponent: React.FC = () => {
       title: 'Frequency',
       dataIndex: 'frequency',
       key: 'frequency',
+    },
+    {
+      title: 'Subtasks',
+      dataIndex: 'subtasks',
+      key: 'subtasks',
+      render: (subtasks: SubTask[] | undefined) => (
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          {subtasks?.map(subtask => (
+            <li key={subtask.id}>{subtask.text}</li>
+          ))}
+        </ul>
+      ),
     },
     {
       title: 'Actions',
@@ -165,7 +230,8 @@ const PlanTaskRulesComponent: React.FC = () => {
       monthlyDueDate: rule.monthlyDueDate ? dayjs().date(rule.monthlyDueDate) : undefined,
       requiresGoal: rule.requiresGoal,
       defaultGoal: rule.defaultGoal,
-      defaultCurrent: rule.defaultCurrent
+      defaultCurrent: rule.defaultCurrent,
+      subtasks: rule.subtasks || []
     });
     setIsModalVisible(true);
   };
@@ -278,17 +344,28 @@ const PlanTaskRulesComponent: React.FC = () => {
       
       if (rulesDoc.exists()) {
         const currentRules = rulesDoc.data();
+        
+        // Process subtasks - generate IDs for new subtasks
+        const subtasks: SubTask[] = values.subtasks?.map((subtask: { text: string; id?: string }) => ({
+          id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: subtask.text,
+          isCompleted: false,
+          completedDate: null
+        })) || [];
+
         const newTask: PlanTaskRule = {
           id: editingRule?.id || `${Date.now()}`,
           task: values.task,
           section: values.section,
-          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,
-          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
+          order: values.order || rules.length + 1,
           frequency: values.frequency,
+          daysAfterJoin: values.frequency === 'Monthly' ? null : values.daysAfterJoin,
+          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           isActive: true,
           requiresGoal: values.requiresGoal || false,
           defaultGoal: values.requiresGoal ? values.defaultGoal : null,
           defaultCurrent: values.requiresGoal ? (values.defaultCurrent || 0) : null,
+          subtasks,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };
@@ -337,6 +414,16 @@ const PlanTaskRulesComponent: React.FC = () => {
             <li>Completed dates</li>
             <li>Current values</li>
           </ul>
+          {rule.subtasks && rule.subtasks.length > 0 && (
+            <>
+              <p>Subtasks:</p>
+              <ul>
+                {rule.subtasks.map(subtask => (
+                  <li key={subtask.id}>{subtask.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       ),
       async onOk() {
@@ -405,31 +492,57 @@ const PlanTaskRulesComponent: React.FC = () => {
             // Check if task exists
             const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
             if (existingTaskIndex !== -1) {
-              // Update existing task but preserve monthlyHistory
-              const existingTask = currentTasks[existingTaskIndex];
+              console.log('Updating existing task:', {
+                customerId: customer.id,
+                taskId: rule.id,
+                beforeUpdate: currentTasks[existingTaskIndex],
+                rule: rule
+              });
+
+              const newDueDate = calculateDueDate(customer, rule);
+              console.log('Calculated new due date:', newDueDate);
+
               currentTasks[existingTaskIndex] = {
-                ...existingTask,  // Keep existing data including monthlyHistory
+                ...currentTasks[existingTaskIndex],
                 task: rule.task,
+                section: rule.section,
+                order: rule.order,
                 isActive: rule.isActive,
                 frequency: rule.frequency,
-                dueDate: calculateDueDate(customer, rule),
-                goal: rule.defaultGoal || existingTask.goal,
+                daysAfterJoin: rule.daysAfterJoin,
+                dueDate: newDueDate,
+                goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
+                subtasks: rule.subtasks?.map((subtask: SubTask) => ({
+                  ...subtask,
+                  isCompleted: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.isCompleted || false,
+                  completedDate: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.completedDate || null
+                })) || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               };
+
+              console.log('Task after update:', currentTasks[existingTaskIndex]);
             } else {
-              // Add new task without monthlyHistory
+              // Add new task
               currentTasks.push({
                 id: rule.id,
                 task: rule.task,
+                section: rule.section,
+                order: rule.order,
                 progress: 'To Do' as const,
                 isActive: rule.isActive,
                 notes: '',
                 frequency: rule.frequency,
+                daysAfterJoin: rule.daysAfterJoin,
                 dueDate: calculateDueDate(customer, rule),
                 completedDate: null,
                 current: rule.defaultCurrent || 0,
                 goal: rule.defaultGoal || 0,
+                subtasks: rule.subtasks?.map(subtask => ({
+                  ...subtask,
+                  isCompleted: false,
+                  completedDate: null
+                })) || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               });
@@ -559,10 +672,18 @@ const PlanTaskRulesComponent: React.FC = () => {
                 currentTasks[existingTaskIndex] = {
                   ...currentTasks[existingTaskIndex],
                   task: rule.task,
+                  section: rule.section,
+                  order: rule.order,
                   isActive: rule.isActive,
                   frequency: rule.frequency,
+                  daysAfterJoin: rule.daysAfterJoin,
                   dueDate: calculateDueDate(customer, rule),
                   goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
+                  subtasks: rule.subtasks?.map((subtask: SubTask) => ({
+                    ...subtask,
+                    isCompleted: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.isCompleted || false,
+                    completedDate: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.completedDate || null
+                  })) || [],
                   updatedAt: new Date().toISOString(),
                   updatedBy: user?.email || ''
                 };
@@ -576,14 +697,22 @@ const PlanTaskRulesComponent: React.FC = () => {
                 currentTasks.push({
                   id: rule.id,
                   task: rule.task,
+                  section: rule.section,
+                  order: rule.order,
                   progress: 'To Do' as const,
                   isActive: rule.isActive,
                   notes: '',
                   frequency: rule.frequency,
+                  daysAfterJoin: rule.daysAfterJoin,
                   dueDate: calculateDueDate(customer, rule),
                   completedDate: null,
                   current: rule.defaultCurrent || 0,
                   goal: rule.defaultGoal || 0,
+                  subtasks: rule.subtasks?.map(subtask => ({
+                    ...subtask,
+                    isCompleted: false,
+                    completedDate: null
+                  })) || [],
                   updatedAt: new Date().toISOString(),
                   updatedBy: user?.email || ''
                 });
@@ -842,6 +971,9 @@ const PlanTaskRulesComponent: React.FC = () => {
             columns={columns} 
             dataSource={filteredRules}
             rowKey="id"
+            onChange={(pagination, filters, sorter) => {
+              console.log('Table changed:', { pagination, filters, sorter });
+            }}
           />
         </Card>
 
@@ -861,7 +993,7 @@ const PlanTaskRulesComponent: React.FC = () => {
               label="Task Name"
               rules={[{ required: true, message: 'Please enter task name' }]}
             >
-              <Input />
+              <Input placeholder="Enter task name" />
             </Form.Item>
 
             <Form.Item
@@ -874,21 +1006,6 @@ const PlanTaskRulesComponent: React.FC = () => {
                   <Option key={section} value={section}>{section}</Option>
                 ))}
               </Select>
-            </Form.Item>
-
-            <Form.Item
-              name="daysAfterJoin"
-              label="Days After Join"
-              rules={[{ 
-                required: form.getFieldValue('frequency') !== 'Monthly',  // Fixed comparison
-                message: 'Please enter days after join' 
-              }]}
-            >
-              <InputNumber 
-                min={0} 
-                disabled={form.getFieldValue('frequency') === 'Monthly'}
-                placeholder={form.getFieldValue('frequency') === 'Monthly' ? 'Not applicable for monthly tasks' : 'Enter days'}
-              />
             </Form.Item>
 
             <Form.Item
@@ -910,7 +1027,18 @@ const PlanTaskRulesComponent: React.FC = () => {
               }
             >
               {({ getFieldValue }) => 
-                getFieldValue('frequency') === 'Monthly' ? (
+                getFieldValue('frequency') !== 'Monthly' ? (
+                  <Form.Item
+                    name="daysAfterJoin"
+                    label="Days After Join"
+                    rules={[{ 
+                      required: getFieldValue('frequency') === 'One Time',
+                      message: 'Please enter days after join' 
+                    }]}
+                  >
+                    <InputNumber min={0} />
+                  </Form.Item>
+                ) : (
                   <Form.Item
                     name="monthlyDueDate"
                     label="Monthly Due Date"
@@ -924,35 +1052,18 @@ const PlanTaskRulesComponent: React.FC = () => {
                       format="DD"
                       placeholder="Select day of month"
                       showToday={false}
-                      value={form.getFieldValue('monthlyDueDate') ? dayjs(form.getFieldValue('monthlyDueDate')) : null}
-                      onChange={(date: Dayjs | null) => {
-                        if (date) {
-                          form.setFieldsValue({ monthlyDueDate: date });
-                        }
-                      }}
                     />
                   </Form.Item>
-                ) : null
+                )
               }
             </Form.Item>
 
             <Form.Item
-              label="Requires Goal"
               name="requiresGoal"
+              label="Requires Goal"
               valuePropName="checked"
             >
-              <Switch
-                onChange={(checked) => {
-                  setEditingRule(prev => {
-                    if (!prev) return prev;
-                    return {
-                      ...prev,
-                      requiresGoal: checked,
-                      defaultGoal: checked ? prev.defaultGoal : null  // Keep goal if enabled, null if disabled
-                    };
-                  });
-                }}
-              />
+              <Switch />
             </Form.Item>
 
             <Form.Item
@@ -965,23 +1076,11 @@ const PlanTaskRulesComponent: React.FC = () => {
                 getFieldValue('requiresGoal') ? (
                   <>
                     <Form.Item
-                      label="Default Goal"
                       name="defaultGoal"
-                      rules={[
-                        {
-                          required: getFieldValue('frequency') === 'Monthly',
-                          message: 'Please input the default goal',
-                        }
-                      ]}
+                      label="Default Goal"
+                      rules={[{ required: true, message: 'Please enter default goal' }]}
                     >
-                      <Input
-                        type="number"
-                        min={0}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? null : parseInt(e.target.value);
-                          form.setFieldsValue({ defaultGoal: value });
-                        }}
-                      />
+                      <InputNumber min={0} />
                     </Form.Item>
                     <Form.Item
                       name="defaultCurrent"
@@ -995,6 +1094,15 @@ const PlanTaskRulesComponent: React.FC = () => {
               }
             </Form.Item>
 
+            <Form.Item
+              name="order"
+              label="Order"
+              rules={[{ required: true, message: 'Please enter task order' }]}
+            >
+              <InputNumber min={1} />
+            </Form.Item>
+
+            <Typography.Title level={5}>Subtasks</Typography.Title>
             <Form.List name="subtasks">
               {(fields, { add, remove }) => (
                 <>
@@ -1007,13 +1115,28 @@ const PlanTaskRulesComponent: React.FC = () => {
                       >
                         <Input placeholder="Subtask" />
                       </Form.Item>
-                      <Button type="link" danger onClick={() => remove(name)}>
-                        Delete
-                      </Button>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'id']}
+                        hidden
+                      >
+                        <Input />
+                      </Form.Item>
+                      <Button 
+                        type="text" 
+                        danger 
+                        icon={<MinusCircleOutlined />} 
+                        onClick={() => remove(name)} 
+                      />
                     </Space>
                   ))}
                   <Form.Item>
-                    <Button type="dashed" onClick={() => add()} block>
+                    <Button 
+                      type="dashed" 
+                      onClick={() => add()} 
+                      block 
+                      icon={<PlusOutlined />}
+                    >
                       Add Subtask
                     </Button>
                   </Form.Item>

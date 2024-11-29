@@ -1,13 +1,15 @@
-interface SubTask {
+export interface SubTask {
   id: string;
   text: string;
   isCompleted?: boolean;
+  completedDate: string | null;
 }
 
 export interface PlanTaskRule {
   id: string;
   task: string;
   section: string;
+  order: number;
   frequency: 'One Time' | 'Monthly' | 'As Needed';
   daysAfterJoin?: number | null;
   monthlyDueDate?: number | null;
