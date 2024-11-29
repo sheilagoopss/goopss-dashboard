@@ -359,7 +359,7 @@ const PlanTaskRulesComponent: React.FC = () => {
           section: values.section,
           order: values.order || rules.length + 1,
           frequency: values.frequency,
-          daysAfterJoin: values.frequency === 'Monthly' ? null : values.daysAfterJoin,
+          daysAfterJoin: values.daysAfterJoin,
           monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           isActive: true,
           requiresGoal: values.requiresGoal || false,
@@ -1026,8 +1026,8 @@ const PlanTaskRulesComponent: React.FC = () => {
                 prevValues.frequency !== currentValues.frequency
               }
             >
-              {({ getFieldValue }) => 
-                getFieldValue('frequency') !== 'Monthly' ? (
+              {({ getFieldValue }) => (
+                <>
                   <Form.Item
                     name="daysAfterJoin"
                     label="Days After Join"
@@ -1038,24 +1038,26 @@ const PlanTaskRulesComponent: React.FC = () => {
                   >
                     <InputNumber min={0} />
                   </Form.Item>
-                ) : (
-                  <Form.Item
-                    name="monthlyDueDate"
-                    label="Monthly Due Date"
-                    rules={[{ required: true, message: 'Please select monthly due date' }]}
-                  >
-                    <DatePicker 
-                      picker="date"
-                      disabledDate={(current) => {
-                        return current && (current.date() > 28);
-                      }}
-                      format="DD"
-                      placeholder="Select day of month"
-                      showToday={false}
-                    />
-                  </Form.Item>
-                )
-              }
+                  
+                  {getFieldValue('frequency') === 'Monthly' && (
+                    <Form.Item
+                      name="monthlyDueDate"
+                      label="Monthly Due Date"
+                      rules={[{ required: true, message: 'Please select monthly due date' }]}
+                    >
+                      <DatePicker 
+                        picker="date"
+                        disabledDate={(current) => {
+                          return current && (current.date() > 28);
+                        }}
+                        format="DD"
+                        placeholder="Select day of month"
+                        showToday={false}
+                      />
+                    </Form.Item>
+                  )}
+                </>
+              )}
             </Form.Item>
 
             <Form.Item
