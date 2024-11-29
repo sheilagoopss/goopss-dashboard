@@ -125,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           },
         ]
       : []),
-    ...(!isAdmin
+    ...(isAdmin
       ? [
           {
             key: "plan",
