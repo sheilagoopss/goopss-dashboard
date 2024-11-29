@@ -171,36 +171,100 @@ const PlanTaskRulesComponent: React.FC = () => {
   };
 
   const handleDelete = async (ruleToDelete: PlanTaskRule) => {
-    try {
-      // Get the correct package ID based on selected package
-      const packageId = Object.keys(packageTypes).find(
-        key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
-      ) || 'default';
+    Modal.confirm({
+      title: 'Delete Task Rule',
+      content: (
+        <div>
+          <p>Are you sure you want to delete this task?</p>
+          <p><strong>{ruleToDelete.task}</strong></p>
+          <Alert
+            message="Warning"
+            description="This will also remove this task from all customer plans in this package type."
+            type="warning"
+            showIcon
+            style={{ marginTop: '16px' }}
+          />
+        </div>
+      ),
+      okText: 'Yes, Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      async onOk() {
+        try {
+          // 1. Delete from rules
+          const packageId = Object.keys(packageTypes).find(
+            key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
+          ) || 'default';
 
-      const rulesRef = doc(db, 'planTaskRules', packageId);
-      const rulesDoc = await getDoc(rulesRef);
-      
-      if (rulesDoc.exists()) {
-        const currentRules = rulesDoc.data();
-        // Filter out the task from the selected package's rules
-        const updatedTasks = currentRules.tasks.filter((task: PlanTaskRule) => 
-          task.id !== ruleToDelete.id
-        );
+          const rulesRef = doc(db, 'planTaskRules', packageId);
+          const rulesDoc = await getDoc(rulesRef);
+          
+          if (rulesDoc.exists()) {
+            const currentRules = rulesDoc.data();
+            const updatedTasks = currentRules.tasks.filter((task: PlanTaskRule) => 
+              task.id !== ruleToDelete.id
+            );
 
-        // Update the selected package's document
-        await setDoc(rulesRef, {
-          ...currentRules,
-          tasks: updatedTasks,
-          updatedAt: new Date().toISOString()
-        });
+            await setDoc(rulesRef, {
+              ...currentRules,
+              tasks: updatedTasks,
+              updatedAt: new Date().toISOString()
+            });
 
-        message.success(`Rule deleted from ${selectedPackage} rules`);
-        loadPackageRules(packageId);  // Reload rules for this package
+            // 2. Delete from all customer plans with this package type
+            const customersRef = collection(db, 'customers');
+            const q = query(
+              customersRef, 
+              where('customer_type', '==', 'Paid'),
+              where('package_type', '==', selectedPackage)
+            );
+            
+            const customersSnapshot = await getDocs(q);
+            const batch = writeBatch(db);
+            let batchCount = 0;
+            const BATCH_LIMIT = 500;
+
+            for (const customerDoc of customersSnapshot.docs) {
+              const planRef = doc(db, 'plans', customerDoc.id);
+              const planDoc = await getDoc(planRef);
+
+              if (planDoc.exists()) {
+                const plan = planDoc.data() as Plan;
+                let needsUpdate = false;
+
+                // Remove task from each section
+                const updatedSections = plan.sections.map(section => ({
+                  ...section,
+                  tasks: section.tasks.filter(task => task.id !== ruleToDelete.id)
+                }));
+
+                if (batchCount >= BATCH_LIMIT) {
+                  await batch.commit();
+                  batchCount = 0;
+                }
+                
+                batch.update(planRef, { 
+                  sections: updatedSections,
+                  updatedAt: new Date().toISOString()
+                });
+                batchCount++;
+              }
+            }
+
+            // Commit any remaining updates
+            if (batchCount > 0) {
+              await batch.commit();
+            }
+
+            message.success(`Task deleted from ${selectedPackage} rules and customer plans`);
+            loadPackageRules(packageId);
+          }
+        } catch (error) {
+          console.error('Error deleting rule:', error);
+          message.error('Failed to delete rule');
+        }
       }
-    } catch (error) {
-      console.error('Error deleting rule:', error);
-      message.error('Failed to delete rule');
-    }
+    });
   };
 
   const handleSubmit = async (values: any) => {
@@ -930,6 +994,32 @@ const PlanTaskRulesComponent: React.FC = () => {
                 ) : null
               }
             </Form.Item>
+
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'text']}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask" />
+                      </Form.Item>
+                      <Button type="link" danger onClick={() => remove(name)}>
+                        Delete
+                      </Button>
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
           </Form>
         </Modal>
       </Content>
