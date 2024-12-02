@@ -95,37 +95,44 @@ const PeriodStat: React.FC<PeriodStatProps> = ({ periodData }) => {
                   </Collapse.Panel>
                 </Collapse>
                 <Collapse style={{ width: "100%" }}>
-                  <Collapse.Panel header="Listings" key="1">
-                    <List
+                  <Collapse.Panel header="Shoppers Viewed" key="1">
+                    <Table
                       dataSource={periodData?.trafficAnalysis?.listingsData}
-                      renderItem={(listing) => (
-                        <Row
-                          gutter={[16, 0]}
-                          key={listing.link}
-                          style={{ borderBottom: "1px solid #f0f0f0" }}
-                        >
-                          <Col>
+                      columns={[
+                        {
+                          key: "image",
+                          dataIndex: "image",
+                          title: "Image",
+                          render: (value) => (
                             <Image
-                              src={listing.image}
+                              src={value}
                               width={50}
                               height={50}
                               preview={false}
                             />
-                          </Col>
-                          <Col span={18}>
-                            <Typography.Text strong>
-                              {listing.title}
-                            </Typography.Text>
-                            <br />
-                            <Typography.Link href={listing.link}>
-                              {listing.link}
+                          ),
+                        },
+                        {
+                          key: "Name",
+                          dataIndex: "title",
+                          title: "Name",
+                          render: (value, record) => (
+                            <Typography.Link href={record.link}>
+                              {value}
                             </Typography.Link>
-                          </Col>
-                          <Col span={4}>
-                            <Typography.Text>{listing.views}</Typography.Text>
-                          </Col>
-                        </Row>
-                      )}
+                          ),
+                        },
+                        {
+                          key: "Views",
+                          dataIndex: "views",
+                          title: "Views",
+                        },
+                        {
+                          key: "Favorites",
+                          dataIndex: "favorites",
+                          title: "Favorites",
+                        },
+                      ]}
                     />
                   </Collapse.Panel>
                 </Collapse>

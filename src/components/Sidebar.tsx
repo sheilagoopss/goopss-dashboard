@@ -430,6 +430,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
                       {customerData?.store_owner_name}
                     </span>
                   </div>
+                  {!customerData?.isViewing && (
                   <Dropdown
                     menu={{ items: dropdownItems }}
                     placement="topRight"
@@ -448,7 +449,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
                         justifyContent: "center",
                       }}
                     />
-                  </Dropdown>
+                    </Dropdown>
+                  )}
                 </div>
               </div>
             </div>

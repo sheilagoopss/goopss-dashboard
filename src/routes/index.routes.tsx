@@ -1,5 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
 import { useAuth } from "../contexts/AuthContext";
@@ -19,7 +25,7 @@ import { useState, useEffect } from "react";
 import { ICustomer, IAdmin } from "../types/Customer";
 import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import DesignHubV2 from "components/designHub/DesignHub";
@@ -37,14 +43,23 @@ import DescriptionHero from "components/descriptionHero/DescriptionHero";
 import RoleManagement from "components/roleManagement/RoleManagement";
 
 export default function AppRoutes() {
-  const { isAdmin, user, loading, customerData } = useAuth();
+  const {
+    isAdmin,
+    user,
+    loading,
+    customerData,
+    setCustomer,
+    toggleAdminMode,
+  } = useAuth();
   const location = useLocation();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const viewAsCustomer = searchParams.get("viewAsCustomer") === "true";
+  const selectedCustomerId = searchParams.get("selectedCustomerId");
 
   // Move trackUserEvent inside the component
   const trackUserEvent = (eventName: string, eventData: any) => {
@@ -83,6 +98,15 @@ export default function AppRoutes() {
     }
   }, [location, isAdmin, customerData, userType, customers]);
 
+  useEffect(() => {
+    if (viewAsCustomer && selectedCustomerId) {
+      setCustomer(
+        customers.find((c) => c.id === selectedCustomerId) || null,
+      );
+      toggleAdminMode();
+    }
+  }, [viewAsCustomer, selectedCustomerId, customers]);
+
   // Add this function to fetch customers
   const fetchCustomers = async () => {
     try {
@@ -90,16 +114,8 @@ export default function AppRoutes() {
       const customersSnapshot = await getDocs(customersCollection);
       const customersList = customersSnapshot.docs.map((doc) => ({
         id: doc.id,
-        store_name: doc.data().store_name,
-        customer_type: doc.data().customer_type,
-        store_owner_name: doc.data().store_owner_name,
-        email: doc.data().email,
-        package_type: doc.data().package_type,
-        current_sales: doc.data().current_sales,
-        customer_id: doc.data().customer_id,
-        logo: doc.data().logo,
-        isActive: doc.data().isActive,
-        date_joined: doc.data().date_joined,
+        ...doc.data(),
+        isViewing: viewAsCustomer
       })) as ICustomer[];
 
       setCustomers(customersList);
@@ -111,7 +127,6 @@ export default function AppRoutes() {
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
-      setIsLoading(false);
     } else if (customerData?.id) {
       setUserType(customerData.customer_type);
     }
