@@ -30,7 +30,7 @@
     "@types/trusted-types": "^2.0.7",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.12",
-    "@types/xlsx": "^0.0.36",
+    "@types/xlsx": "^0.0.35",
     "ts-node": "^10.9.2"
   },
   "dependencies": {
@@ -41,7 +41,7 @@
     "@types/dompurify": "^3.0.5",
     "@types/react-router-dom": "^5.3.3",
     "antd": "^5.12.5",
-    "axios": "^0.21.1",
+    "axios": "^1.7.8",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
@@ -65,7 +65,7 @@
     "react-ga4": "^2.1.0",
     "react-modal": "^3.16.1",
     "react-router-dom": "^6.26.2",
-    "react-scripts": "^5.0.1",
+    "react-scripts": "^3.0.1",
     "serve": "^14.2.4",
     "typescript": "^4.9.5",
     "uuid": "^10.0.0",

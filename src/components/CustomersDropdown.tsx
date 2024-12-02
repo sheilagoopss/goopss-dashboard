@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Select, Space, Switch, Tooltip, Tag, Button } from "antd";
 import { ICustomer } from "../types/Customer";
-import { useAuth } from "contexts/AuthContext";
 import { ExternalLink } from "lucide-react";
 
 interface CustomersDropdownProps {
@@ -17,7 +16,6 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   setSelectedCustomer,
   isAdmin,
 }) => {
-  const { toggleAdminMode, setCustomer } = useAuth();
   const [showInactive, setShowInactive] = useState(false);
 
   if (!isAdmin) return null;
@@ -27,9 +25,10 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   );
 
   const handleToggleAdmin = () => {
-    setCustomer(selectedCustomer);
-    toggleAdminMode();
-    window.open(window.location.href, "_blank");
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set("viewAsCustomer", "true");
+    newUrl.searchParams.set("selectedCustomerId", selectedCustomer?.id || "");
+    window.open(newUrl.toString(), "_blank");
   };
 
   return (
@@ -82,7 +81,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
               unCheckedChildren="Show Inactive"
             />
           </Tooltip>
-          <Tooltip title="Open admin in new window">
+          <Tooltip title="Open customer view in new window">
             <Button
               size="small"
               type="link"

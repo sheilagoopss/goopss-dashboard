@@ -1,29 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  ArrowUpDown,
-  ArrowRight,
-} from "lucide-react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
+import { Search, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../contexts/AuthContext";
 import DOMPurify from "dompurify";
-import { Button, Modal, Segmented, Spin } from "antd";
+import { Segmented, Spin } from "antd";
 import EtsyListings from "./EtsyListing/EtsyListings";
-import { ICustomer } from "types/Customer";
-import Setting from "./EtsyListing/components/Setting";
 
 interface Listing {
   id: string;
@@ -801,11 +783,6 @@ export default function UserListingOptimization() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
-  const [sortColumn, setSortColumn] = useState<"optimizedAt" | null>(
-    "optimizedAt",
-  );
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [duplicatedListings, setDuplicatedListings] = useState<Listing[]>([]);
 
   const tabs = [
@@ -902,16 +879,6 @@ export default function UserListingOptimization() {
             querySnapshot.docs.map(async (doc) => {
               const data = doc.data();
 
-              // Fetch the original listing data
-              const originalListingQuery = query(
-                listingsRef,
-                where("listingID", "==", data.duplicatedFrom),
-              );
-              const originalListingSnapshot =
-                await getDocs(originalListingQuery);
-              const originalListingData =
-                originalListingSnapshot.docs[0]?.data();
-
               return {
                 id: doc.id,
                 listingID: data.listingID,
@@ -960,44 +927,6 @@ export default function UserListingOptimization() {
     (currentPage - 1) * LISTINGS_PER_PAGE,
     currentPage * LISTINGS_PER_PAGE,
   );
-
-  const toggleRowExpansion = (listingId: string) => {
-    setExpandedRows((prev) =>
-      prev.includes(listingId)
-        ? prev.filter((id) => id !== listingId)
-        : [...prev, listingId],
-    );
-  };
-
-  const getEtsyUrl = (listingID: string) => {
-    return `https://www.etsy.com/listing/${listingID}`;
-  };
-
-  const handleSort = () => {
-    if (sortColumn === "optimizedAt") {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn("optimizedAt");
-      setSortDirection("desc");
-    }
-  };
-
-  useEffect(() => {
-    let sorted = [...filteredListings];
-    if (sortColumn === "optimizedAt") {
-      sorted.sort((a, b) => {
-        const dateA = a.optimizedAt ? a.optimizedAt.getTime() : 0;
-        const dateB = b.optimizedAt ? b.optimizedAt.getTime() : 0;
-        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
-      });
-    }
-    setFilteredListings(sorted);
-  }, [sortColumn, sortDirection]);
-
-  // Add this right before the return statement in the component
-  if (filteredListings.length === 0) {
-    return <div>No optimized listings found.</div>;
-  }
 
   // Then in the return statement, add this before the table
   return (
