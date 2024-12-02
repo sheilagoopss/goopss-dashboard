@@ -1,22 +1,22 @@
-interface IMetrics {
+export interface IMetrics {
   "Conversion rate": string;
   Orders: string;
   Revenue: string;
   Visits: string;
 }
 
-interface SearchTermsData {
+export interface SearchTermsData {
   searchTerm: string;
   visits: string;
 }
 
-interface EtsyAppData {
+export interface EtsyAppData {
   image: string;
   title: string;
   visits: number;
 }
 
-interface EtsySearchData {
+export interface EtsySearchData {
   advertising: string;
   clicks: string;
   doc: Record<string, unknown>;
@@ -35,7 +35,7 @@ interface EtsySearchData {
   views: string;
 }
 
-interface BaseDataStructure<T> {
+export interface BaseDataStructure<T> {
   html: Record<string, unknown>;
   name: string;
   data: T;
@@ -55,20 +55,20 @@ export interface EtsySearchStructure
   name: "Etsy search";
 }
 
-interface OtherDataStructure<T> extends BaseDataStructure<T> {
+export interface OtherDataStructure<T> extends BaseDataStructure<T> {
   name: Exclude<
     string,
     "Search Terms" | "Etsy search" | "Etsy app & other Etsy pages"
   >;
 }
 
-type CapturedDataStructure =
+export type CapturedDataStructure =
   | SearchTermsStructure
   | EtsyAppStructure
   | EtsySearchStructure
   | OtherDataStructure<unknown>;
 
-interface IListingData {
+export interface IListingData {
   link?: string;
   key?: number;
   favorites?: string;
@@ -83,18 +83,18 @@ interface IListingData {
   usValue?: number;
 }
 
-interface ITrafficAnalysis {
+export interface ITrafficAnalysis {
   listingsData?: IListingData[];
   data?: {
     capturedData?: CapturedDataStructure[];
   };
 }
 
-interface ITrafficSource {
+export interface ITrafficSource {
   [source: string]: number | undefined;
 }
 
-interface IPeriodData {
+export interface IPeriodData {
   daterange: string;
   metrics?: IMetrics;
   trafficAnalysis?: ITrafficAnalysis;
@@ -108,3 +108,9 @@ export interface IStat {
   thisYear: IPeriodData;
   timestamp: string;
 }
+
+export interface EtsySearchInfo {
+  name: "Etsy search";
+  info: EtsySearchData[];
+}
+
