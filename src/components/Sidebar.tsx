@@ -12,20 +12,15 @@ import {
   Sparkles,
   MoreVertical,
   ChevronDown,
-  LayoutDashboard,
   User,
-  File,
   ClipboardList,
   Calculator,
   LogOut,
 } from "lucide-react";
-import { BarChartOutlined, MessageOutlined } from "@ant-design/icons";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { BarChartOutlined } from "@ant-design/icons";
 import logo from "../assets/images/logo.png";
 import rocket from "../assets/images/rocket.png";
 import Intercom from "@intercom/messenger-js-sdk";
-import { ICustomer } from "types/Customer";
 import dayjs from "dayjs";
 
 const { Sider } = Layout;
@@ -41,7 +36,7 @@ interface CustomerData {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
-  const { user, logout } = useAuth();
+  const { customerData, logout } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname.split("/")[1] || "home";
   const navigate = useNavigate();
@@ -55,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   });
 
   // Add this check for paid user
-  const isPaidUser = !isAdmin && (user as ICustomer)?.customer_type === "Paid";
+  const isPaidUser = !isAdmin && customerData?.customer_type === "Paid";
 
   useEffect(() => {
     if (socialExpanded) {
@@ -271,16 +266,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
   ];
 
   useEffect(() => {
-    if (user && (user as ICustomer)?.customer_type === "Paid") {
+    if (customerData && customerData.customer_type === "Paid") {
       Intercom({
         app_id: process.env.REACT_APP_INTERCOM_APP_ID || "",
-        user_id: user?.id || "",
-        name: (user as ICustomer)?.store_owner_name || "",
-        email: (user as ICustomer)?.email || "",
-        created_at: dayjs((user as ICustomer)?.date_joined).unix() || 0,
+        user_id: customerData.customer_id || "",
+        name: customerData.store_owner_name || "",
+        email: customerData.email || "",
+        created_at: dayjs(customerData.date_joined).unix() || 0,
       });
     }
-  }, [user]);
+  }, [customerData]);
 
   return (
     <Sider
@@ -404,7 +399,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
               }}
             >
               <img
-                src={(user as ICustomer)?.logo || logo}
+                src={customerData.logo || logo}
                 alt="Store logo"
                 style={{
                   height: "48px",
@@ -429,7 +424,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
                         color: "#000",
                       }}
                     >
-                      {(user as ICustomer)?.store_name}
+                      {customerData?.store_name}
                     </span>
                     <span
                       style={{
@@ -437,9 +432,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
                         color: "#666",
                       }}
                     >
-                      {(user as ICustomer)?.store_owner_name}
+                      {customerData?.store_owner_name}
                     </span>
                   </div>
+                  {!customerData?.isViewing && (
                   <Dropdown
                     menu={{ items: dropdownItems }}
                     placement="topRight"
@@ -458,7 +454,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
                         justifyContent: "center",
                       }}
                     />
-                  </Dropdown>
+                    </Dropdown>
+                  )}
                 </div>
               </div>
             </div>

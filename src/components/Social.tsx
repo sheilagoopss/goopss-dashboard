@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   collection,
   getDocs,
@@ -52,7 +52,7 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "hooks/useCustomer";
-import { useCreatePinterestPin, usePinterestBoard } from "hooks/usePinterest";
+import { usePinterestBoard } from "hooks/usePinterest";
 import { ISocialPost } from "types/Social";
 
 interface EtsyListing {
@@ -287,7 +287,7 @@ const PostCreationModal: React.FC<{
     fetchBoards({ customerId }).then((boards) => {
       setPinterestBoards(boards);
     });
-  }, [customerId]);
+  }, [customerId, fetchBoards]);
 
   return (
     <Modal
@@ -645,11 +645,7 @@ const PostEditModal: React.FC<{
         ),
       ]}
     >
-      {post.platform === "facebook" ? (
-        <FacebookFilled />
-      ) : (
-        <InstagramFilled />
-      )}
+      {post.platform === "facebook" ? <FacebookFilled /> : <InstagramFilled />}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <DatePicker
           showTime
@@ -701,11 +697,10 @@ const PostEditModal: React.FC<{
 };
 
 const Social: React.FC = () => {
-  const { isAdmin, user } = useAuth();
-  const { schedulePosts, isScheduling } = useFacebookSchedule();
-  const { createPin, isCreatingPin } = useCreatePinterestPin();
+  const { isAdmin, customerData } = useAuth();
+  const { schedulePosts } = useFacebookSchedule();
   const { updatePost, isUpdating } = useSocialUpdate();
-  const { deletePost, isDeleting } = useSocialDelete();
+  const { deletePost } = useSocialDelete();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
@@ -713,28 +708,18 @@ const Social: React.FC = () => {
   );
   const [listings, setListings] = useState<EtsyListing[]>([]);
   const [filteredListings, setFilteredListings] = useState<EtsyListing[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<
-    "facebook" | "instagram" | "both"
-  >("facebook");
   const [currentListing, setCurrentListing] = useState<EtsyListing | null>(
     null,
   );
-  const [posts, setPosts] = useState<ISocialPost[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarPosts, setCalendarPosts] = useState<ISocialPost[]>([]);
-  const [selectedPost, setSelectedPost] = useState<ISocialPost | null>(null);
   const [selectedDatePosts, setSelectedDatePosts] = useState<ISocialPost[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [lastVisible, setLastVisible] = useState<any>(null);
   const LISTINGS_PER_PAGE = 5;
   const [editablePost, setEditablePost] = useState<ISocialPost | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
 
   const columns = [
     {
@@ -792,7 +777,10 @@ const Social: React.FC = () => {
         if (isAdmin) {
           q = query(customersCollection);
         } else {
-          q = query(customersCollection, where("email", "==", user?.email));
+          q = query(
+            customersCollection,
+            where("email", "==", customerData?.email),
+          );
         }
 
         const querySnapshot = await getDocs(q);
@@ -810,9 +798,9 @@ const Social: React.FC = () => {
     };
 
     fetchCustomers();
-  }, [isAdmin, user]);
+  }, [isAdmin, customerData]);
 
-  const fetchListings = async () => {
+  const fetchListings = useCallback(async () => {
     if (selectedCustomer) {
       try {
         setLoading(true);
@@ -846,35 +834,77 @@ const Social: React.FC = () => {
         setLoading(false);
       }
     }
-  };
+  }, [selectedCustomer]);
+
+  const fetchPostsForMonth = useCallback(
+    async (month: Date) => {
+      if (!selectedCustomer) return;
+
+      // Set the start of month to the beginning of the day (00:00:00)
+      const startOfMonth = new Date(
+        month.getFullYear(),
+        month.getMonth(),
+        1,
+        0,
+        0,
+        0,
+      );
+
+      // Set the end of month to the end of the last day (23:59:59)
+      const endOfMonth = new Date(
+        month.getFullYear(),
+        month.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      try {
+        const postsRef = collection(db, "socials");
+        const q = query(
+          postsRef,
+          where("customerId", "==", selectedCustomer.id),
+          where("scheduledDate", ">=", startOfMonth),
+          where("scheduledDate", "<=", endOfMonth),
+        );
+
+        const querySnapshot = await getDocs(q);
+        const fetchedPosts = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            scheduledDate:
+              typeof data.scheduledDate === "string"
+                ? new Date(data.scheduledDate)
+                : data.scheduledDate.toDate(),
+            dateCreated:
+              typeof data.dateCreated === "string"
+                ? new Date(data.dateCreated)
+                : data.dateCreated.toDate(),
+          } as ISocialPost;
+        });
+
+        setCalendarPosts(fetchedPosts);
+      } catch (error) {
+        console.error("Error fetching posts for calendar:", error);
+      }
+    },
+    [selectedCustomer],
+  );
 
   useEffect(() => {
     if (selectedCustomer) {
       fetchListings();
     }
-  }, [selectedCustomer]);
-
-  useEffect(() => {
-    const filtered = listings.filter(
-      (listing) =>
-        listing.listingID.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        listing.listingTitle.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-    setFilteredListings(filtered);
-  }, [searchQuery, listings]);
+  }, [fetchListings, selectedCustomer]);
 
   useEffect(() => {
     if (selectedCustomer) {
       fetchPostsForMonth(currentMonth);
     }
-  }, [selectedCustomer, currentMonth]);
-
-  const handleCustomerSelect = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const customer = customers.find((c) => c.id === event.target.value);
-    setSelectedCustomer(customer || null);
-  };
+  }, [selectedCustomer, currentMonth, fetchPostsForMonth]);
 
   const handleSchedulePost = (listing: EtsyListing) => {
     setCurrentListing(listing);
@@ -904,6 +934,7 @@ const Social: React.FC = () => {
           scheduledDate: post.scheduledDate,
           dateCreated: new Date(),
           imageUrl: currentListing?.primaryImage,
+          scheduled: post.platform === "pinterest" ? false : undefined,
         });
         savedPosts.push({
           id: docRef.id,
@@ -926,23 +957,6 @@ const Social: React.FC = () => {
       }
 
       switch (savedPosts[0].platform) {
-        case "pinterest":
-          {
-            const createPinPromises = savedPosts.map((post) =>
-              createPin({
-                customerId: selectedCustomer.id,
-                boardId: post.pinterest?.boardId || "",
-                content: post.pinterest?.content,
-              }),
-            );
-            const createPinResponses = await Promise.all(createPinPromises);
-            console.log("Create pin responses:", createPinResponses);
-
-            if (createPinResponses.some((response) => !response?.data)) {
-              console.error("Error creating pins:", createPinResponses);
-            }
-          }
-          break;
         case "facebook":
           {
             const schedulePostPromises = savedPosts.map((post) =>
@@ -953,7 +967,6 @@ const Social: React.FC = () => {
             );
             const schedulePostResponses =
               await Promise.all(schedulePostPromises);
-            console.log("Schedule post responses:", schedulePostResponses);
 
             if (schedulePostResponses.some((response) => !response?.data)) {
               console.error("Error scheduling posts:", schedulePostResponses);
@@ -967,10 +980,7 @@ const Social: React.FC = () => {
       }
 
       // Update local state
-      setPosts((prevPosts) => [...prevPosts, ...savedPosts]);
       setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
-
-      console.log("Posts saved to Firestore:", savedPosts);
 
       // Refresh listings and posts
       fetchListings();
@@ -985,17 +995,15 @@ const Social: React.FC = () => {
     }
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async () => {
     if (selectedCustomer) {
       try {
-        console.log("Fetching posts for customer:", selectedCustomer.id);
         const socialCollection = collection(db, "socials");
         const q = query(
           socialCollection,
           where("customerId", "==", selectedCustomer.id),
         );
         const socialSnapshot = await getDocs(q);
-        console.log("Number of posts fetched:", socialSnapshot.size);
         const postsList = socialSnapshot.docs.map(
           (doc) =>
             ({
@@ -1005,79 +1013,16 @@ const Social: React.FC = () => {
               dateCreated: doc.data().dateCreated.toDate(),
             }) as ISocialPost,
         );
-        console.log("Fetched posts:", postsList);
-        setPosts(postsList);
+        setCalendarPosts(postsList);
       } catch (error) {
         console.error("Error fetching posts:", error);
       }
     }
-  };
+  }, [selectedCustomer]);
 
   useEffect(() => {
     fetchPosts();
-  }, [selectedCustomer]);
-
-  const fetchPostsForMonth = async (month: Date) => {
-    if (!selectedCustomer) return;
-
-    // Set the start of month to the beginning of the day (00:00:00)
-    const startOfMonth = new Date(
-      month.getFullYear(),
-      month.getMonth(),
-      1,
-      0,
-      0,
-      0,
-    );
-
-    // Set the end of month to the end of the last day (23:59:59)
-    const endOfMonth = new Date(
-      month.getFullYear(),
-      month.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-    );
-
-    try {
-      console.log("Fetching posts for month:", month);
-      console.log("Date range:", {
-        startOfMonth: startOfMonth.toISOString(),
-        endOfMonth: endOfMonth.toISOString(),
-      });
-
-      const postsRef = collection(db, "socials");
-      const q = query(
-        postsRef,
-        where("customerId", "==", selectedCustomer.id),
-        where("scheduledDate", ">=", startOfMonth),
-        where("scheduledDate", "<=", endOfMonth),
-      );
-
-      const querySnapshot = await getDocs(q);
-      const fetchedPosts = querySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        console.log("Post data:", {
-          id: doc.id,
-          scheduledDate: data.scheduledDate.toDate(),
-        });
-        return {
-          id: doc.id,
-          ...data,
-          scheduledDate: data.scheduledDate.toDate(),
-          dateCreated: data.dateCreated.toDate(),
-        } as ISocialPost;
-      });
-
-      console.log("Fetched posts:", fetchedPosts);
-
-      setPosts(fetchedPosts);
-      setCalendarPosts(fetchedPosts);
-    } catch (error) {
-      console.error("Error fetching posts for calendar:", error);
-    }
-  };
+  }, [selectedCustomer, fetchPosts]);
 
   const prevMonth = () => {
     setCurrentMonth(
@@ -1120,33 +1065,12 @@ const Social: React.FC = () => {
       const postsForDay = calendarPosts.filter((post) => {
         const postDate = new Date(post.scheduledDate);
 
-        // console.log("Comparing dates:", {
-        //   postDate: {
-        //     full: postDate,
-        //     year: postDate.getFullYear(),
-        //     month: postDate.getMonth(),
-        //     date: postDate.getDate(),
-        //   },
-        //   calendarDate: {
-        //     full: date,
-        //     year: date.getFullYear(),
-        //     month: date.getMonth(),
-        //     date: date.getDate(),
-        //   },
-        // });
-
         return (
           postDate.getFullYear() === date.getFullYear() &&
           postDate.getMonth() === date.getMonth() &&
           postDate.getDate() === date.getDate()
         );
       });
-
-      // if (day === 30) {
-      //   // Only log for November 30
-      //   console.log("Posts for Nov 30:", postsForDay);
-      //   console.log("All posts:", calendarPosts);
-      // }
 
       calendarDays.push(
         <div
@@ -1159,13 +1083,19 @@ const Social: React.FC = () => {
           {postsForDay.map((post) => (
             <div key={post.id} className={`post-indicator ${post.platform}`}>
               {post.platform === "facebook" ? (
-                <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                <FacebookFilled
+                  style={{ fontSize: "16px", color: "#1877F2" }}
+                />
               ) : post.platform === "facebookGroup" ? (
-                <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                <TeamOutlined style={{ fontSize: "16px", color: "#1877F2" }} />
               ) : post.platform === "pinterest" ? (
-                <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
+                <PinterestFilled
+                  style={{ fontSize: "16px", color: "#E60023" }}
+                />
               ) : (
-                <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
+                <InstagramFilled
+                  style={{ fontSize: "16px", color: "#E4405F" }}
+                />
               )}
             </div>
           ))}
@@ -1197,38 +1127,6 @@ const Social: React.FC = () => {
 
   const handleDeletePost = async (post: ISocialPost) => {
     await deletePost({ post });
-  };
-
-  useEffect(() => {
-    console.log("Current listing updated:", currentListing);
-  }, [currentListing]);
-
-  useEffect(() => {
-    console.log("Post creation modal open state:", isPostCreationModalOpen);
-  }, [isPostCreationModalOpen]);
-
-  const handleFacebookLoginSuccess = async (accessToken: string) => {
-    console.log("Logged in successfully, Access Token:", accessToken);
-
-    try {
-      // Use the API URL from environment variable
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/auth/facebook`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ accessToken }),
-        },
-      );
-
-      const data = await response.json();
-      console.log("User data:", data);
-      // Process user data or perform additional actions here
-    } catch (error) {
-      console.error("Error:", error);
-    }
   };
 
   const handleSearch = (value: string) => {
@@ -1303,7 +1201,7 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {user && (
+      {customerData && (
         <div
           style={{
             display: "flex",
@@ -1355,7 +1253,7 @@ const Social: React.FC = () => {
             <FacebookButton email={selectedCustomer?.email || ""} />
           )}
 
-          {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+          {(isAdmin || customerData?.isSuperCustomer) && (
             <>
               {selectedCustomer?.pinterest?.is_connected ? (
                 <Card style={{ width: "fit-content" }}>
@@ -1407,7 +1305,7 @@ const Social: React.FC = () => {
         </div>
       )}
 
-      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+      {(isAdmin || customerData?.isSuperCustomer) && (
         <>
           <Card style={{ marginBottom: "20px" }}>
             <Title level={4}>Listings</Title>
@@ -1551,13 +1449,21 @@ const Social: React.FC = () => {
                     }}
                   >
                     {post.platform === "facebook" ? (
-                      <FacebookFilled style={{ fontSize: '16px', color: '#1877F2' }} />
+                      <FacebookFilled
+                        style={{ fontSize: "16px", color: "#1877F2" }}
+                      />
                     ) : post.platform === "facebookGroup" ? (
-                      <TeamOutlined style={{ fontSize: '16px', color: '#1877F2' }} />
+                      <TeamOutlined
+                        style={{ fontSize: "16px", color: "#1877F2" }}
+                      />
                     ) : post.platform === "pinterest" ? (
-                      <PinterestFilled style={{ fontSize: '16px', color: '#E60023' }} />
+                      <PinterestFilled
+                        style={{ fontSize: "16px", color: "#E60023" }}
+                      />
                     ) : (
-                      <InstagramFilled style={{ fontSize: '16px', color: '#E4405F' }} />
+                      <InstagramFilled
+                        style={{ fontSize: "16px", color: "#E4405F" }}
+                      />
                     )}
                     <span style={{ marginLeft: "5px", fontWeight: "bold" }}>
                       {post.platform}
@@ -1599,7 +1505,7 @@ const Social: React.FC = () => {
         </div>
       </div>
 
-      {(isAdmin || (user as ICustomer)?.isSuperCustomer) && (
+      {(isAdmin || customerData?.isSuperCustomer) && (
         <PostCreationModal
           isOpen={isPostCreationModalOpen}
           listing={currentListing}

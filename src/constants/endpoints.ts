@@ -53,4 +53,7 @@ export const endpoints = {
     feedback: `${API_URL}/api/v1/optimizeEtsy/feedback`,
     setAIPrompt: `${API_URL}/api/v1/optimizeEtsy/set-ai-prompt`,
   },
+  mailSender: {
+    sendMail: `${API_URL}/api/v1/mail/send-email`,
+  },
 };

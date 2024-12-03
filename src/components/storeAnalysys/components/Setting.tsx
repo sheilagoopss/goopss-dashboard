@@ -24,7 +24,17 @@ const Setting: React.FC = () => {
   }, []);
 
   return isFetchingPrompt ? (
-    <Spin />
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100%",
+        minHeight: "40vh",
+      }}
+    >
+      <Spin size="large" />
+    </div>
   ) : (
     <Form form={form} layout="vertical" onFinish={handleSubmit}>
       <Form.Item
@@ -34,21 +44,21 @@ const Setting: React.FC = () => {
           { required: true, message: "Please enter announcement prompt!" },
         ]}
       >
-        <Input.TextArea rows={4} allowClear/>
+        <Input.TextArea rows={6} allowClear />
       </Form.Item>
       <Form.Item
         label="FAQ"
         name="faq"
         rules={[{ required: true, message: "Please enter FAQ prompt!" }]}
       >
-        <Input.TextArea rows={4} allowClear/>
+        <Input.TextArea rows={6} allowClear />
       </Form.Item>
       <Form.Item
         label="About"
         name="about"
         rules={[{ required: true, message: "Please enter about prompt!" }]}
       >
-        <Input.TextArea rows={4} allowClear/>
+        <Input.TextArea rows={6} allowClear />
       </Form.Item>
       <Form.Item style={{ display: "flex", justifyContent: "flex-end" }}>
         <Button type="primary" htmlType="submit" loading={isUpdatingPrompt}>
