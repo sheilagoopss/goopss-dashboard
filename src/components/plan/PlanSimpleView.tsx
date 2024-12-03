@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-"use client";
+'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
@@ -24,11 +23,22 @@ import type { ColumnsType } from 'antd/es/table';
 import type { Key } from 'react';
 import { SubTask } from '../../types/PlanTasks';
 
-const { Content } = Layout;
-const { Title, Text } = Typography;
-const { Option } = Select;
-const { Search } = Input;
+const { Content } = Layout
+const { Title, Text } = Typography
+const { Option } = Select
+const { Search } = Input
 
+interface MonthlyHistory {
+  current: number;
+  month: string;
+}
+
+interface TableDataType {
+  key: string;
+  customer: ICustomer;
+  task: PlanTask;
+  section: string;
+}
 
 interface TableRecord {
   key: string;
@@ -36,8 +46,8 @@ interface TableRecord {
   customer: ICustomer;
   task: string;
   section: string;
-  progress: "To Do" | "Doing" | "Done";
-  frequency: "Monthly" | "One Time" | "As Needed";
+  progress: 'To Do' | 'Doing' | 'Done';
+  frequency: 'Monthly' | 'One Time' | 'As Needed';
   dueDate: string | null;
   completedDate: string | null;
   isActive: boolean;
@@ -56,12 +66,12 @@ interface TableRecord {
 }
 
 const pastelColors = {
-  "To Do": "#FFCCCB",
-  Doing: "#ADD8E6",
-  Done: "#90EE90",
-  Monthly: "#DDA0DD",
-  "One Time": "#FFE4B5",
-} as const;
+  'To Do': '#FFCCCB',
+  'Doing': '#ADD8E6',
+  'Done': '#90EE90',
+  'Monthly': '#DDA0DD',
+  'One Time': '#FFE4B5',
+} as const
 
 interface Props {
   customers: ICustomer[];
@@ -72,34 +82,26 @@ interface Props {
 // Add this interface for saved filters
 interface SavedFilters {
   showActiveOnly: boolean;
-  progressFilter: "All" | "To Do and Doing" | "Done";
+  progressFilter: 'All' | 'To Do and Doing' | 'Done';
   search: string;
-  frequencyFilter:
-    | "All"
-    | "One Time"
-    | "Monthly"
-    | "As Needed"
-    | "Monthly and As Needed";
+  frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
   showMyTasks: boolean;
 }
 
 // Add these helper functions
 const saveFiltersToStorage = (filters: SavedFilters) => {
-  localStorage.setItem("planSimpleViewFilters", JSON.stringify(filters));
+  localStorage.setItem('planSimpleViewFilters', JSON.stringify(filters));
 };
 
 const getFiltersFromStorage = (): SavedFilters | null => {
-  const saved = localStorage.getItem("planSimpleViewFilters");
+  const saved = localStorage.getItem('planSimpleViewFilters');
   return saved ? JSON.parse(saved) : null;
 };
 
 // Add this helper function near the top with other functions
 const calculateTotalProgress = (task: PlanTask) => {
-  const historyTotal = (task.monthlyHistory || []).reduce(
-    (sum, month) => sum + month.current,
-    0,
-  );
+  const historyTotal = (task.monthlyHistory || []).reduce((sum, month) => sum + month.current, 0);
   const currentTotal = task.current || 0;
   return historyTotal + currentTotal;
 };
@@ -108,45 +110,42 @@ const calculateTotalProgress = (task: PlanTask) => {
 const calculateMonthlyDueDate = (monthlyDueDate: number) => {
   const today = dayjs();
   const dueDate = dayjs().date(monthlyDueDate);
-
+  
   // If the due date for this month has passed, use next month
   if (dueDate.isBefore(today)) {
-    return dueDate.add(1, "month").format("YYYY-MM-DD");
+    return dueDate.add(1, 'month').format('YYYY-MM-DD');
   }
-
-  return dueDate.format("YYYY-MM-DD");
+  
+  return dueDate.format('YYYY-MM-DD');
 };
 
 // Add this helper function
-// const getAdjustedMonthlyDueDate = (
-//   dueDate: string | null,
-//   frequency: string,
-// ) => {
-//   if (!dueDate || frequency !== "Monthly") return dueDate;
-
-//   const today = dayjs();
-//   const dueDateObj = dayjs(dueDate);
-//   const dayOfMonth = dueDateObj.date();
-
-//   // If the due date for this month has passed, use next month
-//   const adjustedDate = dayjs().date(dayOfMonth);
-//   if (adjustedDate.isBefore(today)) {
-//     return adjustedDate.add(1, "month").format("YYYY-MM-DD");
-//   }
-
-//   return adjustedDate.format("YYYY-MM-DD");
-// };
+const getAdjustedMonthlyDueDate = (dueDate: string | null, frequency: string) => {
+  if (!dueDate || frequency !== 'Monthly') return dueDate;
+  
+  const today = dayjs();
+  const dueDateObj = dayjs(dueDate);
+  const dayOfMonth = dueDateObj.date();
+  
+  // If the due date for this month has passed, use next month
+  const adjustedDate = dayjs().date(dayOfMonth);
+  if (adjustedDate.isBefore(today)) {
+    return adjustedDate.add(1, 'month').format('YYYY-MM-DD');
+  }
+  
+  return adjustedDate.format('YYYY-MM-DD');
+};
 
 // Add this function to create a new plan based on package type
 const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
-  if (rule.frequency === "Monthly" && rule.monthlyDueDate) {
-    return dayjs().date(rule.monthlyDueDate).format("YYYY-MM-DD");
-  } else if (rule.frequency === "As Needed" || rule.daysAfterJoin === 0) {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
     return null;
   } else {
     return dayjs(customer.date_joined)
-      .add(rule.daysAfterJoin || 0, "day")
-      .format("YYYY-MM-DD");
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
   }
 };
 
@@ -157,61 +156,39 @@ interface TaskFile {
   uploadedAt: string;
 }
 
-export const PlanSimpleView: React.FC<Props> = ({
-  customers,
-  selectedCustomer,
-  setSelectedCustomer,
-}) => {
+export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [plans, setPlans] = useState<{
-    type: "all" | "single";
-    selectedCustomer: ICustomer | null;
-    data: { [customerId: string]: Plan };
-  }>({
-    type: "all",
+  const [isLoading, setIsLoading] = useState(false)
+  const [plans, setPlans] = useState<{ type: 'all' | 'single'; selectedCustomer: ICustomer | null; data: { [customerId: string]: Plan } }>({
+    type: 'all',
     selectedCustomer: null,
-    data: {},
-  });
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [addTaskModalVisible, setAddTaskModalVisible] = useState(false);
-  const [editingTask, setEditingTask] = useState<PlanTask | null>(null);
-  const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(
-    null,
-  );
-  const [form] = Form.useForm();
-  const [addTaskForm] = Form.useForm();
+    data: {}
+  })
+  const [editModalVisible, setEditModalVisible] = useState(false)
+  const [addTaskModalVisible, setAddTaskModalVisible] = useState(false)
+  const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
+  const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(null)
+  const [form] = Form.useForm()
+  const [addTaskForm] = Form.useForm()
   const [selectedRows, setSelectedRows] = useState<TableRecord[]>([]);
   const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
   const [bulkEditForm] = Form.useForm();
 
-  const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
-  const [cachedPlans, setCachedPlans] = useState<{
-    [customerId: string]: Plan;
-  }>({});
+  const CACHE_DURATION = 2 * 60 * 1000;  // 2 minutes
+  const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
   const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
 
   // Keep only these declarations with saved filters
   const savedFilters = getFiltersFromStorage();
-  const [showActiveOnly, setShowActiveOnly] = useState(
-    savedFilters?.showActiveOnly ?? false,
-  );
-  const [progressFilter, setProgressFilter] = useState<
-    "All" | "To Do and Doing" | "Done"
-  >(savedFilters?.progressFilter ?? "To Do and Doing");
-  const [search, setSearch] = useState(savedFilters?.search ?? "");
-  const [frequencyFilter, setFrequencyFilter] = useState<
-    "All" | "One Time" | "Monthly" | "As Needed" | "Monthly and As Needed"
-  >(savedFilters?.frequencyFilter ?? "All");
-  const [teamMemberFilter, setTeamMemberFilter] = useState<string>(
-    savedFilters?.teamMemberFilter ?? "all",
-  );
-  const [showMyTasks, setShowMyTasks] = useState(
-    savedFilters?.showMyTasks ?? false,
-  );
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
+  const [search, setSearch] = useState(savedFilters?.search ?? '');
+  const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
+  const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
+  const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
 
   // Add searchInput state if not already present
-  const [searchInput, setSearchInput] = useState(savedFilters?.search ?? "");
+  const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
 
   // Add useEffect to save filters when they change
   useEffect(() => {
@@ -221,31 +198,24 @@ export const PlanSimpleView: React.FC<Props> = ({
       search,
       frequencyFilter,
       teamMemberFilter,
-      showMyTasks,
+      showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [
-    showActiveOnly,
-    progressFilter,
-    search,
-    frequencyFilter,
-    teamMemberFilter,
-    showMyTasks,
-  ]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   const isOverdue = (dueDate: string | null) => {
-    if (!dueDate) return false;
-    const today = dayjs().startOf("day");
-    const dueDay = dayjs(dueDate).startOf("day");
-    return dueDay.isBefore(today);
-  };
+    if (!dueDate) return false
+    const today = dayjs().startOf('day')
+    const dueDay = dayjs(dueDate).startOf('day')
+    return dueDay.isBefore(today)
+  }
 
-  // const isDueThisWeek = (dueDate: string | null) => {
-  //   if (!dueDate) return false;
-  //   const today = dayjs().startOf("day");
-  //   const dueDay = dayjs(dueDate).startOf("day");
-  //   return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, "day"));
-  // };
+  const isDueThisWeek = (dueDate: string | null) => {
+    if (!dueDate) return false
+    const today = dayjs().startOf('day')
+    const dueDay = dayjs(dueDate).startOf('day')
+    return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'))
+  }
 
   const loadAllPlans = async () => {
     try {
@@ -299,26 +269,26 @@ export const PlanSimpleView: React.FC<Props> = ({
   };
 
   const loadPlan = async () => {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer) return
     try {
-      setIsLoading(true);
-      const planRef = doc(db, "plans", selectedCustomer.id);
-      const planDoc = await getDoc(planRef);
+      setIsLoading(true)
+      const planRef = doc(db, 'plans', selectedCustomer.id)
+      const planDoc = await getDoc(planRef)
       if (planDoc.exists()) {
-        const plan = planDoc.data() as Plan;
+        const plan = planDoc.data() as Plan
         setPlans({
-          type: "single",
+          type: 'single',
           selectedCustomer,
-          data: { [selectedCustomer.id]: plan },
-        });
+          data: { [selectedCustomer.id]: plan }
+        })
       }
     } catch (error) {
-      console.error("Error loading plan:", error);
-      message.error("Failed to load plan");
+      console.error('Error loading plan:', error)
+      message.error('Failed to load plan')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
     if (!selectedCustomer) {
@@ -396,7 +366,7 @@ export const PlanSimpleView: React.FC<Props> = ({
       assignedTeamMembers: record.assignedTeamMembers || [],
       subtasks: [] // Initialize empty array for new subtasks
     });
-
+    
     setEditModalVisible(true);
   };
 
@@ -522,20 +492,20 @@ export const PlanSimpleView: React.FC<Props> = ({
           assignedTeamMembers: values.assignedTeamMembers || []
         };
 
-  //       // Always add to Other Tasks section
-  //       const updatedSections = plan.sections.map((section) =>
-  //         section.title === "Other Tasks"
-  //           ? { ...section, tasks: [...section.tasks, newTask] }
-  //           : section,
-  //       );
+        // Always add to Other Tasks section
+        const updatedSections = plan.sections.map(section => 
+          section.title === 'Other Tasks'
+            ? { ...section, tasks: [...section.tasks, newTask] }
+            : section
+        )
 
-  //       // If Other Tasks section doesn't exist, create it
-  //       if (!plan.sections.some((section) => section.title === "Other Tasks")) {
-  //         updatedSections.push({
-  //           title: "Other Tasks",
-  //           tasks: [newTask],
-  //         });
-  //       }
+        // If Other Tasks section doesn't exist, create it
+        if (!plan.sections.some(section => section.title === 'Other Tasks')) {
+          updatedSections.push({
+            title: 'Other Tasks',
+            tasks: [newTask]
+          })
+        }
 
         await updateDoc(planRef, { sections: updatedSections })
         message.success('Task added successfully')
@@ -551,57 +521,50 @@ export const PlanSimpleView: React.FC<Props> = ({
   const handleBulkEdit = async (values: any) => {
     try {
       setIsLoading(true);
-
+      
       for (const record of selectedRows) {
-        const planRef = doc(db, "plans", record.customer.id);
+        const planRef = doc(db, 'plans', record.customer.id);
         const planDoc = await getDoc(planRef);
-
+        
         if (planDoc.exists()) {
           const plan = planDoc.data() as Plan;
-          const updatedSections = plan.sections.map((section) => ({
+          const updatedSections = plan.sections.map(section => ({
             ...section,
-            tasks: section.tasks.map((task) => {
+            tasks: section.tasks.map(task => {
               if (task.id === record.id) {
                 // Calculate due date based on frequency
                 let dueDate = task.dueDate;
                 if (values.dueDate) {
-                  dueDate =
-                    task.frequency === "Monthly"
-                      ? calculateMonthlyDueDate(values.dueDate.date())
-                      : values.dueDate.format("YYYY-MM-DD");
+                  dueDate = task.frequency === 'Monthly' 
+                    ? calculateMonthlyDueDate(values.dueDate.date())
+                    : values.dueDate.format('YYYY-MM-DD');
                 }
 
                 return {
                   ...task,
                   ...(values.progress && { progress: values.progress }),
                   ...(values.dueDate && { dueDate }),
-                  ...(values.isActive !== undefined && {
-                    isActive: values.isActive,
-                  }),
+                  ...(values.isActive !== undefined && { isActive: values.isActive }),
                   ...(values.notes !== undefined && { notes: values.notes }),
-                  ...(["Monthly", "As Needed"].includes(task.frequency) && {
-                    ...(values.current !== undefined && {
-                      current: values.current,
-                    }),
-                    ...(values.goal !== undefined && { goal: values.goal }),
+                  ...(['Monthly', 'As Needed'].includes(task.frequency) && {
+                    ...(values.current !== undefined && { current: values.current }),
+                    ...(values.goal !== undefined && { goal: values.goal })
                   }),
-                  ...(values.assignedTeamMembers && {
-                    assignedTeamMembers: values.assignedTeamMembers,
-                  }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
                   updatedAt: new Date().toISOString(),
-                  updatedBy: "admin",
+                  updatedBy: 'admin'
                 };
               }
               return task;
-            }),
+            })
           }));
-
+          
           await updateDoc(planRef, { sections: updatedSections });
         }
       }
 
       // Reload data
-      if (plans.type === "single") {
+      if (plans.type === 'single') {
         await loadPlan();
       } else {
         await loadAllPlans();
@@ -612,8 +575,8 @@ export const PlanSimpleView: React.FC<Props> = ({
       setSelectedRows([]);
       bulkEditForm.resetFields();
     } catch (error) {
-      console.error("Error in bulk edit:", error);
-      message.error("Failed to update tasks");
+      console.error('Error in bulk edit:', error);
+      message.error('Failed to update tasks');
     } finally {
       setIsLoading(false);
     }
@@ -621,9 +584,9 @@ export const PlanSimpleView: React.FC<Props> = ({
 
   const columns: ColumnsType<TableRecord> = [
     {
-      title: "Store Name",
-      dataIndex: "store_name",
-      key: "store_name",
+      title: 'Store Name',
+      dataIndex: 'store_name',
+      key: 'store_name',
       render: (text: string, record: TableRecord) => (
         <Space direction="vertical" size={4}>
           <Space>
@@ -631,13 +594,12 @@ export const PlanSimpleView: React.FC<Props> = ({
             <span>{text}</span>
             {record.notes && (
               <Tooltip title={record.notes}>
-                <FileTextOutlined style={{ color: "#8c8c8c" }} />
+                <FileTextOutlined style={{ color: '#8c8c8c' }} />
               </Tooltip>
             )}
           </Space>
-          <Text type="secondary" style={{ fontSize: "12px" }}>
-            <CalendarOutlined />{" "}
-            {dayjs(record.customer.date_joined).format("MMM DD, YYYY")}
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            <CalendarOutlined /> {dayjs(record.customer.date_joined).format('MMM DD, YYYY')}
           </Text>
         </Space>
       ),
@@ -659,134 +621,122 @@ export const PlanSimpleView: React.FC<Props> = ({
       ),
     },
     {
-      title: "Section",
-      dataIndex: "section",
-      key: "section",
+      title: 'Section',
+      dataIndex: 'section',
+      key: 'section',
     },
     {
-      title: "Frequency",
-      dataIndex: "frequency",
-      key: "frequency",
+      title: 'Frequency',
+      dataIndex: 'frequency',
+      key: 'frequency',
     },
     {
-      title: "Progress",
-      dataIndex: "progress",
-      key: "progress",
+      title: 'Progress',
+      dataIndex: 'progress',
+      key: 'progress',
       render: (progress: string) => (
-        <Tag color={pastelColors[progress as keyof typeof pastelColors]}>
-          {progress}
-        </Tag>
+        <Tag color={pastelColors[progress as keyof typeof pastelColors]}>{progress}</Tag>
       ),
     },
     {
-      title: "Due Date",
-      dataIndex: "dueDate",
-      key: "dueDate",
+      title: 'Due Date',
+      dataIndex: 'dueDate',
+      key: 'dueDate',
       sorter: (a: TableRecord, b: TableRecord) => {
         if (!a.dueDate && !b.dueDate) return 0;
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
         return dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf();
       },
-      render: (dueDate: string | null) =>
+      render: (dueDate: string | null) => (
         dueDate ? (
-          <Tooltip title={isOverdue(dueDate) ? "Overdue" : "Due date"}>
-            <Tag color={isOverdue(dueDate) ? "red" : "blue"}>
-              <CalendarOutlined /> {dayjs(dueDate).format("MMM DD")}
+          <Tooltip title={isOverdue(dueDate) ? 'Overdue' : 'Due date'}>
+            <Tag color={isOverdue(dueDate) ? 'red' : 'blue'}>
+              <CalendarOutlined /> {dayjs(dueDate).format('MMM DD')}
             </Tag>
           </Tooltip>
-        ) : (
-          "-"
-        ),
+        ) : '-'
+      ),
     },
     {
-      title: "Completed Date",
-      dataIndex: "completedDate",
-      key: "completedDate",
-      render: (completedDate: string | null) =>
+      title: 'Completed Date',
+      dataIndex: 'completedDate',
+      key: 'completedDate',
+      render: (completedDate: string | null) => (
         completedDate ? (
           <Tag color="green">
-            <CheckCircleOutlined /> {dayjs(completedDate).format("MMM DD")}
+            <CheckCircleOutlined /> {dayjs(completedDate).format('MMM DD')}
           </Tag>
-        ) : (
-          "-"
-        ),
+        ) : '-'
+      ),
     },
     {
-      title: "Progress Total",
-      key: "progressTotal",
-      render: (_: any, record: TableRecord) =>
-        record.frequency === "Monthly" || record.frequency === "As Needed" ? (
+      title: 'Progress Total',
+      key: 'progressTotal',
+      render: (_: any, record: TableRecord) => (
+        (record.frequency === 'Monthly' || record.frequency === 'As Needed') ? (
           <Space direction="vertical" size={0} align="center">
             <Progress
               type="circle"
-              percent={Math.round(
-                ((record.current || 0) / (record.goal || 1)) * 100,
-              )}
+              percent={Math.round((record.current || 0) / (record.goal || 1) * 100)}
               size={50}
               strokeColor={{
-                "0%": "#108ee9",
-                "100%": "#87d068",
+                '0%': '#108ee9',
+                '100%': '#87d068',
               }}
               format={() => (
-                <Text style={{ fontSize: "12px" }}>
+                <Text style={{ fontSize: '12px' }}>
                   {record.current || 0}/{record.goal || 0}
                 </Text>
               )}
             />
-            <Text
-              type="secondary"
-              style={{ fontSize: "12px", marginTop: "4px" }}
-            >
+            <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px' }}>
               This Month
             </Text>
-            <Text type="secondary" style={{ fontSize: "12px" }}>
-              Total:{" "}
-              {calculateTotalProgress({
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Total: {calculateTotalProgress({
                 ...record,
-                progress: record.progress as "To Do" | "Doing" | "Done",
-                frequency: record.frequency as
-                  | "Monthly"
-                  | "One Time"
-                  | "As Needed",
+                progress: record.progress as 'To Do' | 'Doing' | 'Done',
+                frequency: record.frequency as 'Monthly' | 'One Time' | 'As Needed'
               } as PlanTask)}
             </Text>
           </Space>
-        ) : null,
+        ) : null
+      ),
     },
     {
-      title: "Action",
-      key: "action",
+      title: 'Action',
+      key: 'action',
       render: (_: unknown, record: TableRecord) => (
-        <Button
-          icon={<EditOutlined />}
-          onClick={() => handleEdit(record, record.customer)}
+        <Button 
+          icon={<EditOutlined />} 
+          onClick={() => handleEdit(record, record.customer)} 
         />
       ),
     },
     {
-      title: "Team Members",
-      key: "teamMembers",
-      render: (_: any, record: TableRecord) =>
+      title: 'Team Members',
+      key: 'teamMembers',
+      render: (_: any, record: TableRecord) => (
         record.assignedTeamMembers && record.assignedTeamMembers.length > 0 ? (
           <Avatar.Group maxCount={3} size="small">
             {record.assignedTeamMembers.map((email) => {
               const admin = adminList.find((a: IAdmin) => a.email === email);
               return (
                 <Tooltip key={email} title={admin?.name || email}>
-                  <Avatar
+                  <Avatar 
                     size="small"
-                    style={{ backgroundColor: "#1890ff" }}
+                    style={{ backgroundColor: '#1890ff' }}
                     src={admin?.avatarUrl}
                   >
-                    {!admin?.avatarUrl &&
-                      (admin?.name || email)[0].toUpperCase()}
+                    {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
                   </Avatar>
                 </Tooltip>
               );
             })}
           </Avatar.Group>
-        ) : null,
+        ) : null
+      ),
     },
   ]
 
@@ -852,10 +802,10 @@ export const PlanSimpleView: React.FC<Props> = ({
   // Update the reset filters function
   const handleResetFilters = () => {
     setShowActiveOnly(false);
-    setProgressFilter("All");
-    setSearch("");
-    setFrequencyFilter("All");
-    setTeamMemberFilter("all");
+    setProgressFilter('All');
+    setSearch('');
+    setFrequencyFilter('All');
+    setTeamMemberFilter('all');
     setShowMyTasks(false);
     setPackageFilter('all');
     localStorage.removeItem('planSimpleViewFilters');
@@ -864,45 +814,43 @@ export const PlanSimpleView: React.FC<Props> = ({
   // Move createPlanForCustomer inside component
   const createPlanForCustomer = async (customer: ICustomer) => {
     try {
-      console.log("Creating plan for customer:", customer);
-      console.log("Customer package type:", customer.package_type);
+      console.log('Creating plan for customer:', customer);
+      console.log('Customer package type:', customer.package_type);
 
       // Define the package types mapping with proper typing
       const packageTypes: { [key: string]: string } = {
-        "Accelerator - Basic": "acceleratorBasic",
-        "Accelerator - Standard": "acceleratorStandard",
-        "Accelerator - Pro": "acceleratorPro",
-        "Extended Maintenance": "extendedMaintenance",
-        "Regular Maintenance": "regularMaintenance",
-        Social: "social",
-        Default: "default",
-        Free: "default", // Add Free type and map it to default
+        'Accelerator - Basic': 'acceleratorBasic',
+        'Accelerator - Standard': 'acceleratorStandard',
+        'Accelerator - Pro': 'acceleratorPro',
+        'Extended Maintenance': 'extendedMaintenance',
+        'Regular Maintenance': 'regularMaintenance',
+        'Social': 'social',
+        'Default': 'default',
+        'Free': 'default'  // Add Free type and map it to default
       };
 
       // Then use it with type checking
-      const packageId =
-        packageTypes[customer.package_type as keyof typeof packageTypes] ||
-        "default";
-      console.log("Looking for rules in document:", packageId);
+      const packageId = packageTypes[customer.package_type as keyof typeof packageTypes] || 'default';
+      console.log('Looking for rules in document:', packageId);
 
       // Get the package-specific rules
-      const rulesRef = doc(db, "planTaskRules", packageId);
+      const rulesRef = doc(db, 'planTaskRules', packageId);
       const rulesDoc = await getDoc(rulesRef);
-
-      console.log("Rules exist:", rulesDoc.exists());
-
+      
+      console.log('Rules exist:', rulesDoc.exists());
+      
       // Get the rules (use package rules or default as fallback)
-      const rules = rulesDoc.exists()
+      const rules = rulesDoc.exists() 
         ? rulesDoc.data()
-        : (await getDoc(doc(db, "planTaskRules", "default"))).data();
+        : (await getDoc(doc(db, 'planTaskRules', 'default'))).data();
 
       if (!rules) {
-        message.error("No rules found for this package");
+        message.error('No rules found for this package');
         return;
       }
 
       // Create the plan with these rules
-      const planRef = doc(db, "plans", customer.id);
+      const planRef = doc(db, 'plans', customer.id);
       await setDoc(planRef, {
         sections: rules.sections.map((sectionTitle: string) => ({
           title: sectionTitle,
@@ -910,22 +858,22 @@ export const PlanSimpleView: React.FC<Props> = ({
             .filter((task: PlanTaskRule) => task.section === sectionTitle)
             .map((task: PlanTaskRule) => ({
               ...task,
-              progress: "To Do",
+              progress: 'To Do',
               completedDate: null,
               current: task.defaultCurrent || 0,
               goal: task.defaultGoal || 0,
               dueDate: calculateDueDate(customer, task),
               updatedAt: new Date().toISOString(),
-              updatedBy: user?.email || "",
-            })),
+              updatedBy: user?.email || ''
+            }))
         })),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || "",
+        updatedBy: user?.email || ''
       });
 
-      message.success("Plan created successfully");
-
+      message.success('Plan created successfully');
+      
       // Reload the plans after creating
       if (selectedCustomer) {
         loadPlan();
@@ -933,8 +881,8 @@ export const PlanSimpleView: React.FC<Props> = ({
         loadAllPlans();
       }
     } catch (error) {
-      console.error("Error creating plan:", error);
-      message.error("Failed to create plan");
+      console.error('Error creating plan:', error);
+      message.error('Failed to create plan');
     }
   };
 
@@ -968,33 +916,27 @@ export const PlanSimpleView: React.FC<Props> = ({
   const handleFileUpload = async (file: File) => {
     try {
       const storage = getStorage();
-      const storageRef = ref(
-        storage,
-        `customTask/${selectedCustomer?.id}/${Date.now()}_${file.name}`,
-      );
-
+      const storageRef = ref(storage, `customTask/${selectedCustomer?.id}/${Date.now()}_${file.name}`);
+      
       if (file.size > 10 * 1024 * 1024) {
-        message.error("File size must be less than 10MB");
+        message.error('File size must be less than 10MB');
         return false;
       }
 
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
 
-      setUploadedFiles((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          url,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-        },
-      ]);
+      setUploadedFiles(prev => [...prev, {
+        name: file.name,
+        url,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      }]);
 
       return false;
     } catch (error) {
-      console.error("Error uploading file:", error);
-      message.error("Failed to upload file");
+      console.error('Error uploading file:', error);
+      message.error('Failed to upload file');
       return false;
     }
   };
@@ -1004,9 +946,9 @@ export const PlanSimpleView: React.FC<Props> = ({
     if (!selectedCustomer) return;
     try {
       setIsLoading(true);
-      const planRef = doc(db, "plans", selectedCustomer.id);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
       const planDoc = await getDoc(planRef);
-
+      
       if (planDoc.exists()) {
         const plan = planDoc.data() as Plan;
         const newTask: PlanTask = {
@@ -1018,11 +960,11 @@ export const PlanSimpleView: React.FC<Props> = ({
           dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : null,
           completedDate: null,
           isActive: true,
-          notes: values.notes || "",
+          notes: values.notes || '',
           current: values.current || 0,
           goal: values.goal || 0,
           files: uploadedFiles,
-          createdBy: (user as IAdmin)?.name || user?.email || "",
+          createdBy: (user as IAdmin)?.name || user?.email || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           updatedBy: (user as IAdmin)?.name || user?.email || '',
@@ -1030,35 +972,35 @@ export const PlanSimpleView: React.FC<Props> = ({
         };
 
         // Add to Other Tasks section
-        const updatedSections = plan.sections.map((section) =>
-          section.title === "Other Tasks"
+        const updatedSections = plan.sections.map(section => 
+          section.title === 'Other Tasks'
             ? { ...section, tasks: [...section.tasks, newTask] }
-            : section,
+            : section
         );
 
         // If Other Tasks section doesn't exist, create it
-        if (!plan.sections.some((section) => section.title === "Other Tasks")) {
+        if (!plan.sections.some(section => section.title === 'Other Tasks')) {
           updatedSections.push({
-            title: "Other Tasks",
-            tasks: [newTask],
+            title: 'Other Tasks',
+            tasks: [newTask]
           });
         }
 
         // Save to Firestore
         await updateDoc(planRef, { sections: updatedSections });
-        message.success("Task added successfully");
+        message.success('Task added successfully');
         setAddTaskModalVisible(false);
-
+        
         // Reload data
-        if (plans.type === "single") {
+        if (plans.type === 'single') {
           await loadPlan();
         } else {
           await loadAllPlans();
         }
       }
     } catch (error) {
-      console.error("Error adding custom task:", error);
-      message.error("Failed to add task");
+      console.error('Error adding custom task:', error);
+      message.error('Failed to add task');
     } finally {
       setIsLoading(false);
     }
@@ -1071,11 +1013,11 @@ export const PlanSimpleView: React.FC<Props> = ({
   useEffect(() => {
     const fetchAdmins = async () => {
       try {
-        const admins = await FirebaseHelper.find<IAdmin>("admin");
+        const admins = await FirebaseHelper.find<IAdmin>('admin');
         setAdminList(admins);
       } catch (error) {
-        console.error("Error fetching admin list:", error);
-        message.error("Failed to load team members");
+        console.error('Error fetching admin list:', error);
+        message.error('Failed to load team members');
       }
     };
 
@@ -1168,60 +1110,48 @@ export const PlanSimpleView: React.FC<Props> = ({
 
   return (
     <Layout>
-      <Content style={{ padding: "16px" }}>
+      <Content style={{ padding: '16px' }}>
         <Card>
-          <Space direction="vertical" style={{ width: "100%" }} size="large">
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
             <Title level={4}>Select Customer</Title>
-            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Select
-                style={{ width: "100%" }}
+                style={{ width: '100%' }}
                 placeholder="Select a customer"
-                value={selectedCustomer ? selectedCustomer.id : "all-paid"}
+                value={selectedCustomer ? selectedCustomer.id : 'all-paid'}
                 onChange={handleCustomerSelect}
                 size="large"
                 listHeight={400}
                 showSearch
                 optionFilterProp="children"
                 filterOption={(input, option) =>
-                  (option?.label?.toString() || "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
+                  (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
                 }
               >
                 <Option value="all-paid">All Customers</Option>
-                <Option key="divider" disabled>
-                  ──────────────
-                </Option>
+                <Option key="divider" disabled>──────────────</Option>
                 {customers
-                  .filter(
-                    (customer) =>
-                      customer.customer_type === "Paid" &&
-                      (showInactive || customer.isActive),
+                  .filter(customer => 
+                    customer.customer_type === 'Paid' && 
+                    (showInactive || customer.isActive)
                   )
                   .sort((a, b) => {
                     // Sort by date_joined in descending order (most recent first)
                     if (!a.date_joined || !b.date_joined) return 0;
-                    return (
-                      dayjs(b.date_joined).valueOf() -
-                      dayjs(a.date_joined).valueOf()
-                    );
+                    return dayjs(b.date_joined).valueOf() - dayjs(a.date_joined).valueOf();
                   })
                   .map((customer) => (
-                    <Option
-                      key={customer.id}
+                    <Option 
+                      key={customer.id} 
                       value={customer.id}
                       label={`${customer.store_name} - ${customer.store_owner_name}`}
                     >
                       <Space>
                         {customer.logo && (
-                          <img
-                            src={customer.logo}
-                            alt={customer.store_name}
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: "50%",
-                            }}
+                          <img 
+                            src={customer.logo} 
+                            alt={customer.store_name} 
+                            style={{ width: 20, height: 20, borderRadius: '50%' }} 
                           />
                         )}
                         {customer.store_name} - {customer.store_owner_name}
@@ -1249,7 +1179,7 @@ export const PlanSimpleView: React.FC<Props> = ({
               <Switch
                 checked={showActiveOnly}
                 onChange={(checked) => {
-                  setShowActiveOnly(checked); // This will be immediate
+                  setShowActiveOnly(checked);  // This will be immediate
                 }}
               />
               <Text>Show Active Only</Text>
@@ -1258,7 +1188,7 @@ export const PlanSimpleView: React.FC<Props> = ({
               <Switch
                 checked={showMyTasks}
                 onChange={(checked) => {
-                  setShowMyTasks(checked); // This will be immediate
+                  setShowMyTasks(checked);  // This will be immediate
                 }}
               />
               <Text>My Tasks</Text>
@@ -1277,7 +1207,7 @@ export const PlanSimpleView: React.FC<Props> = ({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onSearch={(value) => {
-                setSearch(value); // Only update search state when user hits enter or clicks search
+                setSearch(value);  // Only update search state when user hits enter or clicks search
               }}
               allowClear
               style={{ width: 200 }}
@@ -1305,13 +1235,12 @@ export const PlanSimpleView: React.FC<Props> = ({
                 .map((admin: IAdmin) => (
                   <Option key={admin.email} value={admin.email}>
                     <Space>
-                      <Avatar
+                      <Avatar 
                         size="small"
-                        style={{ backgroundColor: "#1890ff" }}
+                        style={{ backgroundColor: '#1890ff' }}
                         src={admin.avatarUrl}
                       >
-                        {!admin.avatarUrl &&
-                          (admin.name || admin.email)[0].toUpperCase()}
+                        {!admin.avatarUrl && (admin.name || admin.email)[0].toUpperCase()}
                       </Avatar>
                       {admin.name || admin.email}
                     </Space>
@@ -1383,7 +1312,7 @@ export const PlanSimpleView: React.FC<Props> = ({
             onChange: (selectedRowKeys: Key[], selectedRows: TableRecord[]) => {
               setSelectedRows(selectedRows);
             },
-            selectedRowKeys: selectedRows.map((row) => row.key),
+            selectedRowKeys: selectedRows.map(row => row.key),
           }}
         />
 
@@ -1395,21 +1324,19 @@ export const PlanSimpleView: React.FC<Props> = ({
           width={1000}
           style={{ top: 20 }}
         >
-          <Form
-            form={form}
-            onFinish={handleEditSave}
+          <Form 
+            form={form} 
+            onFinish={handleEditSave} 
             layout="vertical"
             initialValues={{
               progress: editingTask?.progress,
               dueDate: editingTask?.dueDate ? dayjs(editingTask.dueDate) : null,
-              completedDate: editingTask?.completedDate
-                ? dayjs(editingTask.completedDate)
-                : null,
+              completedDate: editingTask?.completedDate ? dayjs(editingTask.completedDate) : null,
               isActive: editingTask?.isActive ?? false,
               current: editingTask?.current ?? 0,
               goal: editingTask?.goal ?? 0,
-              notes: editingTask?.notes ?? "",
-              assignedTeamMembers: editingTask?.assignedTeamMembers || [],
+              notes: editingTask?.notes ?? '',
+              assignedTeamMembers: editingTask?.assignedTeamMembers || []
             }}
           >
             <Form.Item name="progress" label="Progress">
@@ -1433,18 +1360,18 @@ export const PlanSimpleView: React.FC<Props> = ({
             </Form.Item>
 
             <Form.Item name="dueDate" label="Due Date">
-              <DatePicker style={{ width: "100%" }} />
+              <DatePicker style={{ width: '100%' }} />
             </Form.Item>
 
             <Form.Item name="completedDate" label="Completed Date">
-              <DatePicker style={{ width: "100%" }} />
+              <DatePicker style={{ width: '100%' }} />
             </Form.Item>
 
             <Form.Item name="isActive" valuePropName="checked">
               <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
             </Form.Item>
 
-            {editingTask?.frequency !== "One Time" && (
+            {editingTask?.frequency !== 'One Time' && (
               <Space>
                 <Form.Item name="current" label="Current">
                   <InputNumber min={0} />
@@ -1624,7 +1551,7 @@ export const PlanSimpleView: React.FC<Props> = ({
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
                 mode="multiple"
-                style={{ width: "100%" }}
+                style={{ width: '100%' }}
                 placeholder="Select team members"
               >
                 {adminList
@@ -1637,27 +1564,24 @@ export const PlanSimpleView: React.FC<Props> = ({
               </Select>
             </Form.Item>
 
-            {editingTask?.section === "Other Tasks" &&
-              editingTask.createdBy && (
-                <>
-                  <Divider />
-                  <Space direction="vertical" size={0}>
+            {editingTask?.section === 'Other Tasks' && editingTask.createdBy && (
+              <>
+                <Divider />
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary">
+                    Created by: {editingTask.createdBy}
+                  </Text>
+                  <Text type="secondary">
+                    Created: {dayjs(editingTask.createdAt).format('MMM DD, YYYY')}
+                  </Text>
+                  {editingTask.updatedBy !== editingTask.createdBy && (
                     <Text type="secondary">
-                      Created by: {editingTask.createdBy}
+                      Last updated by: {editingTask.updatedBy} ({dayjs(editingTask.updatedAt).format('MMM DD, YYYY')})
                     </Text>
-                    <Text type="secondary">
-                      Created:{" "}
-                      {dayjs(editingTask.createdAt).format("MMM DD, YYYY")}
-                    </Text>
-                    {editingTask.updatedBy !== editingTask.createdBy && (
-                      <Text type="secondary">
-                        Last updated by: {editingTask.updatedBy} (
-                        {dayjs(editingTask.updatedAt).format("MMM DD, YYYY")})
-                      </Text>
-                    )}
-                  </Space>
-                </>
-              )}
+                  )}
+                </Space>
+              </>
+            )}
           </Form>
         </Modal>
 
@@ -1693,11 +1617,7 @@ export const PlanSimpleView: React.FC<Props> = ({
               </Select>
             </Form.Item>
 
-            <Form.Item
-              name="frequency"
-              label="Frequency"
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="frequency" label="Frequency" rules={[{ required: true }]}>
               <Select>
                 <Option value="One Time">One Time</Option>
                 <Option value="Monthly">Monthly</Option>
@@ -1707,54 +1627,41 @@ export const PlanSimpleView: React.FC<Props> = ({
 
             <Form.Item
               noStyle
-              shouldUpdate={(prevValues, currentValues) =>
+              shouldUpdate={(prevValues, currentValues) => 
                 prevValues.frequency !== currentValues.frequency
               }
             >
               {({ getFieldValue }) => {
-                const frequency = getFieldValue("frequency");
+                const frequency = getFieldValue('frequency');
                 return (
                   <>
-                    {frequency === "Monthly" && (
+                    {frequency === 'Monthly' && (
                       <Form.Item name="monthlyDueDate" label="Monthly Due Date">
                         <Select>
-                          {Array.from({ length: 28 }, (_, i) => i + 1).map(
-                            (day) => (
-                              <Option key={day} value={day}>
-                                Day {day}
-                              </Option>
-                            ),
-                          )}
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                            <Option key={day} value={day}>Day {day}</Option>
+                          ))}
                         </Select>
                       </Form.Item>
                     )}
-                    {(frequency === "Monthly" || frequency === "As Needed") && (
+                    {(frequency === 'Monthly' || frequency === 'As Needed') && (
                       <>
                         <Form.Item name="requiresGoal" valuePropName="checked">
                           <Checkbox>Requires Goal</Checkbox>
                         </Form.Item>
                         <Form.Item
                           noStyle
-                          shouldUpdate={(prevValues, currentValues) =>
-                            prevValues.requiresGoal !==
-                            currentValues.requiresGoal
+                          shouldUpdate={(prevValues, currentValues) => 
+                            prevValues.requiresGoal !== currentValues.requiresGoal
                           }
                         >
-                          {({ getFieldValue }) =>
-                            getFieldValue("requiresGoal") ? (
+                          {({ getFieldValue }) => 
+                            getFieldValue('requiresGoal') ? (
                               <Space>
-                                <Form.Item
-                                  name="current"
-                                  label="Current"
-                                  initialValue={0}
-                                >
+                                <Form.Item name="current" label="Current" initialValue={0}>
                                   <InputNumber min={0} />
                                 </Form.Item>
-                                <Form.Item
-                                  name="goal"
-                                  label="Goal"
-                                  rules={[{ required: true }]}
-                                >
+                                <Form.Item name="goal" label="Goal" rules={[{ required: true }]}>
                                   <InputNumber min={0} />
                                 </Form.Item>
                               </Space>
@@ -1763,9 +1670,9 @@ export const PlanSimpleView: React.FC<Props> = ({
                         </Form.Item>
                       </>
                     )}
-                    {frequency !== "Monthly" && (
+                    {frequency !== 'Monthly' && (
                       <Form.Item name="dueDate" label="Due Date">
-                        <DatePicker style={{ width: "100%" }} />
+                        <DatePicker style={{ width: '100%' }} />
                       </Form.Item>
                     )}
                   </>
@@ -1808,22 +1715,22 @@ export const PlanSimpleView: React.FC<Props> = ({
             <Form.Item label="Attachments">
               <Upload
                 beforeUpload={handleFileUpload}
-                fileList={uploadedFiles.map((file) => ({
+                fileList={uploadedFiles.map(file => ({
                   uid: file.url,
                   name: file.name,
-                  status: "done",
+                  status: 'done',
                   url: file.url,
                 }))}
                 onRemove={(file) => {
-                  setUploadedFiles((prev) =>
-                    prev.filter((f) => f.url !== file.uid),
+                  setUploadedFiles(prev => 
+                    prev.filter(f => f.url !== file.uid)
                   );
                   return true;
                 }}
               >
                 <Button icon={<UploadOutlined />}>Upload File</Button>
               </Upload>
-              <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+              <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
                 Max file size: 10MB
               </Text>
             </Form.Item>
@@ -1832,7 +1739,7 @@ export const PlanSimpleView: React.FC<Props> = ({
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
                 mode="multiple"
-                style={{ width: "100%" }}
+                style={{ width: '100%' }}
                 placeholder="Select team members"
               >
                 {adminList
@@ -1846,15 +1753,12 @@ export const PlanSimpleView: React.FC<Props> = ({
             </Form.Item>
 
             {/* Add creator info display */}
-            <Space
-              direction="vertical"
-              style={{ width: "100%", marginTop: 16 }}
-            >
+            <Space direction="vertical" style={{ width: '100%', marginTop: 16 }}>
               <Text type="secondary">
                 Created by: {(user as IAdmin)?.name || user?.email}
               </Text>
               <Text type="secondary">
-                Date: {dayjs().format("MMM DD, YYYY")}
+                Date: {dayjs().format('MMM DD, YYYY')}
               </Text>
             </Space>
           </Form>
@@ -1870,7 +1774,11 @@ export const PlanSimpleView: React.FC<Props> = ({
           }}
           destroyOnClose
         >
-          <Form form={bulkEditForm} onFinish={handleBulkEdit} layout="vertical">
+          <Form
+            form={bulkEditForm}
+            onFinish={handleBulkEdit}
+            layout="vertical"
+          >
             <Form.Item name="progress" label="Progress">
               <Select allowClear>
                 <Option value="To Do">To Do</Option>
@@ -1880,7 +1788,7 @@ export const PlanSimpleView: React.FC<Props> = ({
             </Form.Item>
 
             <Form.Item name="dueDate" label="Due Date">
-              <DatePicker style={{ width: "100%" }} allowClear />
+              <DatePicker style={{ width: '100%' }} allowClear />
             </Form.Item>
 
             <Form.Item name="isActive" label="Active Status">
@@ -1890,9 +1798,7 @@ export const PlanSimpleView: React.FC<Props> = ({
               </Select>
             </Form.Item>
 
-            {selectedRows.some((row) =>
-              ["Monthly", "As Needed"].includes(row.frequency),
-            ) && (
+            {selectedRows.some(row => ['Monthly', 'As Needed'].includes(row.frequency)) && (
               <Space>
                 <Form.Item name="current" label="Current">
                   <InputNumber min={0} />
@@ -1910,7 +1816,7 @@ export const PlanSimpleView: React.FC<Props> = ({
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
                 mode="multiple"
-                style={{ width: "100%" }}
+                style={{ width: '100%' }}
                 placeholder="Select team members"
                 allowClear
               >
@@ -1935,6 +1841,6 @@ export const PlanSimpleView: React.FC<Props> = ({
         </Modal>
       </Content>
     </Layout>
-  );
-};
+  )
+}
 export default PlanSimpleView;
