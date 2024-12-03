@@ -13,9 +13,6 @@ export interface OptimizedBulkItem {
   optimizedDescription: string;
 }
 
-const MAX_TITLE_LENGTH = 200;
-const MAX_DESCRIPTION_LENGTH = 5000; // Increased from 1000
-const MAX_CHUNK_SIZE = 4000; // This might not be necessary now
 
 // const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const API_URL = 'https://goopss-dashboard-backend.onrender.com';
@@ -52,13 +49,6 @@ export async function optimizeText(
   }
 }
 
-function splitIntoChunks(text: string, maxChunkSize: number): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += maxChunkSize) {
-    chunks.push(text.slice(i, i + maxChunkSize));
-  }
-  return chunks;
-}
 
 export async function optimizeBulk(
   items: BulkOptimizeItem[],

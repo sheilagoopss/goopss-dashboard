@@ -1,5 +1,5 @@
 export interface IMail {
-  to: string;
-  subject: string;
-  text: string;
+  to: string; // email address
+  subject: string; // subject of the email
+  text: string; // body of the email
 }

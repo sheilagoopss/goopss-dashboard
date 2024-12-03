@@ -105,6 +105,9 @@ export default function AppRoutes() {
       setCustomer(
         customers.find((c) => c.id === selectedCustomerId) || null,
       );
+      setSelectedCustomer(
+        customers.find((c) => c.id === selectedCustomerId) || null,
+      );
       toggleAdminMode();
     }
   }, [viewAsCustomer, selectedCustomerId, customers]);

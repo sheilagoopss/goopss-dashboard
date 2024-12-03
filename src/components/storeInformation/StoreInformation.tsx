@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { UserOutlined, FileTextOutlined, GlobalOutlined } from '@ant-design/icons';
-import { 
+import React, { useState, useEffect, useRef } from "react";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "../../firebase/config";
+import {
+  UserOutlined,
+  FileTextOutlined,
+  GlobalOutlined,
+} from "@ant-design/icons";
+import {
   Form,
   Input,
   Select,
@@ -16,13 +20,13 @@ import {
   Card,
   Alert,
   Divider,
-  message
-} from 'antd';
-import CustomersDropdown from '../CustomersDropdown';
-import { ICustomer } from '../../types/Customer';
-import { collection, getDocs } from 'firebase/firestore';
+  message,
+} from "antd";
+import CustomersDropdown from "../CustomersDropdown";
+import { ICustomer } from "../../types/Customer";
+import { collection, getDocs } from "firebase/firestore";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Content, Sider } = Layout;
 
@@ -35,7 +39,7 @@ const etsyCategories = [
   "Craft Supplies & Tools",
   "Vintage",
   "Weddings",
-  "Other"
+  "Other",
 ];
 
 interface StoreInformationProps {
@@ -43,12 +47,15 @@ interface StoreInformationProps {
   isAdmin: boolean;
 }
 
-const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin }) => {
+const StoreInformation: React.FC<StoreInformationProps> = ({
+  customerId,
+  isAdmin,
+}) => {
   const [form] = Form.useForm();
   const [currentSection, setCurrentSection] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState('');
+  const [firstName, setFirstName] = useState("");
 
   // Add ref for the scroll container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -58,29 +65,31 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         top: 0,
-        behavior: 'smooth'
+        behavior: "smooth",
       });
     }
   };
 
   // Move these states to the top with other state declarations
-  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
+    null,
+  );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
 
   // Add this before the useEffects
-  const effectiveCustomerId = isAdmin ? selectedCustomer?.id || '' : customerId;
+  const effectiveCustomerId = isAdmin ? selectedCustomer?.id || "" : customerId;
 
   // Then the useEffects
   useEffect(() => {
     const fetchCustomers = async () => {
       if (!isAdmin) return;
-      
+
       try {
         const customersCollection = collection(db, "customers");
         const customersSnapshot = await getDocs(customersCollection);
-        const customersList = customersSnapshot.docs.map(doc => ({
+        const customersList = customersSnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         })) as ICustomer[];
         setCustomers(customersList);
       } catch (error) {
@@ -96,37 +105,39 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       if (!effectiveCustomerId) return;
 
       try {
-        const customerDoc = await getDoc(doc(db, 'customers', effectiveCustomerId));
+        const customerDoc = await getDoc(
+          doc(db, "customers", effectiveCustomerId),
+        );
         if (customerDoc.exists()) {
           const data = customerDoc.data();
-          setFirstName(data.first_name || '');
-          
+          setFirstName(data.first_name || "");
+
           form.setFieldsValue({
-            firstName: data.first_name || '',
-            lastName: data.last_name || '',
-            contact_email: data.contact_email || data.email || '',
-            displayShopName: data.display_shop_name || '',
-            website: data.website || '',
-            industry: data.industry || '',
-            about: data.about || '',
-            targetAudience: data.target_audience || '',
-            facebookPageLink: data.facebook_link || '',
-            instagramLink: data.instagram_link || '',
-            pinterestLink: data.pinterest_link || '',
-            etsyStoreURL: data.etsy_store_url || '',
-            contentTone: data.content_tone || '',
-            facebookGroups: data.facebook_groups || '',
-            pastFacebookPosts: data.past_facebook_posts || '',
-            pastInstagramPosts: data.past_instagram_posts || '',
-            instagramHashtags: data.instagram_hashtags || '',
-            productsToPost: data.products_to_post || '',
-            competitorSocial: data.competitor_social || '',
-            contentGuideline: data.content_guideline || '',
+            firstName: data.first_name || "",
+            lastName: data.last_name || "",
+            contact_email: data.contact_email || data.email || "",
+            displayShopName: data.display_shop_name || "",
+            website: data.website || "",
+            industry: data.industry || "",
+            about: data.about || "",
+            targetAudience: data.target_audience || "",
+            facebookPageLink: data.facebook_link || "",
+            instagramLink: data.instagram_link || "",
+            pinterestLink: data.pinterest_link || "",
+            etsyStoreURL: data.etsy_store_url || "",
+            contentTone: data.content_tone || "",
+            facebookGroups: data.facebook_groups || "",
+            pastFacebookPosts: data.past_facebook_posts || "",
+            pastInstagramPosts: data.past_instagram_posts || "",
+            instagramHashtags: data.instagram_hashtags || "",
+            productsToPost: data.products_to_post || "",
+            competitorSocial: data.competitor_social || "",
+            contentGuideline: data.content_guideline || "",
           });
         }
       } catch (error) {
-        console.error('Error fetching customer data:', error);
-        setError('Failed to load customer data');
+        console.error("Error fetching customer data:", error);
+        setError("Failed to load customer data");
       }
     };
 
@@ -137,20 +148,20 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
     try {
       // Get current form values
       const values = await form.validateFields();
-      
+
       setLoading(true);
-      
+
       if (!effectiveCustomerId) {
-        setError('No customer selected');
+        setError("No customer selected");
         return;
       }
 
-      const customerRef = doc(db, 'customers', effectiveCustomerId);
-      
+      const customerRef = doc(db, "customers", effectiveCustomerId);
+
       // Check if the document exists first
       const docSnap = await getDoc(customerRef);
       if (!docSnap.exists()) {
-        setError('Customer document not found');
+        setError("Customer document not found");
         return;
       }
 
@@ -178,38 +189,41 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
       };
 
       // Only include fields that have values
-      const cleanedUpdateData = Object.entries(updateData).reduce((acc, [key, value]) => {
-        if (value !== undefined && value !== '') {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+      const cleanedUpdateData = Object.entries(updateData).reduce(
+        (acc, [key, value]) => {
+          if (value !== undefined && value !== "") {
+            acc[key] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, any>,
+      );
 
       await updateDoc(customerRef, cleanedUpdateData);
       setError(null);
-      
+
       // Show success message
-      message.success('Information saved successfully');
-      
+      message.success("Information saved successfully");
+
       // After successful save, scroll to top before changing section
       scrollToTop();
-      
+
       // If we're on the last section, go back to first section after saving
       if (currentSection === sections.length - 1) {
         setCurrentSection(0);
       } else {
         // Otherwise, move to next section
-        setCurrentSection(prev => prev + 1);
+        setCurrentSection((prev) => prev + 1);
       }
     } catch (error: any) {
-      console.error('Error saving data:', error);
-      if (error.name === 'FirebaseError') {
+      console.error("Error saving data:", error);
+      if (error.name === "FirebaseError") {
         message.error(`Firebase Error: ${error.message}`);
       } else if (error.errorFields) {
         // Form validation error
-        message.error('Please fill in all required fields');
+        message.error("Please fill in all required fields");
       } else {
-        message.error('Failed to save store information: ' + error.message);
+        message.error("Failed to save store information: " + error.message);
       }
     } finally {
       setLoading(false);
@@ -218,49 +232,57 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
 
   const handlePrevious = () => {
     scrollToTop();
-    setCurrentSection(prev => prev - 1);
+    setCurrentSection((prev) => prev - 1);
   };
 
   const sections = [
     {
-      title: 'Seller Info',
+      title: "Seller Info",
       icon: <UserOutlined />,
       content: (
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="firstName" label="First Name" rules={[{ required: true }]}>
+              <Form.Item
+                name="firstName"
+                label="First Name"
+                rules={[{ required: true }]}
+              >
                 <Input />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="lastName" label="Last Name" rules={[{ required: true }]}>
+              <Form.Item
+                name="lastName"
+                label="Last Name"
+                rules={[{ required: true }]}
+              >
                 <Input />
               </Form.Item>
             </Col>
           </Row>
-          
-          <Form.Item 
-            name="displayShopName" 
-            label="Store Name" 
-            rules={[{ required: true, message: 'Store Name is required' }]}
+
+          <Form.Item
+            name="displayShopName"
+            label="Store Name"
+            rules={[{ required: true, message: "Store Name is required" }]}
           >
             <Input />
           </Form.Item>
 
-          <Form.Item 
-            name="etsyStoreURL" 
-            label="Etsy Store URL" 
+          <Form.Item
+            name="etsyStoreURL"
+            label="Etsy Store URL"
             rules={[{ required: true }]}
             help="Add your share and save link. Ex: https://mystore.etsy.com"
           >
             <Input />
           </Form.Item>
 
-          <Form.Item 
-            name="contact_email" 
-            label="Contact Email" 
-            rules={[{ required: true, type: 'email' }]}
+          <Form.Item
+            name="contact_email"
+            label="Contact Email"
+            rules={[{ required: true, type: "email" }]}
             help="This email is for contact purposes only and won't affect your login credentials"
           >
             <Input />
@@ -270,145 +292,153 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
             <Input />
           </Form.Item>
 
-          <Form.Item name="industry" label="Industry" rules={[{ required: true }]}>
+          <Form.Item
+            name="industry"
+            label="Industry"
+            rules={[{ required: true }]}
+          >
             <Select>
-              {etsyCategories.map(category => (
-                <Select.Option key={category} value={category}>{category}</Select.Option>
+              {etsyCategories.map((category) => (
+                <Select.Option key={category} value={category}>
+                  {category}
+                </Select.Option>
               ))}
             </Select>
           </Form.Item>
 
-          <Form.Item 
-            name="about" 
+          <Form.Item
+            name="about"
             label="About"
             help="Tell us about your store and what makes it unique"
           >
             <TextArea rows={6} />
           </Form.Item>
 
-          <Form.Item 
-            name="targetAudience" 
+          <Form.Item
+            name="targetAudience"
             label="Target Audience"
             help="Describe your ideal customer and their interests"
           >
             <TextArea rows={4} />
           </Form.Item>
         </Space>
-      )
+      ),
     },
     {
-      title: 'Social Media',
+      title: "Social Media",
       icon: <GlobalOutlined />,
       content: (
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Form.Item 
-            name="facebookPageLink" 
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <Form.Item
+            name="facebookPageLink"
             label="Facebook Page Link"
             help="Enter the full URL of your Facebook business page"
           >
             <Input />
           </Form.Item>
 
-          <Form.Item 
-            name="facebookGroups" 
+          <Form.Item
+            name="facebookGroups"
             label="If you are familiar with top relevant Facebook groups for your business, please apply their links"
             help="Enter Facebook group links, one per line"
           >
             <TextArea rows={4} />
           </Form.Item>
 
-          <Form.Item 
-            name="pastFacebookPosts" 
+          <Form.Item
+            name="pastFacebookPosts"
             label="Please attach 2-5 Facebook posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement"
             help="Paste your Facebook post links or content here"
           >
             <TextArea rows={6} />
           </Form.Item>
 
-          <Form.Item 
-            name="instagramLink" 
+          <Form.Item
+            name="instagramLink"
             label="Instagram Link"
             help="Enter the full URL of your Instagram profile"
           >
             <Input />
           </Form.Item>
 
-          <Form.Item 
-            name="pastInstagramPosts" 
+          <Form.Item
+            name="pastInstagramPosts"
             label="Please attach 2-5 Instagram posts that you've created in the past (English only) - ideally posts that got the highest amount of engagement"
             help="Paste your Instagram post links or content here"
           >
             <TextArea rows={6} />
           </Form.Item>
 
-          <Form.Item 
-            name="instagramHashtags" 
+          <Form.Item
+            name="instagramHashtags"
             label="In case you have any existing instagram hashtags you would like us to use, please include them here"
             help="Enter your Instagram hashtags, separated by spaces"
           >
             <TextArea rows={4} />
           </Form.Item>
 
-          <Form.Item 
-            name="pinterestLink" 
+          <Form.Item
+            name="pinterestLink"
             label="Pinterest Link"
             help="Enter the full URL of your Pinterest profile"
           >
             <Input />
           </Form.Item>
         </Space>
-      )
+      ),
     },
     {
-      title: 'Content Preferences',
+      title: "Content Preferences",
       icon: <FileTextOutlined />,
       content: (
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Form.Item 
-            name="contentTone" 
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <Form.Item
+            name="contentTone"
             label="Describe the tone you want for your content"
             help="E.g., friendly, professional, casual"
           >
             <TextArea rows={3} />
           </Form.Item>
 
-          <Form.Item 
-            name="productsToPost" 
+          <Form.Item
+            name="productsToPost"
             label="Are there any specific products/categories you would like us to focus on? Please add links"
             help="Add product or category links, one per line"
           >
             <TextArea rows={4} />
           </Form.Item>
 
-          <Form.Item 
-            name="competitorSocial" 
+          <Form.Item
+            name="competitorSocial"
             label="Competitor Social Media Profiles"
             help="Add competitor social media links, one per line (2-5 profiles)"
           >
             <TextArea rows={4} />
           </Form.Item>
 
-          <Form.Item 
-            name="contentGuideline" 
+          <Form.Item
+            name="contentGuideline"
             label="Content Restrictions or Guidelines"
             help="E.g., Avoid certain topics, adhere to specific brand guidelines, etc."
           >
             <TextArea rows={4} />
           </Form.Item>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   return (
     <Card>
       {isAdmin && (
-        <div style={{ 
-          marginBottom: '24px',
-          display: 'flex',
-          justifyContent: 'flex-end'
-        }}>
-          <div style={{ width: '300px' }}>
+        <div
+          style={{
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <div style={{ width: "300px" }}>
             <CustomersDropdown
               customers={customers}
               selectedCustomer={selectedCustomer}
@@ -428,56 +458,62 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
         />
       ) : (
         <>
-          {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
+          {error && (
+            <Alert
+              message={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
 
-          <Title level={2}>Hello {firstName}! 👋 Let's get to know you better.</Title>
-          <Paragraph style={{ marginBottom: '2rem' }}>
-            We're excited to learn about your Etsy journey. Fill out the details below to help us tailor your experience.
+          <Title level={2}>
+            Hello {firstName}! 👋 Let's get to know you better.
+          </Title>
+          <Paragraph style={{ marginBottom: "2rem" }}>
+            We're excited to learn about your Etsy journey. Fill out the details
+            below to help us tailor your experience.
           </Paragraph>
 
-          <div 
+          <div
             ref={scrollContainerRef}
-            style={{ height: 'calc(100vh - 250px)', overflow: 'auto' }}
+            style={{ height: "calc(100vh - 250px)", overflow: "auto" }}
           >
-            <Layout style={{ background: 'transparent', minHeight: '100%' }}>
-              <Sider 
-                theme="light" 
+            <Layout style={{ background: "transparent", minHeight: "100%" }}>
+              <Sider
+                theme="light"
                 width={250}
-                style={{ 
-                  background: 'transparent',
-                  overflow: 'hidden'
+                style={{
+                  background: "transparent",
+                  overflow: "hidden",
                 }}
               >
                 <Menu
                   mode="inline"
                   selectedKeys={[currentSection.toString()]}
-                  style={{ 
-                    border: 'none',
-                    width: '100%',
-                    overflowX: 'hidden'
+                  style={{
+                    border: "none",
+                    width: "100%",
+                    overflowX: "hidden",
                   }}
                   items={sections.map((section, index) => ({
                     key: index.toString(),
                     icon: section.icon,
                     label: section.title,
-                    onClick: () => setCurrentSection(index)
+                    onClick: () => setCurrentSection(index),
                   }))}
                 />
               </Sider>
 
-              <Content style={{ padding: '0 24px' }}>
-                <Form
-                  form={form}
-                  layout="vertical"
-                  style={{ maxWidth: 800 }}
-                >
+              <Content style={{ padding: "0 24px" }}>
+                <Form form={form} layout="vertical" style={{ maxWidth: 800 }}>
                   {sections[currentSection].content}
 
                   <Divider />
 
                   <Row justify="space-between">
                     <Col>
-                      <Button 
+                      <Button
                         onClick={handlePrevious}
                         disabled={currentSection === 0}
                       >
@@ -490,20 +526,26 @@ const StoreInformation: React.FC<StoreInformationProps> = ({ customerId, isAdmin
                           Reset
                         </Button>
                         {currentSection === sections.length - 1 ? (
-                          <Button 
-                            type="primary" 
-                            onClick={handleNext} 
+                          <Button
+                            type="primary"
+                            onClick={handleNext}
                             loading={loading}
-                            style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                            style={{
+                              backgroundColor: "#000000",
+                              borderColor: "#000000",
+                            }}
                           >
                             Save
                           </Button>
                         ) : (
-                          <Button 
-                            type="primary" 
-                            onClick={handleNext} 
+                          <Button
+                            type="primary"
+                            onClick={handleNext}
                             loading={loading}
-                            style={{ backgroundColor: '#000000', borderColor: '#000000' }}
+                            style={{
+                              backgroundColor: "#000000",
+                              borderColor: "#000000",
+                            }}
                           >
                             Next
                           </Button>
