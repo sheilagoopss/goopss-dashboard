@@ -1,7 +1,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect } from "react";
 import { Form, Input, Button, message, Spin } from "antd";
-import { useOptimizeEtsyPromptUpdate, useOptimizeEtsyPromptFetch } from "hooks/useOptimzeEtsy";
+import {
+  useOptimizeEtsyPromptUpdate,
+  useOptimizeEtsyPromptFetch,
+} from "hooks/useOptimzeEtsy";
 
 const Setting: React.FC = () => {
   const [form] = Form.useForm();
@@ -24,7 +27,16 @@ const Setting: React.FC = () => {
   }, []);
 
   return isFetchingPrompt ? (
-    <Spin />
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "40vh",
+      }}
+    >
+      <Spin size="large" />
+    </div>
   ) : (
     <Form form={form} layout="vertical" onFinish={handleSubmit}>
       <Form.Item
@@ -32,7 +44,7 @@ const Setting: React.FC = () => {
         name="title"
         rules={[{ required: true, message: "Please enter title prompt!" }]}
       >
-        <Input.TextArea rows={4} allowClear />
+        <Input.TextArea rows={10} allowClear />
       </Form.Item>
       <Form.Item
         label="Description"
@@ -41,14 +53,14 @@ const Setting: React.FC = () => {
           { required: true, message: "Please enter description prompt!" },
         ]}
       >
-        <Input.TextArea rows={4} allowClear />
+        <Input.TextArea rows={10} allowClear />
       </Form.Item>
       <Form.Item
         label="Tags"
         name="tags"
         rules={[{ required: true, message: "Please enter tags prompt!" }]}
       >
-        <Input.TextArea rows={4} allowClear />
+        <Input.TextArea rows={10} allowClear />
       </Form.Item>
       <Form.Item style={{ display: "flex", justifyContent: "flex-end" }}>
         <Button type="primary" htmlType="submit" loading={isUpdatingPrompt}>

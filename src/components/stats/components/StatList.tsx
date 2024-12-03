@@ -1,23 +1,13 @@
-import {
-  Table,
-  Col,
-  Row,
-  Typography,
-  Statistic,
-  Divider,
-  Card,
-  Collapse,
-} from "antd";
+import { Table } from "antd";
 import dayjs from "dayjs";
 import { IStat } from "../../../types/Stat";
+import ExpandedRow from "./ExpandedRow";
 
 interface StatListProps {
   stats: IStat[];
   loading: boolean;
   refresh: () => void;
 }
-
-const { Title, Paragraph } = Typography;
 
 export default function StatList({ stats, loading, refresh }: StatListProps) {
   const columns = [
@@ -42,101 +32,7 @@ export default function StatList({ stats, loading, refresh }: StatListProps) {
     },
   ];
 
-  const expandedRowRender = (record: IStat) => (
-    <Row>
-      <Col span={24} style={{ padding: "2ch" }}>
-        <Title level={5}>{record.thisYear?.daterange}</Title>
-        <Paragraph>Metrics</Paragraph>
-        <Row gutter={[16, 0]}>
-          {Object.keys(record.thisYear?.metrics).sort().map((key) => (
-            <Col span={6}>
-              <Card bordered={false}>
-                <Statistic
-                  title={key}
-                  value={
-                    record.thisYear?.metrics?.[
-                      key as keyof typeof record.thisYear.metrics
-                    ]
-                  }
-                />
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        <Divider dashed />
-        <Collapse
-          items={[
-            {
-              key: "1",
-              label: "Traffic Source",
-              children: (
-                <Row gutter={[16, 6]}>
-                  {Object.keys(record.thisYear?.trafficSource)?.sort()?.map((key) => (
-                    <Col span={6}>
-                      <Statistic
-                        title={key}
-                        value={
-                          record.thisYear?.trafficSource?.[
-                            key as keyof typeof record.thisYear.trafficSource
-                          ]
-                        }
-                      />
-                    </Col>
-                  ))}
-                </Row>
-              ),
-            },
-          ]}
-        />
-      </Col>
-      <Divider />
-      <Col span={24} style={{ padding: "2ch" }}>
-        <Title level={5}>{record.last30Days.daterange}</Title>
-        <Paragraph>Metrics</Paragraph>
-        <Row gutter={[16, 0]}>
-          {Object.keys(record.last30Days?.metrics)?.map((key) => (
-            <Col span={6}>
-              <Card bordered={false}>
-                <Statistic
-                  title={key}
-                  value={
-                    record.last30Days?.metrics?.[
-                      key as keyof typeof record.last30Days.metrics
-                    ]
-                  }
-                />
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        <Divider dashed />
-        <Collapse
-          items={[
-            {
-              key: "1",
-              label: "Traffic Source",
-              children: (
-                <Row gutter={[16, 6]}>
-                  {Object.keys(record.last30Days?.trafficSource)?.map((key) => (
-                    <Col span={6}>
-                      <Statistic
-                        title={key}
-                        value={
-                          record.last30Days?.trafficSource?.[
-                            key as keyof typeof record.last30Days.trafficSource
-                          ]
-                        }
-                      />
-                    </Col>
-                  ))}
-                </Row>
-              ),
-            },
-          ]}
-        />
-      </Col>
-    </Row>
-  );
+  const expandedRowRender = (record: IStat) => <ExpandedRow record={record} />;
 
   return (
     <>

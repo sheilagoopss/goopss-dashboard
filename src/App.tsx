@@ -27,7 +27,7 @@ function App() {
         },
       }}
     >
-      <ErrorBoundary>
+      {/* <ErrorBoundary> */}
         <AuthProvider>
           <div style={{
             fontFamily: "'Inter', sans-serif",
@@ -65,7 +65,7 @@ function App() {
             <Routes />
           </div>
         </AuthProvider>
-      </ErrorBoundary>
+      {/* </ErrorBoundary> */}
     </ConfigProvider>
   );
 }

@@ -1,5 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import CustomerManagement from "../components/customers/CustomerManagement";
 import { useAuth } from "../contexts/AuthContext";
@@ -19,7 +25,7 @@ import { useState, useEffect } from "react";
 import { ICustomer, IAdmin } from "../types/Customer";
 import StoreAnalysis from "../components/storeAnalysys/StoreAnalysis";
 import Stats from "../components/stats/Stats";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
 import StoreInformation from "../components/storeInformation/StoreInformation";
 import DesignHubV2 from "components/designHub/DesignHub";
@@ -35,23 +41,31 @@ import ActivityLog from "components/customers/ActivityLog";
 import ReactGA from "react-ga4";
 import DescriptionHero from "components/descriptionHero/DescriptionHero";
 import RoleManagement from "components/roleManagement/RoleManagement";
+import { ClipboardList } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function AppRoutes() {
-  const { isAdmin, user, loading } = useAuth();
+  const {
+    isAdmin,
+    user,
+    loading,
+    customerData,
+    setCustomer,
+    toggleAdminMode,
+  } = useAuth();
   const location = useLocation();
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
   );
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [userType, setUserType] = useState<"Free" | "Paid" | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const viewAsCustomer = searchParams.get("viewAsCustomer") === "true";
+  const selectedCustomerId = searchParams.get("selectedCustomerId");
 
   // Move trackUserEvent inside the component
   const trackUserEvent = (eventName: string, eventData: any) => {
-    if (!isAdmin && user) {
-      const customerData = customers.find(
-        (c: ICustomer) => c.customer_id === user.id,
-      );
+    if (!isAdmin && customerData) {
       ReactGA.event({
         category: "User Activity",
         action: eventName,
@@ -65,28 +79,18 @@ export default function AppRoutes() {
   useEffect(() => {
     // @ts-ignore
     window.trackUserEvent = trackUserEvent;
-  }, [isAdmin, user, customers]);
+  }, [isAdmin, customerData, customers]);
 
   // Initialize GA once when component mounts
   useEffect(() => {
-    if (user && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
-      console.log("Initializing GA for non-admin user:", {
-        userId: user.id,
-        userType: userType,
-        isAdmin: isAdmin,
-      });
+    if (customerData && !isAdmin && process.env.REACT_APP_GA_MEASUREMENT_ID) {
       ReactGA.initialize(process.env.REACT_APP_GA_MEASUREMENT_ID);
     }
-  }, [isAdmin, user, userType]);
+  }, [isAdmin, customerData, userType]);
 
   // Track page views when route changes
   useEffect(() => {
-    if (user && !isAdmin) {
-      const customerData = customers.find((c) => c.customer_id === user.id);
-      console.log("Tracking pageview for non-admin user:", {
-        page: location.pathname,
-        store: customerData?.store_name,
-      });
+    if (customerData && !isAdmin) {
       ReactGA.send({
         hitType: "pageview",
         page: location.pathname,
@@ -94,7 +98,16 @@ export default function AppRoutes() {
         userType: userType,
       });
     }
-  }, [location, isAdmin, user, userType, customers]);
+  }, [location, isAdmin, customerData, userType, customers]);
+
+  useEffect(() => {
+    if (viewAsCustomer && selectedCustomerId) {
+      setCustomer(
+        customers.find((c) => c.id === selectedCustomerId) || null,
+      );
+      toggleAdminMode();
+    }
+  }, [viewAsCustomer, selectedCustomerId, customers]);
 
   // Add this function to fetch customers
   const fetchCustomers = async () => {
@@ -103,25 +116,9 @@ export default function AppRoutes() {
       const customersSnapshot = await getDocs(customersCollection);
       const customersList = customersSnapshot.docs.map((doc) => ({
         id: doc.id,
-        store_name: doc.data().store_name,
-        customer_type: doc.data().customer_type,
-        store_owner_name: doc.data().store_owner_name,
-        email: doc.data().email,
-        package_type: doc.data().package_type,
-        current_sales: doc.data().current_sales,
-        customer_id: doc.data().customer_id,
-        logo: doc.data().logo,
-        isActive: doc.data().isActive,
-        date_joined: doc.data().date_joined
+        ...doc.data(),
+        isViewing: viewAsCustomer
       })) as ICustomer[];
-
-      console.log(
-        "Customer types:",
-        customersList.map((c) => ({
-          store_name: c.store_name || "No store name",
-          customer_type: c.customer_type,
-        })),
-      );
 
       setCustomers(customersList);
     } catch (error) {
@@ -129,45 +126,13 @@ export default function AppRoutes() {
     }
   };
 
-  // Add function to fetch current user's type
-  const fetchUserType = async () => {
-    if (!user?.id) return;
-    setIsLoading(true);
-    try {
-      console.log("Fetching user type for ID:", user.id);
-      const userDoc = await getDocs(
-        query(collection(db, "customers"), where("customer_id", "==", user.id)),
-      );
-      console.log(
-        "Query result:",
-        userDoc.docs.map((doc) => doc.data()),
-      );
-      if (!userDoc.empty) {
-        const userData = userDoc.docs[0].data() as ICustomer;
-        console.log("Found user data:", userData);
-        setUserType(userData.customer_type);
-      } else {
-        console.log("No user document found");
-        setUserType("Free");
-      }
-    } catch (error) {
-      console.error("Error fetching user type:", error);
-      setUserType("Free");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (isAdmin) {
       fetchCustomers();
-      setIsLoading(false);
-    } else if (user?.id) {
-      fetchUserType();
+    } else if (customerData?.id) {
+      setUserType(customerData.customer_type);
     }
-  }, [isAdmin, user]);
-
-  console.log("Current state:", { isAdmin, userType, isLoading });
+  }, [isAdmin, customerData]);
 
   // Loading component
   const LoadingScreen = () => (
@@ -186,22 +151,18 @@ export default function AppRoutes() {
     </div>
   );
 
-  // Only show loading screen if we're checking an existing auth state
-  if (loading && user === undefined) {
+  if (loading) {
     return <LoadingScreen />;
   }
 
-  // Protected route wrapper
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (loading && user === undefined) {
+    if (loading) {
       return <LoadingScreen />;
     }
 
-    if (!user) {
-      console.log("No user found, redirecting to login");
+    if (!customerData && !user) {
       return <Navigate to="/login" replace />;
     }
-    console.log("User found, rendering protected content");
     return <>{children}</>;
   };
 
@@ -393,15 +354,15 @@ export default function AppRoutes() {
             <Route index element={<Navigate to="/home" replace />} />
             <Route
               path="home"
-              element={
-                userType === "Free" ? <UpgradeNotice /> : <UserHomepage />
-              }
+              element={userType === "Free" ? <UpgradeNotice /> : <UserHomepage />}
+            />
+            <Route
+              path="plan"
+              element={userType === "Free" ? <UpgradeNotice /> : <CustomerPlan />}
             />
             <Route
               path="my-info"
-              element={
-                <StoreInformation customerId={user?.id || ""} isAdmin={false} />
-              }
+              element={<StoreInformation customerId={user?.id || ""} isAdmin={false} />}
             />
             <Route
               path="design-hub"

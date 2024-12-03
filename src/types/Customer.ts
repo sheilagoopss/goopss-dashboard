@@ -64,6 +64,7 @@ export interface ICustomer {
   isActive: boolean;
   deactivatedAt?: string;
   deactivatedBy?: string;
+  isViewing?: boolean;
 }
 
 export interface IAdmin {

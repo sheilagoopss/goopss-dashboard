@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Card, Table, Button, Space, Modal, Form, Input, Select, InputNumber, Alert, DatePicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType } from '../types/PlanTasks';
+import { Layout, Typography, Card, Table, Button, Space, Modal, Form, Input, Select, InputNumber, Alert, DatePicker, Tooltip, Tag } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, MinusCircleOutlined, RedoOutlined } from '@ant-design/icons';
+import type { PlanTaskRule, PlanTaskRules as PlanTaskRulesType, SubTask } from '../types/PlanTasks';
 import { PlanSection, PlanTask } from '../types/Plan';
 import { usePlanTaskRules } from '../hooks/usePlanTaskRules';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, writeBatch, setDoc } from 'firebase/firestore';
@@ -29,18 +29,52 @@ const { Title } = Typography;
 const { Option } = Select;
 
 const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
-  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
-    // Monthly tasks: Use monthlyDueDate
-    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
-  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
-    // As Needed tasks or tasks with daysAfterJoin = 0: No due date
+  console.log('Calculating due date - Input:', {
+    customer: {
+      id: customer.id,
+      date_joined: customer.date_joined,
+      store_name: customer.store_name
+    },
+    rule: {
+      id: rule.id,
+      task: rule.task,
+      frequency: rule.frequency,
+      daysAfterJoin: rule.daysAfterJoin,
+      monthlyDueDate: rule.monthlyDueDate
+    }
+  });
+
+  let dueDate = null;
+
+  if (!customer.date_joined) {
+    console.log('No join date found for customer');
     return null;
-  } else {
-    // One Time tasks: Based on join date
-    return dayjs(customer.date_joined)
-      .add(rule.daysAfterJoin || 0, 'day')
-      .format('YYYY-MM-DD');
   }
+
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    dueDate = dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+    console.log('Monthly task - Due date set to:', dueDate);
+  } else if (rule.frequency === 'As Needed') {
+    console.log('As Needed task - No due date needed');
+    dueDate = null;
+  } else if (rule.frequency === 'One Time' && rule.daysAfterJoin) {
+    dueDate = dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin, 'day')
+      .format('YYYY-MM-DD');
+    console.log('One Time task - Due date calculated:', {
+      joinDate: customer.date_joined,
+      daysAfterJoin: rule.daysAfterJoin,
+      calculatedDueDate: dueDate
+    });
+  } else {
+    console.log('No due date calculation applied:', {
+      frequency: rule.frequency,
+      daysAfterJoin: rule.daysAfterJoin
+    });
+  }
+
+  console.log('Final due date:', dueDate);
+  return dueDate;
 };
 
 const PlanTaskRulesComponent: React.FC = () => {
@@ -111,6 +145,43 @@ const PlanTaskRulesComponent: React.FC = () => {
 
   const columns = [
     {
+      title: 'Order',
+      dataIndex: 'order',
+      key: 'order',
+      width: 80,
+      render: (order: number) => order || '-',  // Show dash for missing order numbers
+      sorter: {
+        compare: (a: PlanTaskRule, b: PlanTaskRule) => {
+          const orderA = typeof a.order === 'number' ? a.order : Number.MAX_VALUE;
+          const orderB = typeof b.order === 'number' ? b.order : Number.MAX_VALUE;
+          return orderA - orderB;
+        },
+        multiple: 1
+      },
+      defaultSortOrder: 'ascend' as const,
+      sortDirections: ['ascend' as const, 'descend' as const]
+    },
+    {
+      title: 'Task ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 150,
+      render: (id: string) => (
+        <Tooltip title="Click to copy">
+          <Tag 
+            color="blue" 
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              navigator.clipboard.writeText(id);
+              message.success('Task ID copied to clipboard');
+            }}
+          >
+            {id}
+          </Tag>
+        </Tooltip>
+      ),
+    },
+    {
       title: 'Task',
       dataIndex: 'task',
       key: 'task',
@@ -129,6 +200,28 @@ const PlanTaskRulesComponent: React.FC = () => {
       title: 'Frequency',
       dataIndex: 'frequency',
       key: 'frequency',
+    },
+    {
+      title: 'Goal',
+      dataIndex: 'defaultGoal',
+      key: 'defaultGoal',
+      width: 100,
+      render: (defaultGoal: number | null, record: PlanTaskRule) => {
+        if (!record.requiresGoal) return '-';
+        return defaultGoal || 0;
+      },
+    },
+    {
+      title: 'Subtasks',
+      dataIndex: 'subtasks',
+      key: 'subtasks',
+      render: (subtasks: SubTask[] | undefined) => (
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          {subtasks?.map((subtask: SubTask) => (
+            <li key={subtask.id}>{subtask.text}</li>
+          ))}
+        </ul>
+      ),
     },
     {
       title: 'Actions',
@@ -158,49 +251,81 @@ const PlanTaskRulesComponent: React.FC = () => {
   const handleEdit = (rule: PlanTaskRule) => {
     setEditingRule(rule);
     form.setFieldsValue({
+      id: rule.id.replace('task-', ''),
       task: rule.task,
       section: rule.section,
       frequency: rule.frequency,
       daysAfterJoin: rule.daysAfterJoin,
-      monthlyDueDate: rule.monthlyDueDate ? dayjs().date(rule.monthlyDueDate) : undefined,
+      monthlyDueDate: rule.monthlyDueDate ? dayjs().date(rule.monthlyDueDate) : null,
       requiresGoal: rule.requiresGoal,
       defaultGoal: rule.defaultGoal,
-      defaultCurrent: rule.defaultCurrent
+      defaultCurrent: rule.defaultCurrent,
+      order: rule.order,
+      subtasks: rule.subtasks || []
     });
     setIsModalVisible(true);
   };
 
   const handleDelete = async (ruleToDelete: PlanTaskRule) => {
-    try {
-      // Get the correct package ID based on selected package
-      const packageId = Object.keys(packageTypes).find(
-        key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
-      ) || 'default';
+    Modal.confirm({
+      title: 'Delete Task Rule',
+      content: (
+        <div>
+          <p>Are you sure you want to delete this task?</p>
+          <p><strong>{ruleToDelete.task}</strong></p>
+          <Alert
+            message="Note"
+            description="This will only remove the task from the task rules. Existing customer plans will not be affected."
+            type="info"
+            showIcon
+            style={{ marginTop: '16px' }}
+          />
+        </div>
+      ),
+      okText: 'Yes, Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      async onOk() {
+        try {
+          // Delete from rules collection only
+          const packageId = Object.keys(packageTypes).find(
+            key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
+          ) || 'default';
 
-      const rulesRef = doc(db, 'planTaskRules', packageId);
-      const rulesDoc = await getDoc(rulesRef);
-      
-      if (rulesDoc.exists()) {
-        const currentRules = rulesDoc.data();
-        // Filter out the task from the selected package's rules
-        const updatedTasks = currentRules.tasks.filter((task: PlanTaskRule) => 
-          task.id !== ruleToDelete.id
-        );
+          const rulesRef = doc(db, 'planTaskRules', packageId);
+          const rulesDoc = await getDoc(rulesRef);
+          
+          if (rulesDoc.exists()) {
+            const currentRules = rulesDoc.data();
+            const updatedTasks = currentRules.tasks.filter((task: PlanTaskRule) => 
+              task.id !== ruleToDelete.id
+            );
 
-        // Update the selected package's document
-        await setDoc(rulesRef, {
-          ...currentRules,
-          tasks: updatedTasks,
-          updatedAt: new Date().toISOString()
-        });
+            await setDoc(rulesRef, {
+              ...currentRules,
+              tasks: updatedTasks,
+              updatedAt: new Date().toISOString()
+            });
 
-        message.success(`Rule deleted from ${selectedPackage} rules`);
-        loadPackageRules(packageId);  // Reload rules for this package
+            message.success(`Task deleted from ${selectedPackage} rules`);
+            loadPackageRules(packageId);
+          }
+        } catch (error) {
+          console.error('Error deleting rule:', error);
+          message.error('Failed to delete rule');
+        }
       }
-    } catch (error) {
-      console.error('Error deleting rule:', error);
-      message.error('Failed to delete rule');
-    }
+    });
+  };
+
+  const generateUniqueTaskId = (existingTasks: PlanTaskRule[]): string => {
+    let taskId: string;
+    do {
+      const randomId = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      taskId = `task-${randomId}`;  // e.g., task-123456
+    } while (existingTasks.some(task => task.id === taskId));
+    
+    return taskId;
   };
 
   const handleSubmit = async (values: any) => {
@@ -214,23 +339,42 @@ const PlanTaskRulesComponent: React.FC = () => {
       
       if (rulesDoc.exists()) {
         const currentRules = rulesDoc.data();
+        
+        // For editing, use the new ID from the form if provided
+        const taskId = editingRule 
+          ? `task-${values.id}`.replace('task-task-', 'task-')
+          : generateUniqueTaskId(currentRules.tasks);
+
+        // Process subtasks properly
+        const subtasks: SubTask[] = values.subtasks?.map((subtask: { text: string; id?: string }) => ({
+          id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: subtask.text,
+          isCompleted: false,
+          completedDate: null
+        })) || [];
+
         const newTask: PlanTaskRule = {
-          id: editingRule?.id || `${Date.now()}`,
+          id: taskId,
           task: values.task,
           section: values.section,
-          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,
-          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
+          order: values.order || currentRules.tasks.length + 1,
           frequency: values.frequency,
+          daysAfterJoin: values.daysAfterJoin,
+          monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           isActive: true,
           requiresGoal: values.requiresGoal || false,
           defaultGoal: values.requiresGoal ? values.defaultGoal : null,
           defaultCurrent: values.requiresGoal ? (values.defaultCurrent || 0) : null,
+          subtasks: subtasks, // Use the new subtasks array instead of keeping old ones
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };
 
+        // Update or add task
         const updatedTasks = editingRule 
-          ? currentRules.tasks.map((task: PlanTaskRule) => task.id === editingRule.id ? newTask : task)
+          ? currentRules.tasks.map((task: PlanTaskRule) => 
+              task.id === editingRule.id ? newTask : task
+            )
           : [...currentRules.tasks, newTask];
 
         await setDoc(rulesRef, {
@@ -239,7 +383,7 @@ const PlanTaskRulesComponent: React.FC = () => {
           updatedAt: new Date().toISOString()
         });
 
-        message.success(`Rule ${editingRule ? 'updated' : 'added'} in ${selectedPackage} rules`);
+        message.success(`Task ${editingRule ? 'updated' : 'added'} in ${selectedPackage}`);
         setIsModalVisible(false);
         loadPackageRules(packageId);
       }
@@ -273,6 +417,16 @@ const PlanTaskRulesComponent: React.FC = () => {
             <li>Completed dates</li>
             <li>Current values</li>
           </ul>
+          {rule.subtasks && rule.subtasks.length > 0 && (
+            <>
+              <p>Subtasks:</p>
+              <ul>
+                {rule.subtasks.map(subtask => (
+                  <li key={subtask.id}>{subtask.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       ),
       async onOk() {
@@ -341,31 +495,57 @@ const PlanTaskRulesComponent: React.FC = () => {
             // Check if task exists
             const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
             if (existingTaskIndex !== -1) {
-              // Update existing task but preserve monthlyHistory
-              const existingTask = currentTasks[existingTaskIndex];
+              console.log('Updating existing task:', {
+                customerId: customer.id,
+                taskId: rule.id,
+                beforeUpdate: currentTasks[existingTaskIndex],
+                rule: rule
+              });
+
+              const newDueDate = calculateDueDate(customer, rule);
+              console.log('Calculated new due date:', newDueDate);
+
               currentTasks[existingTaskIndex] = {
-                ...existingTask,  // Keep existing data including monthlyHistory
+                ...currentTasks[existingTaskIndex],
                 task: rule.task,
+                section: rule.section,
+                order: rule.order,
                 isActive: rule.isActive,
                 frequency: rule.frequency,
-                dueDate: calculateDueDate(customer, rule),
-                goal: rule.defaultGoal || existingTask.goal,
+                daysAfterJoin: rule.daysAfterJoin,
+                dueDate: newDueDate,
+                goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
+                subtasks: rule.subtasks?.map((subtask: SubTask) => ({
+                  ...subtask,
+                  isCompleted: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.isCompleted || false,
+                  completedDate: currentTasks[existingTaskIndex].subtasks?.find((s: SubTask) => s.id === subtask.id)?.completedDate || null
+                })) || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               };
+
+              console.log('Task after update:', currentTasks[existingTaskIndex]);
             } else {
-              // Add new task without monthlyHistory
+              // Add new task
               currentTasks.push({
                 id: rule.id,
                 task: rule.task,
+                section: rule.section,
+                order: rule.order,
                 progress: 'To Do' as const,
                 isActive: rule.isActive,
                 notes: '',
                 frequency: rule.frequency,
+                daysAfterJoin: rule.daysAfterJoin,
                 dueDate: calculateDueDate(customer, rule),
                 completedDate: null,
                 current: rule.defaultCurrent || 0,
                 goal: rule.defaultGoal || 0,
+                subtasks: rule.subtasks?.map(subtask => ({
+                  ...subtask,
+                  isCompleted: false,
+                  completedDate: null
+                })) || [],
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || ''
               });
@@ -408,157 +588,126 @@ const PlanTaskRulesComponent: React.FC = () => {
       title: 'Apply Changes',
       content: (
         <div>
-          <p>Are you sure you want to apply these changes to all customers?</p>
+          <p>Are you sure you want to apply these changes?</p>
           <p>This will:</p>
           <ul>
-            <li>Update all task rules</li>
-            <li>Add new tasks</li>
-            <li>Update existing tasks</li>
+            <li>Update all customer plans with this package type</li>
+            <li>Update task IDs and content</li>
+            <li>Preserve customer progress and customizations</li>
           </ul>
         </div>
       ),
       async onOk() {
-        console.log('CLICKED OK - STARTING PROCESS');
         try {
           setIsApplying(true);
+          console.log('Starting to apply changes...');
 
-          // Get current task rules
-          const rulesRef = doc(db, 'planTaskRules', 'default');
+          // Get current package rules
+          const packageId = Object.keys(packageTypes).find(
+            key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
+          ) || 'default';
+
+          const rulesRef = doc(db, 'planTaskRules', packageId);
           const rulesDoc = await getDoc(rulesRef);
-          const rules = rulesDoc.data() as PlanTaskRulesType;
-          console.log('RULES LOADED:', rules);
+          
+          if (!rulesDoc.exists()) {
+            throw new Error('Package rules not found');
+          }
 
-          // Get all paid customers
+          const currentRules = rulesDoc.data();
+          console.log('Current rules:', currentRules.tasks.length);
+
+          // Get all paid customers with this package
           const customersRef = collection(db, 'customers');
-          const customersSnapshot = await getDocs(customersRef);
-          const paidCustomers = customersSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
-            .filter(customer => customer.customer_type === 'Paid');
-          console.log('PAID CUSTOMERS:', paidCustomers.length);
+          const customersSnapshot = await getDocs(
+            query(
+              customersRef, 
+              where('customer_type', '==', 'Paid'),
+              where('package_type', '==', selectedPackage)
+            )
+          );
 
-          // Update each customer's plan
-          for (const customer of paidCustomers) {
-            const planRef = doc(db, 'plans', customer.id);
+          console.log('Found customers:', customersSnapshot.size);
+
+          const batch = writeBatch(db);
+          let batchCount = 0;
+          const BATCH_LIMIT = 500;
+
+          for (const customerDoc of customersSnapshot.docs) {
+            const customerData = customerDoc.data() as ICustomer;
+            const planRef = doc(db, 'plans', customerDoc.id);
             const planDoc = await getDoc(planRef);
 
-            if (!planDoc.exists()) continue;
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              let needsUpdate = false;
 
-            const plan = planDoc.data() as Plan;
-            let needsUpdate = false;
+              const updatedSections = plan.sections.map(section => ({
+                title: section.title,
+                tasks: section.tasks.map(task => {
+                  // Try to find matching task by ID first
+                  let updatedRule = currentRules.tasks.find((r: PlanTaskRule) => r.id === task.id);
+                  
+                  // If no match by ID, try to find by task name and section
+                  if (!updatedRule) {
+                    updatedRule = currentRules.tasks.find(
+                      (r: PlanTaskRule) => 
+                        r.task === task.task && 
+                        r.section === task.section
+                    );
+                  }
 
-            // Process each task rule
-            rules.tasks.forEach((rule: PlanTaskRule) => {
-              console.log('Processing rule:', {
-                ruleId: rule.id,
-                section: rule.section,
-                task: rule.task
-              });
+                  if (updatedRule) {
+                    needsUpdate = true;
+                    console.log(`Updating task ${task.id} to ${updatedRule.id} for customer ${customerData.store_name}`);
+                    
+                    return {
+                      ...task,
+                      id: updatedRule.id,
+                      task: updatedRule.task,
+                      section: updatedRule.section,
+                      isActive: updatedRule.isActive ?? true,
+                      frequency: updatedRule.frequency,
+                      daysAfterJoin: updatedRule.daysAfterJoin || null,
+                      dueDate: calculateDueDate(customerData, updatedRule) || null,
+                      goal: updatedRule.defaultGoal || task.goal || 0,
+                      order: updatedRule.order || 0,
+                      subtasks: updatedRule.subtasks?.map((subtask: { id: string }) => ({
+                        ...subtask,
+                        isCompleted: task.subtasks?.find(s => s.id === subtask.id)?.isCompleted || false,
+                        completedDate: task.subtasks?.find(s => s.id === subtask.id)?.completedDate || null
+                      })) || [],
+                      updatedAt: new Date().toISOString(),
+                      updatedBy: user?.email || 'system'
+                    };
+                  }
+                  return task;
+                })
+              }));
 
-              // Find the section for this task
-              let sectionIndex = plan.sections.findIndex(s => s.title === rule.section);
-              
-              console.log('Section check:', {
-                sectionTitle: rule.section,
-                found: sectionIndex !== -1,
-                sectionIndex
-              });
-
-              // If section doesn't exist, create it
-              if (sectionIndex === -1) {
-                console.log('Creating new section:', rule.section);
-                plan.sections.push({
-                  title: rule.section,
-                  tasks: []
+              if (needsUpdate) {
+                if (batchCount >= BATCH_LIMIT) {
+                  await batch.commit();
+                  batchCount = 0;
+                }
+                
+                batch.update(planRef, { 
+                  sections: updatedSections,
+                  updatedAt: new Date().toISOString()
                 });
-                sectionIndex = plan.sections.length - 1;
-                needsUpdate = true;
+                batchCount++;
               }
-
-              // Get current tasks in this section
-              const currentTasks = [...plan.sections[sectionIndex].tasks];
-              console.log('Current tasks in section:', {
-                sectionTitle: rule.section,
-                taskCount: currentTasks.length,
-                tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
-              });
-
-              // Check if task exists
-              const existingTaskIndex = currentTasks.findIndex(t => t.id === rule.id);
-              console.log('Task check:', {
-                ruleId: rule.id,
-                exists: existingTaskIndex !== -1,
-                existingTaskIndex
-              });
-
-              if (existingTaskIndex !== -1) {
-                console.log('Updating existing task:', rule.id);
-                currentTasks[existingTaskIndex] = {
-                  ...currentTasks[existingTaskIndex],
-                  task: rule.task,
-                  isActive: rule.isActive,
-                  frequency: rule.frequency,
-                  dueDate: calculateDueDate(customer, rule),
-                  goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
-                  updatedAt: new Date().toISOString(),
-                  updatedBy: user?.email || ''
-                };
-                needsUpdate = true;
-              } else {
-                console.log('Adding new task:', {
-                  id: rule.id,
-                  section: rule.section,
-                  task: rule.task
-                });
-                currentTasks.push({
-                  id: rule.id,
-                  task: rule.task,
-                  progress: 'To Do' as const,
-                  isActive: rule.isActive,
-                  notes: '',
-                  frequency: rule.frequency,
-                  dueDate: calculateDueDate(customer, rule),
-                  completedDate: null,
-                  current: rule.defaultCurrent || 0,
-                  goal: rule.defaultGoal || 0,
-                  updatedAt: new Date().toISOString(),
-                  updatedBy: user?.email || ''
-                });
-              }
-
-              console.log('Updated tasks:', {
-                sectionTitle: rule.section,
-                taskCount: currentTasks.length,
-                tasks: currentTasks.map(t => ({ id: t.id, task: t.task }))
-              });
-
-              // Update section tasks
-              plan.sections[sectionIndex].tasks = currentTasks;
-              needsUpdate = true;
-            });
-
-            if (needsUpdate) {
-              console.log('Updating plan:', {
-                customerId: customer.id,
-                sections: plan.sections.map(s => ({
-                  title: s.title,
-                  taskCount: s.tasks.length,
-                  tasks: s.tasks.map(t => ({ id: t.id, task: t.task }))
-                }))
-              });
-              await updateDoc(planRef, { sections: plan.sections });
             }
           }
 
-          Modal.success({
-            title: 'Success',
-            content: 'Changes have been applied to all customers.',
-          });
+          if (batchCount > 0) {
+            await batch.commit();
+          }
+
+          message.success('Changes applied successfully');
         } catch (error) {
           console.error('Error applying changes:', error);
-          Modal.error({
-            title: 'Error',
-            content: 'Failed to apply changes to all customers.',
-          });
+          message.error('Failed to apply changes');
         } finally {
           setIsApplying(false);
         }
@@ -673,6 +822,13 @@ const PlanTaskRulesComponent: React.FC = () => {
       <Header style={{ background: '#fff', padding: '0 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={2}>Plan Task Rules</Title>
+          <Button 
+            type="primary"
+            onClick={applyToAllCustomers}
+            loading={isApplying}
+          >
+            Apply Changes to All Plans
+          </Button>
         </div>
       </Header>
       <Content style={{ padding: '16px' }}>
@@ -711,13 +867,10 @@ const PlanTaskRulesComponent: React.FC = () => {
                 value={selectedPackage}
                 onChange={(value) => {
                   setSelectedPackage(value);
-                  // Get the document ID from the packageTypes object
                   const packageId = Object.entries(packageTypes).find(
                     ([key, displayName]) => displayName === value
-                  )?.[0];  // This gets the key (e.g., 'regularMaintenance')
-
+                  )?.[0];
                   if (packageId) {
-                    console.log('Loading rules for package:', packageId);
                     loadPackageRules(packageId);
                   }
                 }}
@@ -728,6 +881,59 @@ const PlanTaskRulesComponent: React.FC = () => {
                   </Option>
                 ))}
               </Select>
+              {selectedPackage !== 'Default' && (
+                <Button
+                  onClick={async () => {
+                    Modal.confirm({
+                      title: 'Initialize from Default Plan',
+                      content: (
+                        <div>
+                          <p>This will:</p>
+                          <ul>
+                            <li>Copy all tasks from Default plan to {selectedPackage}</li>
+                            <li><strong>Note:</strong> Customer plans will not be updated automatically</li>
+                            <li>After initialization, click "Apply Changes to All Plans" to update customer plans</li>
+                          </ul>
+                        </div>
+                      ),
+                      onOk: async () => {
+                        try {
+                          // Get default rules
+                          const defaultRulesRef = doc(db, 'planTaskRules', 'default');
+                          const defaultRulesDoc = await getDoc(defaultRulesRef);
+                          
+                          if (defaultRulesDoc.exists()) {
+                            const defaultRules = defaultRulesDoc.data();
+                            
+                            // Get current package rules
+                            const packageId = Object.entries(packageTypes).find(
+                              ([_, displayName]) => displayName === selectedPackage
+                            )?.[0];
+                            
+                            if (packageId) {
+                              await setDoc(doc(db, 'planTaskRules', packageId), {
+                                sections: defaultRules.sections,
+                                tasks: defaultRules.tasks,
+                                updatedAt: new Date().toISOString(),
+                                updatedBy: user?.email || ''
+                              });
+                              
+                              message.success(
+                                'Package initialized from Default plan. Please click "Apply Changes to All Plans" to update customer plans.'
+                              );
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Error initializing from default:', error);
+                          message.error('Failed to initialize from Default plan');
+                        }
+                      }
+                    });
+                  }}
+                >
+                  Initialize from Default
+                </Button>
+              )}
               <Button 
                 type="primary" 
                 icon={<PlusOutlined />}
@@ -739,45 +945,20 @@ const PlanTaskRulesComponent: React.FC = () => {
               >
                 Add New Rule
               </Button>
-              {/* Commented out Initialize buttons
-              {Object.entries(packageTypes).map(([key, displayName]) => (
-                <Button 
-                  key={key}
-                  type="primary"
-                  onClick={async () => {
-                    try {
-                      const rulesRef = doc(db, 'planTaskRules', key);
-                      
-                      await setDoc(rulesRef, {
-                        sections: defaultPlanTaskRules.sections,
-                        tasks: defaultPlanTaskRules.tasks,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: user?.email || ''
-                      });
-
-                      message.success(`${displayName} rules initialized successfully`);
-                      
-                      // If currently viewing this package, reload it
-                      if (selectedPackage === displayName) {
-                        loadPackageRules(key);
-                      }
-                    } catch (error) {
-                      console.error('Error:', error);
-                      message.error(`Failed to initialize ${displayName} rules`);
-                    }
-                  }}
-                >
-                  Initialize {displayName} Rules
-                </Button>
-              ))}
-              */}
             </Space>
           </Space>
           <Table 
             columns={columns} 
-            dataSource={filteredRules}
+            dataSource={filteredRules} 
             rowKey="id"
+            pagination={{
+              defaultPageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total) => `Total ${total} tasks`,
+            }}
+            onChange={(pagination, filters, sorter) => {
+              console.log('Table change:', { pagination, filters, sorter });
+            }}
           />
         </Card>
 
@@ -786,12 +967,46 @@ const PlanTaskRulesComponent: React.FC = () => {
           open={isModalVisible}
           onOk={form.submit}
           onCancel={() => setIsModalVisible(false)}
+          width={800}
+          style={{ top: 20 }}
         >
           <Form
             form={form}
             layout="vertical"
             onFinish={handleSubmit}
           >
+            {editingRule && (
+              <Form.Item
+                name="id"
+                label="Task ID"
+                rules={[{ required: true, message: 'Please enter task ID' }]}
+              >
+                <Space.Compact style={{ width: '100%' }}>
+                  <Input 
+                    placeholder="123456"
+                    addonBefore="task-"
+                    value={form.getFieldValue('id')}
+                    onChange={(e) => {
+                      const value = e.target.value.replace('task-', '');
+                      form.setFieldsValue({ id: value });
+                    }}
+                  />
+                  <Tooltip title="Generate new ID">
+                    <Button
+                      onClick={() => {
+                        const newId = generateUniqueTaskId(rules);
+                        const numberPart = newId.replace('task-', '');
+                        form.setFieldsValue({ id: numberPart });
+                      }}
+                      icon={<RedoOutlined />}
+                    >
+                      Generate New ID
+                    </Button>
+                  </Tooltip>
+                </Space.Compact>
+              </Form.Item>
+            )}
+
             <Form.Item
               name="task"
               label="Task Name"
@@ -813,21 +1028,6 @@ const PlanTaskRulesComponent: React.FC = () => {
             </Form.Item>
 
             <Form.Item
-              name="daysAfterJoin"
-              label="Days After Join"
-              rules={[{ 
-                required: form.getFieldValue('frequency') !== 'Monthly',  // Fixed comparison
-                message: 'Please enter days after join' 
-              }]}
-            >
-              <InputNumber 
-                min={0} 
-                disabled={form.getFieldValue('frequency') === 'Monthly'}
-                placeholder={form.getFieldValue('frequency') === 'Monthly' ? 'Not applicable for monthly tasks' : 'Enter days'}
-              />
-            </Form.Item>
-
-            <Form.Item
               name="frequency"
               label="Frequency"
               rules={[{ required: true, message: 'Please select frequency' }]}
@@ -845,50 +1045,46 @@ const PlanTaskRulesComponent: React.FC = () => {
                 prevValues.frequency !== currentValues.frequency
               }
             >
-              {({ getFieldValue }) => 
-                getFieldValue('frequency') === 'Monthly' ? (
+              {({ getFieldValue }) => (
+                <>
                   <Form.Item
-                    name="monthlyDueDate"
-                    label="Monthly Due Date"
-                    rules={[{ required: true, message: 'Please select monthly due date' }]}
+                    name="daysAfterJoin"
+                    label="Days After Join"
+                    rules={[{ 
+                      required: getFieldValue('frequency') === 'One Time',
+                      message: 'Please enter days after join' 
+                    }]}
                   >
-                    <DatePicker 
-                      picker="date"
-                      disabledDate={(current) => {
-                        return current && (current.date() > 28);
-                      }}
-                      format="DD"
-                      placeholder="Select day of month"
-                      showToday={false}
-                      value={form.getFieldValue('monthlyDueDate') ? dayjs(form.getFieldValue('monthlyDueDate')) : null}
-                      onChange={(date: Dayjs | null) => {
-                        if (date) {
-                          form.setFieldsValue({ monthlyDueDate: date });
-                        }
-                      }}
-                    />
+                    <InputNumber min={0} />
                   </Form.Item>
-                ) : null
-              }
+                  
+                  {getFieldValue('frequency') === 'Monthly' && (
+                    <Form.Item
+                      name="monthlyDueDate"
+                      label="Monthly Due Date"
+                      rules={[{ required: true, message: 'Please select monthly due date' }]}
+                    >
+                      <DatePicker 
+                        picker="date"
+                        disabledDate={(current) => {
+                          return current && (current.date() > 28);
+                        }}
+                        format="DD"
+                        placeholder="Select day of month"
+                        showToday={false}
+                      />
+                    </Form.Item>
+                  )}
+                </>
+              )}
             </Form.Item>
 
             <Form.Item
-              label="Requires Goal"
               name="requiresGoal"
+              label="Requires Goal"
               valuePropName="checked"
             >
-              <Switch
-                onChange={(checked) => {
-                  setEditingRule(prev => {
-                    if (!prev) return prev;
-                    return {
-                      ...prev,
-                      requiresGoal: checked,
-                      defaultGoal: checked ? prev.defaultGoal : null  // Keep goal if enabled, null if disabled
-                    };
-                  });
-                }}
-              />
+              <Switch />
             </Form.Item>
 
             <Form.Item
@@ -901,23 +1097,11 @@ const PlanTaskRulesComponent: React.FC = () => {
                 getFieldValue('requiresGoal') ? (
                   <>
                     <Form.Item
-                      label="Default Goal"
                       name="defaultGoal"
-                      rules={[
-                        {
-                          required: getFieldValue('frequency') === 'Monthly',
-                          message: 'Please input the default goal',
-                        }
-                      ]}
+                      label="Default Goal"
+                      rules={[{ required: true, message: 'Please enter default goal' }]}
                     >
-                      <Input
-                        type="number"
-                        min={0}
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? null : parseInt(e.target.value);
-                          form.setFieldsValue({ defaultGoal: value });
-                        }}
-                      />
+                      <InputNumber min={0} />
                     </Form.Item>
                     <Form.Item
                       name="defaultCurrent"
@@ -930,6 +1114,39 @@ const PlanTaskRulesComponent: React.FC = () => {
                 ) : null
               }
             </Form.Item>
+
+            <Form.Item
+              name="order"
+              label="Order"
+              rules={[{ required: true, message: 'Please enter task order' }]}
+            >
+              <InputNumber min={1} />
+            </Form.Item>
+
+            <Typography.Title level={5}>Subtasks</Typography.Title>
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'text']}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask text" />
+                      </Form.Item>
+                      <MinusCircleOutlined onClick={() => remove(field.name)} />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
           </Form>
         </Modal>
       </Content>
