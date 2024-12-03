@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Layout, Card, Space, Typography, Select, Input, Spin, Tooltip, Tag, Progress } from 'antd';
 import { CalendarOutlined, WarningOutlined, CheckCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -166,6 +166,7 @@ export const CustomerPlan: React.FC = () => {
     .map(section => ({
       ...section,
       tasks: section.tasks.filter(task => 
+        task.isActive &&
         (progressFilter === 'All' || task.progress === progressFilter) &&
         task.task.toLowerCase().includes(search.toLowerCase()) &&
         (dueDateFilter === 'all' || 
@@ -175,6 +176,13 @@ export const CustomerPlan: React.FC = () => {
       )
     }))
     .filter(section => section.tasks.length > 0);
+
+  // Filter tasks to only show active ones
+  const filteredTasks = useMemo(() => {
+    return sections.flatMap(section => 
+      section.tasks.filter(task => task.isActive)
+    );
+  }, [sections]);
 
   return (
     <Layout>

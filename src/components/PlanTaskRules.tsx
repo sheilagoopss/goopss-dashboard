@@ -202,6 +202,16 @@ const PlanTaskRulesComponent: React.FC = () => {
       key: 'frequency',
     },
     {
+      title: 'Goal',
+      dataIndex: 'defaultGoal',
+      key: 'defaultGoal',
+      width: 100,
+      render: (defaultGoal: number | null, record: PlanTaskRule) => {
+        if (!record.requiresGoal) return '-';
+        return defaultGoal || 0;
+      },
+    },
+    {
       title: 'Subtasks',
       dataIndex: 'subtasks',
       key: 'subtasks',
@@ -264,9 +274,9 @@ const PlanTaskRulesComponent: React.FC = () => {
           <p>Are you sure you want to delete this task?</p>
           <p><strong>{ruleToDelete.task}</strong></p>
           <Alert
-            message="Warning"
-            description="This will also remove this task from all customer plans in this package type."
-            type="warning"
+            message="Note"
+            description="This will only remove the task from the task rules. Existing customer plans will not be affected."
+            type="info"
             showIcon
             style={{ marginTop: '16px' }}
           />
@@ -277,7 +287,7 @@ const PlanTaskRulesComponent: React.FC = () => {
       cancelText: 'Cancel',
       async onOk() {
         try {
-          // 1. Delete from rules
+          // Delete from rules collection only
           const packageId = Object.keys(packageTypes).find(
             key => packageTypes[key as keyof typeof packageTypes] === selectedPackage
           ) || 'default';
@@ -297,52 +307,7 @@ const PlanTaskRulesComponent: React.FC = () => {
               updatedAt: new Date().toISOString()
             });
 
-            // 2. Delete from all customer plans with this package type
-            const customersRef = collection(db, 'customers');
-            const q = query(
-              customersRef, 
-              where('customer_type', '==', 'Paid'),
-              where('package_type', '==', selectedPackage)
-            );
-            
-            const customersSnapshot = await getDocs(q);
-            const batch = writeBatch(db);
-            let batchCount = 0;
-            const BATCH_LIMIT = 500;
-
-            for (const customerDoc of customersSnapshot.docs) {
-              const planRef = doc(db, 'plans', customerDoc.id);
-              const planDoc = await getDoc(planRef);
-
-              if (planDoc.exists()) {
-                const plan = planDoc.data() as Plan;
-                let needsUpdate = false;
-
-                // Remove task from each section
-                const updatedSections = plan.sections.map(section => ({
-                  ...section,
-                  tasks: section.tasks.filter(task => task.id !== ruleToDelete.id)
-                }));
-
-                if (batchCount >= BATCH_LIMIT) {
-                  await batch.commit();
-                  batchCount = 0;
-                }
-                
-                batch.update(planRef, { 
-                  sections: updatedSections,
-                  updatedAt: new Date().toISOString()
-                });
-                batchCount++;
-              }
-            }
-
-            // Commit any remaining updates
-            if (batchCount > 0) {
-              await batch.commit();
-            }
-
-            message.success(`Task deleted from ${selectedPackage} rules and customer plans`);
+            message.success(`Task deleted from ${selectedPackage} rules`);
             loadPackageRules(packageId);
           }
         } catch (error) {
@@ -980,39 +945,6 @@ const PlanTaskRulesComponent: React.FC = () => {
               >
                 Add New Rule
               </Button>
-              {/* Commented out Initialize buttons
-              {Object.entries(packageTypes).map(([key, displayName]) => (
-                <Button 
-                  key={key}
-                  type="primary"
-                  onClick={async () => {
-                    try {
-                      const rulesRef = doc(db, 'planTaskRules', key);
-                      
-                      await setDoc(rulesRef, {
-                        sections: defaultPlanTaskRules.sections,
-                        tasks: defaultPlanTaskRules.tasks,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: user?.email || ''
-                      });
-
-                      message.success(`${displayName} rules initialized successfully`);
-                      
-                      // If currently viewing this package, reload it
-                      if (selectedPackage === displayName) {
-                        loadPackageRules(key);
-                      }
-                    } catch (error) {
-                      console.error('Error:', error);
-                      message.error(`Failed to initialize ${displayName} rules`);
-                    }
-                  }}
-                >
-                  Initialize {displayName} Rules
-                </Button>
-              ))}
-              */}
             </Space>
           </Space>
           <Table 

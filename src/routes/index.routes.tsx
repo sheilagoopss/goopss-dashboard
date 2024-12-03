@@ -35,6 +35,8 @@ import ActivityLog from "components/customers/ActivityLog";
 import ReactGA from "react-ga4";
 import DescriptionHero from "components/descriptionHero/DescriptionHero";
 import RoleManagement from "components/roleManagement/RoleManagement";
+import { ClipboardList } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function AppRoutes() {
   const { isAdmin, user, loading } = useAuth();
@@ -393,15 +395,15 @@ export default function AppRoutes() {
             <Route index element={<Navigate to="/home" replace />} />
             <Route
               path="home"
-              element={
-                userType === "Free" ? <UpgradeNotice /> : <UserHomepage />
-              }
+              element={userType === "Free" ? <UpgradeNotice /> : <UserHomepage />}
+            />
+            <Route
+              path="plan"
+              element={userType === "Free" ? <UpgradeNotice /> : <CustomerPlan />}
             />
             <Route
               path="my-info"
-              element={
-                <StoreInformation customerId={user?.id || ""} isAdmin={false} />
-              }
+              element={<StoreInformation customerId={user?.id || ""} isAdmin={false} />}
             />
             <Route
               path="design-hub"

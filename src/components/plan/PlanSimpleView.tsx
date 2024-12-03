@@ -370,60 +370,85 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   };
 
   const handleEditSave = async (values: any) => {
-    if (!editingTask || !editingCustomer) return
+    if (!editingTask || !editingCustomer) {
+      console.error('Missing editingTask or editingCustomer:', { editingTask, editingCustomer });
+      return;
+    }
     try {
-      const planRef = doc(db, 'plans', editingCustomer.id)
-      const planDoc = await getDoc(planRef)
-      if (planDoc.exists()) {
-        const plan = planDoc.data() as Plan
-        const updatedSections = plan.sections.map(section => ({
-          ...section,
-          tasks: section.tasks.map(task => {
-            if (task.id === editingTask.id) {
-              // Calculate due date based on frequency
-              let dueDate = task.dueDate;
-              if (values.dueDate) {
-                dueDate = task.frequency === 'Monthly' 
-                  ? calculateMonthlyDueDate(values.dueDate.date())
-                  : values.dueDate.format('YYYY-MM-DD');
-              }
+      console.log('Starting update with values:', values);
+      const planRef = doc(db, 'plans', editingCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        console.error('Plan document not found');
+        message.error('Plan not found');
+        return;
+      }
 
-              return {
-                ...task,
-                // Only update ID if one is provided
-                ...(values.id && { id: `task-${values.id}`.replace('task-task-', 'task-') }),
-                progress: values.progress || task.progress,
-                dueDate,
-                completedDate: values.completedDate ? values.completedDate.format('YYYY-MM-DD') : task.completedDate,
-                isActive: typeof values.isActive === 'boolean' ? values.isActive : task.isActive,
-                current: typeof values.current === 'number' ? values.current : task.current,
-                goal: typeof values.goal === 'number' ? values.goal : task.goal,
-                notes: values.notes || task.notes,
-                assignedTeamMembers: values.assignedTeamMembers || [],
-                updatedAt: new Date().toISOString(),
-                updatedBy: 'admin'
-              }
+      const plan = planDoc.data() as Plan;
+      console.log('Current plan data:', plan);
+
+      const updatedSections = plan.sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(task => {
+          if (task.id === editingTask.id) {
+            console.log('Updating task:', task.id);
+            // Calculate due date based on frequency
+            let dueDate = task.dueDate;
+            if (values.dueDate) {
+              dueDate = task.frequency === 'Monthly' 
+                ? calculateMonthlyDueDate(values.dueDate.date())
+                : values.dueDate.format('YYYY-MM-DD');
             }
-            return task
-          })
-        }))
-        await updateDoc(planRef, { sections: updatedSections })
-        
-        message.success('Task updated successfully')
-        setEditModalVisible(false)
-        
-        // Reload data after update
-        if (plans.type === 'single') {
-          await loadPlan()
-        } else {
-          await loadAllPlans()
-        }
+
+            const updatedTask = {
+              ...task,
+              ...(values.id && { id: `task-${values.id}`.replace('task-task-', 'task-') }),
+              progress: values.progress || task.progress,
+              dueDate: dueDate || null,
+              completedDate: values.completedDate ? values.completedDate.format('YYYY-MM-DD') : task.completedDate,
+              isActive: typeof values.isActive === 'boolean' ? values.isActive : task.isActive,
+              current: typeof values.current === 'number' ? values.current : task.current || 0,
+              goal: typeof values.goal === 'number' ? values.goal : task.goal || 0,
+              notes: values.notes || task.notes || '',
+              assignedTeamMembers: values.assignedTeamMembers || [],
+              updatedAt: new Date().toISOString(),
+              updatedBy: 'admin',
+              subtasks: task.subtasks || [] // Preserve subtasks
+            };
+
+            console.log('Updated task:', updatedTask);
+            return updatedTask;
+          }
+          return task;
+        })
+      }));
+
+      console.log('Updated sections:', updatedSections);
+      
+      await updateDoc(planRef, { 
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+      
+      message.success('Task updated successfully');
+      setEditModalVisible(false);
+      
+      // Reload data after update
+      if (plans.type === 'single') {
+        await loadPlan();
+      } else {
+        await loadAllPlans();
       }
     } catch (error) {
-      console.error('Error updating task:', error)
-      message.error('Failed to update task')
+      console.error('Detailed error updating task:', error);
+      if (error instanceof Error) {
+        message.error(`Failed to update task: ${error.message}`);
+      } else {
+        message.error('Failed to update task: Unknown error');
+      }
     }
-  }
+  };
 
   const handleAddTask = async (values: any) => {
     if (!selectedCustomer) return;
@@ -561,42 +586,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           </Text>
         </Space>
       ),
-    },
-    {
-      title: 'Task ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 150,
-      render: (id: string) => (
-        <Tooltip title="Click to copy">
-          <Tag 
-            color="blue" 
-            style={{ cursor: 'pointer' }}
-            onClick={() => {
-              navigator.clipboard.writeText(id);
-              message.success('Task ID copied to clipboard');
-            }}
-          >
-            {id}
-          </Tag>
-        </Tooltip>
-      ),
-    },
-    {
-      title: 'Order',
-      dataIndex: 'order',
-      key: 'order',
-      width: 80,
-      render: (order: number) => order || '-',
-      sorter: {
-        compare: (a: TableRecord, b: TableRecord) => {
-          const orderA = typeof a.order === 'number' ? a.order : Number.MAX_VALUE;
-          const orderB = typeof b.order === 'number' ? b.order : Number.MAX_VALUE;
-          return orderA - orderB;
-        },
-        multiple: 1
-      },
-      defaultSortOrder: 'ascend' as const,
     },
     {
       title: 'Task Name',
@@ -1339,14 +1328,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                   const value = e.target.value.replace('task-', '');
                   form.setFieldsValue({ id: value });
                 }}
-              />
-            </Form.Item>
-
-            <Form.Item name="order" label="Order">
-              <InputNumber 
-                min={0} 
-                placeholder="Enter task order"
-                style={{ width: '100%' }}
               />
             </Form.Item>
 

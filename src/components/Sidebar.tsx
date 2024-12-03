@@ -156,6 +156,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       label: <Link to="/design-hub">Design Hub</Link>,
     },
     {
+      key: "plan",
+      icon: <ClipboardList className="h-6 w-6" />,
+      label: <Link to="/plan">Plan</Link>,
+    },
+    {
       key: "listings",
       icon: <FileText className="h-6 w-6" />,
       label: <Link to="/listings">Listings</Link>,
