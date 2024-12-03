@@ -7,7 +7,7 @@ import {
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
-  UserOutlined, WarningOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined, UploadOutlined, DeleteOutlined, RedoOutlined
+  UserOutlined, WarningOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined, UploadOutlined, DeleteOutlined, RedoOutlined, MinusCircleOutlined
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { PlanSection, PlanTask } from '../../types/Plan'
@@ -363,7 +363,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       current: record.current,
       goal: record.goal,
       notes: record.notes,
-      assignedTeamMembers: record.assignedTeamMembers || []
+      assignedTeamMembers: record.assignedTeamMembers || [],
+      subtasks: [] // Initialize empty array for new subtasks
     });
     
     setEditModalVisible(true);
@@ -385,47 +386,46 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         return;
       }
 
-      const plan = planDoc.data() as Plan;
-      console.log('Current plan data:', plan);
+      // Process new subtasks
+      const newSubtasks = values.subtasks?.map((subtask: { text: string }) => ({
+        id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: subtask.text,
+        isCompleted: false,
+        completedDate: null,
+        createdAt: new Date().toISOString()
+      })) || [];
 
+      const plan = planDoc.data() as Plan;
       const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => {
           if (task.id === editingTask.id) {
             console.log('Updating task:', task.id);
-            // Calculate due date based on frequency
-            let dueDate = task.dueDate;
-            if (values.dueDate) {
-              dueDate = task.frequency === 'Monthly' 
-                ? calculateMonthlyDueDate(values.dueDate.date())
-                : values.dueDate.format('YYYY-MM-DD');
-            }
+            
+            // Combine existing and new subtasks
+            const existingSubtasks = task.subtasks || [];
+            const combinedSubtasks = [...existingSubtasks, ...newSubtasks];
 
-            const updatedTask = {
+            return {
               ...task,
               ...(values.id && { id: `task-${values.id}`.replace('task-task-', 'task-') }),
               progress: values.progress || task.progress,
-              dueDate: dueDate || null,
+              dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : task.dueDate,
               completedDate: values.completedDate ? values.completedDate.format('YYYY-MM-DD') : task.completedDate,
               isActive: typeof values.isActive === 'boolean' ? values.isActive : task.isActive,
               current: typeof values.current === 'number' ? values.current : task.current || 0,
               goal: typeof values.goal === 'number' ? values.goal : task.goal || 0,
               notes: values.notes || task.notes || '',
               assignedTeamMembers: values.assignedTeamMembers || [],
+              subtasks: combinedSubtasks,
               updatedAt: new Date().toISOString(),
-              updatedBy: 'admin',
-              subtasks: task.subtasks || [] // Preserve subtasks
+              updatedBy: 'admin'
             };
-
-            console.log('Updated task:', updatedTask);
-            return updatedTask;
           }
           return task;
         })
       }));
 
-      console.log('Updated sections:', updatedSections);
-      
       await updateDoc(planRef, { 
         sections: updatedSections,
         updatedAt: new Date().toISOString()
@@ -458,6 +458,16 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       
       if (planDoc.exists()) {
         const plan = planDoc.data() as Plan;
+        
+        // Process subtasks
+        const subtasks = values.subtasks?.map((subtask: { text: string }) => ({
+          id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: subtask.text,
+          isCompleted: false,
+          completedDate: null,
+          createdAt: new Date().toISOString()
+        })) || [];
+
         const newTask: PlanTask = {
           id: Date.now().toString(),
           task: values.task,
@@ -472,7 +482,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           goal: 0,
           order: 0,
           updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || 'system'
+          updatedBy: user?.email || 'system',
+          subtasks,
         };
 
         // Always add to Other Tasks section
@@ -1358,9 +1369,35 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Input.TextArea rows={4} />
             </Form.Item>
 
+            <Divider orientation="left">Subtasks</Divider>
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} style={{ display: 'flex', width: '100%', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'text']}
+                        style={{ width: '500px' }}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask text" />
+                      </Form.Item>
+                      <MinusCircleOutlined onClick={() => remove(field.name)} />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+
             {editingTask?.subtasks && editingTask.subtasks.length > 0 && (
               <>
-                <Divider orientation="left">Subtasks ({editingTask.subtasks.length})</Divider>
+                <Divider orientation="left">Existing Subtasks</Divider>
                 <div style={{ marginBottom: 16 }}>
                   {editingTask.subtasks.map((subtask) => (
                     <div 
@@ -1371,7 +1408,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                         marginBottom: 8,
                         padding: 12,
                         background: '#f5f5f5',
-                        borderRadius: 6
+                        borderRadius: 6,
+                        width: '100%'
                       }}
                     >
                       <Checkbox
@@ -1454,11 +1492,16 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                       >
                         {subtask.text}
                       </Text>
-                      {subtask.completedDate && (
-                        <Text type="secondary" style={{ fontSize: '12px', marginLeft: 8 }}>
-                          Completed: {dayjs(subtask.completedDate).format('MMM DD, YYYY')}
+                      <Space size="small">
+                        {subtask.completedDate && (
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            Completed: {dayjs(subtask.completedDate).format('MMM DD, YYYY')}
+                          </Text>
+                        )}
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          Added: {dayjs(subtask.createdAt).format('MMM DD, YYYY')}
                         </Text>
-                      )}
+                      </Space>
                     </div>
                   ))}
                 </div>
