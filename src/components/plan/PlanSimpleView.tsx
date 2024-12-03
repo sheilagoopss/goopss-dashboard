@@ -392,7 +392,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         text: subtask.text,
         isCompleted: false,
         completedDate: null,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || 'admin'
       })) || [];
 
       const plan = planDoc.data() as Plan;
@@ -465,7 +466,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           text: subtask.text,
           isCompleted: false,
           completedDate: null,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          createdBy: user?.email || 'admin'
         })) || [];
 
         const newTask: PlanTask = {
@@ -478,12 +480,16 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           completedDate: null,
           isActive: true,
           notes: values.notes || '',
-          current: 0,
-          goal: 0,
+          current: values.current || 0,
+          goal: values.goal || 0,
           order: 0,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || 'system',
           subtasks,
+          files: uploadedFiles,
+          createdBy: user?.email || 'system',
+          createdAt: new Date().toISOString(),
+          assignedTeamMembers: values.assignedTeamMembers || []
         };
 
         // Always add to Other Tasks section
@@ -602,6 +608,17 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       title: 'Task Name',
       dataIndex: 'task',
       key: 'task',
+      render: (text: string, record: TableRecord) => (
+        <Space direction="vertical" size={2}>
+          <span>{text}</span>
+          {record.section === 'Other Tasks' && record.createdBy && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Created by {adminList.find(admin => admin.email === record.createdBy)?.name || record.createdBy}
+              {record.createdAt && ` on ${dayjs(record.createdAt).format('MMM DD, YYYY')}`}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
       title: 'Section',
@@ -1254,7 +1271,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => setAddTaskModalVisible(true)}
+                onClick={() => {
+                  addTaskForm.resetFields(); // Reset form before opening
+                  setUploadedFiles([]); // Reset uploaded files
+                  setAddTaskModalVisible(true);
+                }}
               >
                 Add Custom Task
               </Button>
@@ -1296,15 +1317,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         />
 
         <Modal
-          title={`Edit Task: ${editingTask?.task}`}
+          title={editingTask ? 'Edit Task' : 'Add Task'}
           open={editModalVisible}
           onOk={form.submit}
-          onCancel={() => {
-            setEditModalVisible(false);
-            form.resetFields();
-          }}
-          destroyOnClose={true}
-          width={800}
+          onCancel={() => setEditModalVisible(false)}
+          width={1000}
           style={{ top: 20 }}
         >
           <Form 
@@ -1499,7 +1516,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                           </Text>
                         )}
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                          Added: {dayjs(subtask.createdAt).format('MMM DD, YYYY')}
+                          Added by {adminList.find(admin => admin.email === subtask.createdBy)?.name || subtask.createdBy} on {dayjs(subtask.createdAt).format('MMM DD, YYYY')}
                         </Text>
                       </Space>
                     </div>
@@ -1507,6 +1524,29 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 </div>
               </>
             )}
+
+            <Form.Item label="Attachments">
+              <Upload
+                beforeUpload={handleFileUpload}
+                fileList={(editingTask?.files || []).map(file => ({
+                  uid: file.url,
+                  name: file.name,
+                  status: 'done',
+                  url: file.url,
+                }))}
+                onRemove={(file) => {
+                  // Handle file removal
+                  const updatedFiles = editingTask?.files?.filter(f => f.url !== file.uid) || [];
+                  setEditingTask(prev => prev ? { ...prev, files: updatedFiles } : null);
+                  return true;
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Upload File</Button>
+              </Upload>
+              <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                Max file size: 10MB
+              </Text>
+            </Form.Item>
 
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
@@ -1523,27 +1563,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                   ))}
               </Select>
             </Form.Item>
-
-            {editingTask?.section === 'Other Tasks' && editingTask.files && editingTask.files.length > 0 && (
-              <>
-                <Divider />
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Attachments:</Text>
-                  <div style={{ marginTop: 8 }}>
-                    {editingTask.files.map((file, index) => (
-                      <div key={index} style={{ marginBottom: 8 }}>
-                        <a href={file.url} target="_blank" rel="noopener noreferrer">
-                          {file.name}
-                        </a>
-                        <Text type="secondary" style={{ marginLeft: 8 }}>
-                          ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                        </Text>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
 
             {editingTask?.section === 'Other Tasks' && editingTask.createdBy && (
               <>
@@ -1575,6 +1594,9 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
             addTaskForm.resetFields();
             setUploadedFiles([]);
           }}
+          destroyOnClose={true}
+          width={1000}
+          style={{ top: 20 }}
         >
           <Form 
             form={addTaskForm} 
@@ -1662,7 +1684,34 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Input.TextArea rows={4} />
             </Form.Item>
 
-            {/* Add file upload section */}
+            {/* Add Subtasks section */}
+            <Divider orientation="left">Subtasks</Divider>
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} style={{ display: 'flex', width: '100%', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'text']}
+                        style={{ width: '500px' }}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask text" />
+                      </Form.Item>
+                      <MinusCircleOutlined onClick={() => remove(field.name)} />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+
+            {/* File upload section follows */}
             <Form.Item label="Attachments">
               <Upload
                 beforeUpload={handleFileUpload}

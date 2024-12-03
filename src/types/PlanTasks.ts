@@ -4,6 +4,7 @@ export interface SubTask {
   isCompleted?: boolean;
   completedDate: string | null;
   createdAt: string;
+  createdBy: string;
 }
 
 export interface PlanTaskRule {
