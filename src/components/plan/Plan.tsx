@@ -612,7 +612,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
         console.log('Using cached plans');
         setPlans({
           type: 'all',
-          selectedCustomer: null,  // No selected customer in all views
+          selectedCustomer: null,
           data: cachedPlans
         });
         setIsLoading(false);
@@ -624,7 +624,10 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       const customersSnapshot = await getDocs(customersRef);
       const paidCustomers = customersSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as ICustomer))
-        .filter(customer => customer.customer_type === 'Paid');
+        .filter(customer => 
+          customer.customer_type === 'Paid' && 
+          customer.isActive === true
+        );
 
       const plansPromises = paidCustomers.map(customer => 
         getDoc(doc(db, 'plans', customer.id))
@@ -642,10 +645,9 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
       setCachedPlans(plansData);
       setLastCacheUpdate(Date.now());
 
-      // Set plans while preserving selected customer
       setPlans({
         type: 'all',
-        selectedCustomer: null,  // No selected customer in all views
+        selectedCustomer: null,
         data: plansData
       });
     } catch (error) {
@@ -1441,7 +1443,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 {Object.entries(plans.data)
                   .flatMap(([customerId, plan]) => {
                     const customer = customers.find(c => c.id === customerId);
-                    if (!customer) return [];
+                    if (!customer || !customer.isActive) return [];
 
                     return plan.sections
                       .flatMap(section => section.tasks)
@@ -1449,24 +1451,27 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                       .map(task => ({ customer, task }));
                   })
                   .sort((a, b) => {
-                    // First sort by due date
+                    // First sort by order if it exists
+                    const orderA = a.task.order ?? Number.MAX_VALUE;
+                    const orderB = b.task.order ?? Number.MAX_VALUE;
+                    if (orderA !== orderB) {
+                      return orderA - orderB;  // Sort by order first
+                    }
+
+                    // If no order or orders are equal, fall back to existing sorting logic
                     if (!a.task.dueDate && !b.task.dueDate) {
-                      // If neither has a due date, sort by customer join date
                       const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
                       const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
                       return joinDateB.valueOf() - joinDateA.valueOf();
                     }
-                    if (!a.task.dueDate) return 1;  // Tasks without due dates go last
+                    if (!a.task.dueDate) return 1;
                     if (!b.task.dueDate) return -1;
-
-                    // Compare due dates
                     const dateA = dayjs(a.task.dueDate);
                     const dateB = dayjs(b.task.dueDate);
                     const dateDiff = dateA.valueOf() - dateB.valueOf();
                     
                     if (dateDiff !== 0) return dateDiff;
 
-                    // If due dates are equal, sort by customer join date
                     const joinDateA = a.customer.date_joined ? dayjs(a.customer.date_joined) : dayjs('1900-01-01');
                     const joinDateB = b.customer.date_joined ? dayjs(b.customer.date_joined) : dayjs('1900-01-01');
                     return joinDateB.valueOf() - joinDateA.valueOf();
@@ -1491,7 +1496,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                     total={Object.entries(plans.data)
                       .flatMap(([customerId, plan]) => {
                         const customer = customers.find(c => c.id === customerId);
-                        if (!customer) return [];
+                        if (!customer || !customer.isActive) return [];
                         return plan.sections.flatMap(section => section.tasks).filter(filterTasks);
                       }).length}
                     pageSize={PAGE_SIZE}
@@ -1506,6 +1511,14 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                   .flatMap(section => section.tasks)
                   .filter(filterTasks)
                   .sort((a, b) => {
+                    // First sort by order if it exists
+                    const orderA = a.order ?? Number.MAX_VALUE;
+                    const orderB = b.order ?? Number.MAX_VALUE;
+                    if (orderA !== orderB) {
+                      return orderA - orderB;  // Sort by order first
+                    }
+
+                    // If no order or orders are equal, fall back to due date sorting
                     if (!a.dueDate && !b.dueDate) return 0;
                     if (!a.dueDate) return 1;
                     if (!b.dueDate) return -1;
@@ -1546,7 +1559,7 @@ const PlanComponent: React.FC<PlanProps> = ({ customers, selectedCustomer, setSe
                 ? Object.entries(plans.data)
                     .flatMap(([customerId, plan]) => {
                       const customer = customers.find(c => c.id === customerId);
-                      if (!customer) return [];
+                      if (!customer || !customer.isActive) return [];
                       return plan.sections
                         .flatMap(section => section.tasks)
                         .filter(task => task.isActive);

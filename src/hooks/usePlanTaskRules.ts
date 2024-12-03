@@ -5,6 +5,7 @@ import { PlanTaskRule, PlanTaskRules } from '../types/PlanTasks';
 import { packageTypes } from '../types/Customer';
 import { message } from 'antd';
 import dayjs from 'dayjs';
+import { PlanSection } from '../types/Plan';
 
 const getPackageId = (displayName: string): string => {
   const packageId = Object.entries(packageTypes).find(
@@ -182,13 +183,14 @@ export const usePlanTaskRules = () => {
           id: editingRule?.id || `${Date.now()}`,
           task: values.task,
           section: values.section,
-          daysAfterJoin: values.daysAfterJoin === 0 ? null : values.daysAfterJoin,
+          daysAfterJoin: values.daysAfterJoin,
           monthlyDueDate: values.frequency === 'Monthly' ? dayjs(values.monthlyDueDate).date() : null,
           frequency: values.frequency,
           isActive: true,
-          requiresGoal: values.requiresGoal || false,
-          defaultGoal: values.requiresGoal ? values.defaultGoal : null,
-          defaultCurrent: values.requiresGoal ? (values.defaultCurrent || 0) : null,
+          requiresGoal: values.requiresGoal,
+          defaultGoal: values.defaultGoal,
+          defaultCurrent: values.defaultCurrent,
+          order: values.order || currentRules.tasks.length + 1,
           updatedAt: new Date().toISOString(),
           updatedBy: user?.email || ''
         };

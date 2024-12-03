@@ -1,59 +1,28 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  Layout,
-  Typography,
-  Card,
-  Select,
-  Switch,
-  Input,
-  Button,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-  DatePicker,
-  Modal,
-  message,
-  Avatar,
-  Form,
-  Checkbox,
-  InputNumber,
-  Alert,
-  Progress,
-  Upload,
-  Divider,
-} from "antd";
-import {
-  CalendarOutlined,
-  CheckCircleOutlined,
-  EditOutlined,
-  UserOutlined,
-  ReloadOutlined,
-  PlusOutlined,
-  FileTextOutlined,
-  UploadOutlined,
-} from "@ant-design/icons";
-import dayjs from "dayjs";
-import { PlanTask } from "../../types/Plan";
-import { ICustomer, IAdmin } from "../../types/Customer";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  setDoc,
-} from "firebase/firestore";
-import { db } from "../../firebase/config";
-import type { Plan } from "../../types/Plan";
-import { useAuth } from "../../contexts/AuthContext";
-import { PlanTaskRule } from "../../types/PlanTasks";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import FirebaseHelper from "../../helpers/FirebaseHelper";
-import type { TableColumnsType } from "antd";
+import React, { useState, useEffect, useMemo } from 'react'
+import { 
+  Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider
+} from 'antd'
+import { 
+  CalendarOutlined, CheckCircleOutlined, EditOutlined,
+  UserOutlined, WarningOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined, UploadOutlined, DeleteOutlined, RedoOutlined, MinusCircleOutlined
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { PlanSection, PlanTask } from '../../types/Plan'
+import { ICustomer, IAdmin } from '../../types/Customer'
+import { doc, getDoc, updateDoc, collection, getDocs, setDoc, addDoc, writeBatch, query, where } from 'firebase/firestore'
+import { db } from '../../firebase/config'
+import type { Plan } from '../../types/Plan'
+import { useAuth } from '../../contexts/AuthContext';
+import { PlanTaskRule } from '../../types/PlanTasks';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import FirebaseHelper from '../../helpers/FirebaseHelper';
+import type { ColumnsType } from 'antd/es/table';
+import type { Key } from 'react';
+import { SubTask } from '../../types/PlanTasks';
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -76,12 +45,14 @@ interface TableRecord {
   goal: number;
   notes: string;
   id: string;
+  order: number;
   updatedAt: string;
   updatedBy: string;
   files?: TaskFile[];
   createdBy?: string;
   createdAt?: string;
   assignedTeamMembers?: string[];
+  subtasks?: SubTask[];
 }
 
 const pastelColors = {
@@ -279,54 +250,49 @@ export const PlanSimpleView: React.FC<Props> = ({
   const loadAllPlans = async () => {
     try {
       setIsLoading(true);
+      console.log('Starting to load all plans...');
 
-      // Check cache validity
-      const isCacheValid = Date.now() - lastCacheUpdate < CACHE_DURATION;
-      if (isCacheValid && Object.keys(cachedPlans).length > 0) {
-        console.log("Using cached plans");
-        setPlans({
-          type: "all",
-          selectedCustomer: null,
-          data: cachedPlans,
+      // Get only active paid customers first
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(
+        query(customersRef, 
+          where('customer_type', '==', 'Paid'),
+          where('isActive', '==', true)
+        )
+      );
+      console.log('Found active paid customers:', customersSnapshot.size);
+
+      // Load plans in batches of 10
+      const BATCH_SIZE = 10;
+      const plansData: { [customerId: string]: Plan } = {};
+      
+      for (let i = 0; i < customersSnapshot.docs.length; i += BATCH_SIZE) {
+        const batch = customersSnapshot.docs.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(customerDoc => 
+          getDoc(doc(db, 'plans', customerDoc.id))
+        );
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        batchResults.forEach((planDoc, index) => {
+          if (planDoc.exists()) {
+            plansData[batch[index].id] = planDoc.data() as Plan;
+          }
         });
-        setIsLoading(false);
-        return;
+
+        // Update state after each batch to show progress
+        setPlans({
+          type: 'all',
+          selectedCustomer: null,
+          data: { ...plansData }
+        });
       }
 
-      // Fetch fresh data if cache is invalid
-      const customersRef = collection(db, "customers");
-      const customersSnapshot = await getDocs(customersRef);
-      const paidCustomers = customersSnapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }) as ICustomer)
-        .filter((customer) => customer.customer_type === "Paid");
+      console.log('Loaded plans data:', Object.keys(plansData).length);
 
-      const plansPromises = paidCustomers.map((customer) =>
-        getDoc(doc(db, "plans", customer.id)),
-      );
-      const plansSnapshots = await Promise.all(plansPromises);
-
-      const plansData = plansSnapshots.reduce(
-        (acc, planDoc, index) => {
-          if (planDoc.exists()) {
-            acc[paidCustomers[index].id] = planDoc.data() as Plan;
-          }
-          return acc;
-        },
-        {} as { [customerId: string]: Plan },
-      );
-
-      // Update cache
-      setCachedPlans(plansData);
-      setLastCacheUpdate(Date.now());
-
-      setPlans({
-        type: "all",
-        selectedCustomer: null,
-        data: plansData,
-      });
     } catch (error) {
-      console.error("Error loading plans:", error);
-      message.error("Failed to load plans");
+      console.error('Error loading all plans:', error);
+      message.error('Failed to load plans');
     } finally {
       setIsLoading(false);
     }
@@ -363,14 +329,33 @@ export const PlanSimpleView: React.FC<Props> = ({
   }, [selectedCustomer]);
 
   const handleEdit = (record: TableRecord, customer: ICustomer) => {
-    console.log("Editing task with data:", record);
+    console.log('Starting edit with record:', record);
+    
+    // Get the full task data from the plan
+    const plan = plans.data[customer.id];
+    console.log('Found plan:', plan);
+    
+    const section = plan?.sections.find(s => s.title === record.section);
+    console.log('Found section:', section);
+    
+    const fullTask = section?.tasks.find(t => t.id === record.id);
+    console.log('Found full task:', fullTask);
+    console.log('Full task subtasks:', fullTask?.subtasks);
+    
+    if (!fullTask) {
+      message.error('Task not found');
+      return;
+    }
 
-    const taskData: PlanTask & { section?: string } = {
-      // Add section to the type
+    console.log('Task subtasks:', fullTask.subtasks);
+    
+    const taskData: PlanTask = {
+      ...fullTask,
       id: record.id,
       task: record.task,
-      progress: record.progress as "To Do" | "Doing" | "Done",
-      frequency: record.frequency as "Monthly" | "One Time" | "As Needed",
+      section: record.section,
+      progress: record.progress,
+      frequency: record.frequency,
       dueDate: record.dueDate,
       completedDate: record.completedDate,
       isActive: record.isActive,
@@ -382,15 +367,26 @@ export const PlanSimpleView: React.FC<Props> = ({
       files: record.files,
       createdBy: record.createdBy,
       createdAt: record.createdAt,
-      section: record.section, // Add this line
       assignedTeamMembers: record.assignedTeamMembers || [],
+      order: record.order,
+      subtasks: fullTask.subtasks || [] // Make sure subtasks are included
     };
-
+    
+    console.log('Final task data for editing:', taskData);
+    console.log('Subtasks in final data:', taskData.subtasks);
+    
     setEditingTask(taskData);
     setEditingCustomer(customer);
-
+    
+    // Log the state after setting
+    setTimeout(() => {
+      console.log('EditingTask state:', editingTask);
+    }, 0);
+    
     form.setFieldsValue({
+      id: record.id.replace('task-', ''),
       progress: record.progress,
+      order: record.order,
       dueDate: record.dueDate ? dayjs(record.dueDate) : null,
       completedDate: record.completedDate ? dayjs(record.completedDate) : null,
       isActive: record.isActive,
@@ -398,109 +394,133 @@ export const PlanSimpleView: React.FC<Props> = ({
       goal: record.goal,
       notes: record.notes,
       assignedTeamMembers: record.assignedTeamMembers || [],
+      subtasks: [] // Initialize empty array for new subtasks
     });
 
     setEditModalVisible(true);
   };
 
   const handleEditSave = async (values: any) => {
-    if (!editingTask || !editingCustomer) return;
+    if (!editingTask || !editingCustomer) {
+      console.error('Missing editingTask or editingCustomer:', { editingTask, editingCustomer });
+      return;
+    }
     try {
-      const planRef = doc(db, "plans", editingCustomer.id);
+      console.log('Starting update with values:', values);
+      const planRef = doc(db, 'plans', editingCustomer.id);
       const planDoc = await getDoc(planRef);
-      if (planDoc.exists()) {
-        const plan = planDoc.data() as Plan;
-        const updatedSections = plan.sections.map((section) => ({
-          ...section,
-          tasks: section.tasks.map((task) => {
-            if (task.id === editingTask.id) {
-              // Calculate due date based on frequency
-              let dueDate = task.dueDate;
-              if (values.dueDate) {
-                dueDate =
-                  task.frequency === "Monthly"
-                    ? calculateMonthlyDueDate(values.dueDate.date())
-                    : values.dueDate.format("YYYY-MM-DD");
-              }
+      
+      if (!planDoc.exists()) {
+        console.error('Plan document not found');
+        message.error('Plan not found');
+        return;
+      }
 
-              return {
-                ...task,
-                progress: values.progress || task.progress,
-                dueDate,
-                completedDate: values.completedDate
-                  ? values.completedDate.format("YYYY-MM-DD")
-                  : task.completedDate,
-                isActive:
-                  typeof values.isActive === "boolean"
-                    ? values.isActive
-                    : task.isActive,
-                current:
-                  typeof values.current === "number"
-                    ? values.current
-                    : task.current,
-                goal: typeof values.goal === "number" ? values.goal : task.goal,
-                notes: values.notes || task.notes,
-                assignedTeamMembers: values.assignedTeamMembers || [],
-                updatedAt: new Date().toISOString(),
-                updatedBy: "admin",
-              };
-            }
-            return task;
-          }),
-        }));
-        await updateDoc(planRef, { sections: updatedSections });
+      // Process new subtasks
+      const newSubtasks = values.subtasks?.map((subtask: { text: string }) => ({
+        id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: subtask.text,
+        isCompleted: false,
+        completedDate: null,
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || 'admin'
+      })) || [];
 
-        // Reload data after update
-        if (plans.type === "single") {
-          await loadPlan();
-        } else {
-          await loadAllPlans();
-        }
+      const plan = planDoc.data() as Plan;
+      const updatedSections = plan.sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(task => {
+          if (task.id === editingTask.id) {
+            console.log('Updating task:', task.id);
+            
+            // Combine existing and new subtasks
+            const existingSubtasks = task.subtasks || [];
+            const combinedSubtasks = [...existingSubtasks, ...newSubtasks];
 
-        message.success("Task updated successfully");
-        setEditModalVisible(false);
+            return {
+              ...task,
+              ...(values.id && { id: `task-${values.id}`.replace('task-task-', 'task-') }),
+              progress: values.progress || task.progress,
+              dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : task.dueDate,
+              completedDate: values.completedDate ? values.completedDate.format('YYYY-MM-DD') : task.completedDate,
+              isActive: typeof values.isActive === 'boolean' ? values.isActive : task.isActive,
+              current: typeof values.current === 'number' ? values.current : task.current || 0,
+              goal: typeof values.goal === 'number' ? values.goal : task.goal || 0,
+              notes: values.notes || task.notes || '',
+              assignedTeamMembers: values.assignedTeamMembers || [],
+              subtasks: combinedSubtasks,
+              updatedAt: new Date().toISOString(),
+              updatedBy: 'admin'
+            };
+          }
+          return task;
+        })
+      }));
+
+      await updateDoc(planRef, { 
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+      
+      message.success('Task updated successfully');
+      setEditModalVisible(false);
+      
+      // Reload data after update
+      if (plans.type === 'single') {
+        await loadPlan();
+      } else {
+        await loadAllPlans();
       }
     } catch (error) {
-      console.error("Error updating task:", error);
-      message.error("Failed to update task");
+      console.error('Detailed error updating task:', error);
+      if (error instanceof Error) {
+        message.error(`Failed to update task: ${error.message}`);
+      } else {
+        message.error('Failed to update task: Unknown error');
+      }
     }
   };
 
-  // const handleAddTask = () => {
-  //   if (!selectedCustomer) {
-  //     message.error("Please select a customer first");
-  //     return;
-  //   }
-  //   addTaskForm.resetFields();
-  //   setAddTaskModalVisible(true);
-  // };
+  const handleAddTask = async (values: any) => {
+    if (!selectedCustomer) return;
+    try {
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (planDoc.exists()) {
+        const plan = planDoc.data() as Plan;
+        
+        // Process subtasks
+        const subtasks = values.subtasks?.map((subtask: { text: string }) => ({
+          id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: subtask.text,
+          isCompleted: false,
+          completedDate: null,
+          createdAt: new Date().toISOString(),
+          createdBy: user?.email || 'admin'
+        })) || [];
 
-  // const handleAddTaskSave = async (values: any) => {
-  //   if (!selectedCustomer) return;
-  //   try {
-  //     const planRef = doc(db, "plans", selectedCustomer.id);
-  //     const planDoc = await getDoc(planRef);
-  //     if (planDoc.exists()) {
-  //       const plan = planDoc.data() as Plan;
-  //       const newTask: PlanTask = {
-  //         id: Date.now().toString(),
-  //         task: values.task,
-  //         frequency: values.frequency,
-  //         progress: "To Do",
-  //         dueDate:
-  //           values.frequency === "Monthly" && values.dueDate
-  //             ? calculateMonthlyDueDate(values.dueDate.date()) // Use the day of month
-  //             : values.dueDate
-  //               ? values.dueDate.format("YYYY-MM-DD")
-  //               : null,
-  //         completedDate: null,
-  //         isActive: true,
-  //         notes: values.notes || "",
-  //         current: 0,
-  //         goal: 0,
-  //         updatedAt: new Date().toISOString(),
-  //         updatedBy: "admin",
-  //       };
+        const newTask: PlanTask = {
+          id: Date.now().toString(),
+          task: values.task,
+          section: 'Other Tasks',
+          frequency: values.frequency,
+          progress: 'To Do',
+          dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : null,
+          completedDate: null,
+          isActive: true,
+          notes: values.notes || '',
+          current: values.current || 0,
+          goal: values.goal || 0,
+          order: 0,
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.email || 'system',
+          subtasks,
+          files: uploadedFiles,
+          createdBy: user?.email || 'system',
+          createdAt: new Date().toISOString(),
+          assignedTeamMembers: values.assignedTeamMembers || []
+        };
 
   //       // Always add to Other Tasks section
   //       const updatedSections = plan.sections.map((section) =>
@@ -517,16 +537,16 @@ export const PlanSimpleView: React.FC<Props> = ({
   //         });
   //       }
 
-  //       await updateDoc(planRef, { sections: updatedSections });
-  //       message.success("Task added successfully");
-  //       setAddTaskModalVisible(false);
-  //       loadPlan();
-  //     }
-  //   } catch (error) {
-  //     console.error("Error adding task:", error);
-  //     message.error("Failed to add task");
-  //   }
-  // };
+        await updateDoc(planRef, { sections: updatedSections })
+        message.success('Task added successfully')
+        setAddTaskModalVisible(false)
+        loadPlan()
+      }
+    } catch (error) {
+      console.error('Error adding task:', error)
+      message.error('Failed to add task')
+    }
+  };
 
   const handleBulkEdit = async (values: any) => {
     try {
@@ -599,7 +619,7 @@ export const PlanSimpleView: React.FC<Props> = ({
     }
   };
 
-  const columns: TableColumnsType<TableRecord> = [
+  const columns: ColumnsType<TableRecord> = [
     {
       title: "Store Name",
       dataIndex: "store_name",
@@ -623,9 +643,20 @@ export const PlanSimpleView: React.FC<Props> = ({
       ),
     },
     {
-      title: "Task Name",
-      dataIndex: "task",
-      key: "task",
+      title: 'Task Name',
+      dataIndex: 'task',
+      key: 'task',
+      render: (text: string, record: TableRecord) => (
+        <Space direction="vertical" size={2}>
+          <span>{text}</span>
+          {record.section === 'Other Tasks' && record.createdBy && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Created by {adminList.find(admin => admin.email === record.createdBy)?.name || record.createdBy}
+              {record.createdAt && ` on ${dayjs(record.createdAt).format('MMM DD, YYYY')}`}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
       title: "Section",
@@ -757,102 +788,66 @@ export const PlanSimpleView: React.FC<Props> = ({
           </Avatar.Group>
         ) : null,
     },
-  ];
+  ]
+
+  const [packageFilter, setPackageFilter] = useState<string>('all');
 
   const filteredData = useMemo(() => {
-    const allTasks = Object.entries(plans.data).flatMap(
-      ([customerId, plan]) => {
-        const customer = customers.find((c) => c.id === customerId);
-        if (!customer) return [];
+    if (!plans.data) return [];  // Add this safety check
 
-        return plan.sections.flatMap((section) =>
-          section.tasks
-            .filter(
-              (task) =>
-                (!showActiveOnly || task.isActive) &&
-                (progressFilter === "All" ||
-                  (progressFilter === "To Do and Doing"
-                    ? task.progress === "To Do" || task.progress === "Doing"
-                    : task.progress === progressFilter)) &&
-                task.task.toLowerCase().includes(search.toLowerCase()) &&
-                (frequencyFilter === "All" ||
-                  (frequencyFilter === "Monthly and As Needed"
-                    ? task.frequency === "Monthly" ||
-                      task.frequency === "As Needed"
-                    : task.frequency === frequencyFilter)) &&
-                (teamMemberFilter === "all" ||
-                  task.assignedTeamMembers?.includes(teamMemberFilter)) &&
-                (!showMyTasks ||
-                  task.assignedTeamMembers?.includes(user?.email || "")),
-            )
-            .map((task) => ({
-              key: `${customerId}-${task.id}`,
-              store_name: customer.store_name,
-              customer,
-              task: task.task,
-              section: section.title,
-              progress: task.progress,
-              frequency: task.frequency,
-              dueDate: task.dueDate || null,
-              completedDate: task.completedDate || null,
-              isActive: task.isActive,
-              current: task.current,
-              goal: task.goal,
-              notes: task.notes,
-              id: task.id,
-              updatedAt: task.updatedAt,
-              updatedBy: task.updatedBy,
-              files: task.files,
-              createdBy: task.createdBy,
-              createdAt: task.createdAt,
-              assignedTeamMembers: task.assignedTeamMembers,
-            })),
-        );
-      },
-    );
-
-    return allTasks.sort((a, b) => {
-      // First sort by due date
-      if (!a.dueDate && !b.dueDate) {
-        // If neither has a due date, sort by customer join date
-        const joinDateA = a.customer.date_joined
-          ? dayjs(a.customer.date_joined)
-          : dayjs("1900-01-01");
-        const joinDateB = b.customer.date_joined
-          ? dayjs(b.customer.date_joined)
-          : dayjs("1900-01-01");
-        return joinDateB.valueOf() - joinDateA.valueOf();
+    const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
+      const customer = customers.find(c => c.id === customerId);
+      if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return [];
+      
+      if (packageFilter !== 'all' && customer.package_type !== packageFilter) {
+        return [];
       }
-      if (!a.dueDate) return 1; // Tasks without due dates go last
-      if (!b.dueDate) return -1;
-
-      // Compare due dates first
-      const dateA = dayjs(a.dueDate);
-      const dateB = dayjs(b.dueDate);
-      const dateDiff = dateA.valueOf() - dateB.valueOf();
-
-      if (dateDiff !== 0) return dateDiff;
-
-      // If due dates are equal, sort by customer join date (most recent first)
-      const joinDateA = a.customer.date_joined
-        ? dayjs(a.customer.date_joined)
-        : dayjs("1900-01-01");
-      const joinDateB = b.customer.date_joined
-        ? dayjs(b.customer.date_joined)
-        : dayjs("1900-01-01");
-      return joinDateB.valueOf() - joinDateA.valueOf();
+      
+      return plan.sections.flatMap(section =>
+        section.tasks
+          .filter(task => 
+            (!showActiveOnly || task.isActive) &&
+            (progressFilter === 'All' || 
+              (progressFilter === 'To Do and Doing' ? 
+                (task.progress === 'To Do' || task.progress === 'Doing') : 
+                task.progress === progressFilter)) &&
+            task.task.toLowerCase().includes(search.toLowerCase()) &&
+            (frequencyFilter === 'All' || 
+              (frequencyFilter === 'Monthly and As Needed' 
+                ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
+                : task.frequency === frequencyFilter)) &&
+            (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
+            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''))
+          )
+          .map(task => ({
+            key: `${customerId}-${task.id}`,
+            store_name: customer.store_name,
+            customer,
+            task: task.task,
+            section: section.title,
+            progress: task.progress,
+            frequency: task.frequency,
+            dueDate: task.dueDate || null,
+            completedDate: task.completedDate || null,
+            isActive: task.isActive,
+            current: task.current || 0,
+            goal: task.goal || 0,
+            notes: task.notes || '',
+            id: task.id,
+            order: task.order || 0,
+            updatedAt: task.updatedAt,
+            updatedBy: task.updatedBy,
+            files: task.files,
+            createdBy: task.createdBy,
+            createdAt: task.createdAt,
+            assignedTeamMembers: task.assignedTeamMembers || [],
+            subtasks: task.subtasks || []
+          }))
+      );
     });
-  }, [
-    plans,
-    showActiveOnly,
-    progressFilter,
-    search,
-    frequencyFilter,
-    teamMemberFilter,
-    showMyTasks,
-    customers,
-    user,
-  ]);
+
+    return allTasks;
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user, packageFilter]);
 
   // Update the reset filters function
   const handleResetFilters = () => {
@@ -862,7 +857,8 @@ export const PlanSimpleView: React.FC<Props> = ({
     setFrequencyFilter("All");
     setTeamMemberFilter("all");
     setShowMyTasks(false);
-    localStorage.removeItem("planSimpleViewFilters");
+    setPackageFilter('all');
+    localStorage.removeItem('planSimpleViewFilters');
   };
 
   // Move createPlanForCustomer inside component
@@ -942,19 +938,26 @@ export const PlanSimpleView: React.FC<Props> = ({
     }
   };
 
-  // Move handleCustomerSelect inside component
+  // Update the handleCustomerSelect function
   const handleCustomerSelect = async (customerId: string) => {
-    const customer = customers.find((c: ICustomer) => c.id === customerId);
-    if (customer) {
-      setSelectedCustomer(customer);
-
-      // Check if customer has a plan
-      const planRef = doc(db, "plans", customerId);
-      const planDoc = await getDoc(planRef);
-
-      if (!planDoc.exists()) {
-        // Create new plan based on package type
-        await createPlanForCustomer(customer);
+    if (customerId === 'all-paid') {
+      setSelectedCustomer(null);
+      loadAllPlans();  // Make sure this is called for 'all-paid'
+    } else {
+      const customer = customers.find((c: ICustomer) => c.id === customerId);
+      if (customer) {
+        setSelectedCustomer(customer);
+        
+        // Check if customer has a plan
+        const planRef = doc(db, 'plans', customerId);
+        const planDoc = await getDoc(planRef);
+        
+        if (!planDoc.exists()) {
+          // Create new plan based on package type
+          await createPlanForCustomer(customer);
+        } else {
+          loadPlan();  // Load existing plan
+        }
       }
     }
   };
@@ -1009,14 +1012,10 @@ export const PlanSimpleView: React.FC<Props> = ({
         const newTask: PlanTask = {
           id: Date.now().toString(),
           task: values.task,
+          section: 'Other Tasks',
           frequency: values.frequency,
-          progress: "To Do",
-          dueDate:
-            values.frequency === "Monthly" && values.dueDate
-              ? calculateMonthlyDueDate(values.dueDate.date())
-              : values.dueDate
-                ? values.dueDate.format("YYYY-MM-DD")
-                : null,
+          progress: 'To Do',
+          dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : null,
           completedDate: null,
           isActive: true,
           notes: values.notes || "",
@@ -1026,9 +1025,8 @@ export const PlanSimpleView: React.FC<Props> = ({
           createdBy: (user as IAdmin)?.name || user?.email || "",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          updatedBy: (user as IAdmin)?.name || user?.email || "",
-          section: "Other Tasks",
-          assignedTeamMembers: values.assignedTeamMembers || [],
+          updatedBy: (user as IAdmin)?.name || user?.email || '',
+          assignedTeamMembers: values.assignedTeamMembers || []
         };
 
         // Add to Other Tasks section
@@ -1086,6 +1084,87 @@ export const PlanSimpleView: React.FC<Props> = ({
 
   // Add state for showing inactive customers
   const [showInactive, setShowInactive] = useState(false);
+
+  // Add this near other state declarations
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Add this function before the return statement
+  const handleBulkDelete = () => {
+    Modal.confirm({
+      title: `Delete ${selectedRows.length} Tasks`,
+      content: (
+        <div>
+          <p>Are you sure you want to delete these tasks?</p>
+          <p>This will:</p>
+          <ul>
+            <li>Remove selected tasks from customer plans</li>
+            <li>This action cannot be undone</li>
+          </ul>
+        </div>
+      ),
+      async onOk() {
+        try {
+          setIsDeleting(true);
+          const batch = writeBatch(db);
+          let batchCount = 0;
+          const BATCH_LIMIT = 500;
+
+          // Group tasks by customer
+          const tasksByCustomer = selectedRows.reduce((acc, row) => {
+            if (!acc[row.customer.id]) {
+              acc[row.customer.id] = [];
+            }
+            acc[row.customer.id].push(row.id);
+            return acc;
+          }, {} as { [customerId: string]: string[] });
+
+          // Update each customer's plan
+          for (const [customerId, taskIds] of Object.entries(tasksByCustomer)) {
+            const planRef = doc(db, 'plans', customerId);
+            const planDoc = await getDoc(planRef);
+
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              const updatedSections = plan.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.filter(task => !taskIds.includes(task.id))
+              }));
+
+              if (batchCount >= BATCH_LIMIT) {
+                await batch.commit();
+                batchCount = 0;
+              }
+
+              batch.update(planRef, {
+                sections: updatedSections,
+                updatedAt: new Date().toISOString()
+              });
+              batchCount++;
+            }
+          }
+
+          if (batchCount > 0) {
+            await batch.commit();
+          }
+
+          message.success(`Successfully deleted ${selectedRows.length} tasks`);
+          setSelectedRows([]);
+
+          // Reload data
+          if (selectedCustomer) {
+            loadPlan();
+          } else {
+            loadAllPlans();
+          }
+        } catch (error) {
+          console.error('Error deleting tasks:', error);
+          message.error('Failed to delete tasks');
+        } finally {
+          setIsDeleting(false);
+        }
+      }
+    });
+  };
 
   return (
     <Layout>
@@ -1239,37 +1318,69 @@ export const PlanSimpleView: React.FC<Props> = ({
                   </Option>
                 ))}
             </Select>
-            <Button icon={<ReloadOutlined />} onClick={handleResetFilters}>
+            <Select
+              style={{ width: 200 }}
+              value={packageFilter}
+              onChange={setPackageFilter}
+              placeholder="Filter by Package"
+            >
+              <Option value="all">All Packages</Option>
+              <Option value="Accelerator - Basic">Accelerator Basic</Option>
+              <Option value="Accelerator - Standard">Accelerator Standard</Option>
+              <Option value="Accelerator - Pro">Accelerator Pro</Option>
+              <Option value="Extended Maintenance">Extended Maintenance</Option>
+              <Option value="Regular Maintenance">Regular Maintenance</Option>
+              <Option value="Social">Social</Option>
+            </Select>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={handleResetFilters}
+            >
               Reset Filters
             </Button>
             {selectedCustomer && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => setAddTaskModalVisible(true)}
+                onClick={() => {
+                  addTaskForm.resetFields(); // Reset form before opening
+                  setUploadedFiles([]); // Reset uploaded files
+                  setAddTaskModalVisible(true);
+                }}
               >
                 Add Custom Task
               </Button>
             )}
             {selectedRows.length > 0 && (
-              <Button
-                type="primary"
-                onClick={() => setBulkEditModalVisible(true)}
-              >
-                Bulk Edit ({selectedRows.length})
-              </Button>
+              <Space>
+                <Button
+                  type="primary"
+                  onClick={() => setBulkEditModalVisible(true)}
+                >
+                  Bulk Edit ({selectedRows.length})
+                </Button>
+                <Button
+                  danger
+                  type="primary"
+                  onClick={handleBulkDelete}
+                  loading={isDeleting}
+                  icon={<DeleteOutlined />}
+                >
+                  Delete Selected ({selectedRows.length})
+                </Button>
+              </Space>
             )}
           </Space>
         </Card>
 
-        <Table
-          columns={columns}
+        <Table 
+          columns={columns as ColumnsType<TableRecord>} 
           dataSource={filteredData}
           style={{ marginTop: 16 }}
           loading={isLoading}
           rowSelection={{
-            type: "checkbox",
-            onChange: (_, selectedRows: TableRecord[]) => {
+            type: 'checkbox',
+            onChange: (selectedRowKeys: Key[], selectedRows: TableRecord[]) => {
               setSelectedRows(selectedRows);
             },
             selectedRowKeys: selectedRows.map((row) => row.key),
@@ -1277,14 +1388,12 @@ export const PlanSimpleView: React.FC<Props> = ({
         />
 
         <Modal
-          title={`Edit Task: ${editingTask?.task}`}
+          title={editingTask ? 'Edit Task' : 'Add Task'}
           open={editModalVisible}
           onOk={form.submit}
-          onCancel={() => {
-            setEditModalVisible(false);
-            form.resetFields();
-          }}
-          destroyOnClose={true}
+          onCancel={() => setEditModalVisible(false)}
+          width={1000}
+          style={{ top: 20 }}
         >
           <Form
             form={form}
@@ -1309,6 +1418,18 @@ export const PlanSimpleView: React.FC<Props> = ({
                 <Option value="Doing">Doing</Option>
                 <Option value="Done">Done</Option>
               </Select>
+            </Form.Item>
+
+            <Form.Item name="id" label="Task ID">
+              <Input 
+                placeholder="123456"
+                addonBefore="task-"
+                value={form.getFieldValue('id')}
+                onChange={(e) => {
+                  const value = e.target.value.replace('task-', '');
+                  form.setFieldsValue({ id: value });
+                }}
+              />
             </Form.Item>
 
             <Form.Item name="dueDate" label="Due Date">
@@ -1338,6 +1459,168 @@ export const PlanSimpleView: React.FC<Props> = ({
               <Input.TextArea rows={4} />
             </Form.Item>
 
+            <Divider orientation="left">Subtasks</Divider>
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} style={{ display: 'flex', width: '100%', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'text']}
+                        style={{ width: '500px' }}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask text" />
+                      </Form.Item>
+                      <MinusCircleOutlined onClick={() => remove(field.name)} />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+
+            {editingTask?.subtasks && editingTask.subtasks.length > 0 && (
+              <>
+                <Divider orientation="left">Existing Subtasks</Divider>
+                <div style={{ marginBottom: 16 }}>
+                  {editingTask.subtasks.map((subtask) => (
+                    <div 
+                      key={subtask.id} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        marginBottom: 8,
+                        padding: 12,
+                        background: '#f5f5f5',
+                        borderRadius: 6,
+                        width: '100%'
+                      }}
+                    >
+                      <Checkbox
+                        checked={subtask.isCompleted}
+                        onChange={async (e) => {
+                          try {
+                            if (!editingCustomer || !editingTask) return;
+                            
+                            // Immediately update local state for UI feedback
+                            const updatedTask = {
+                              ...editingTask,
+                              subtasks: editingTask.subtasks?.map(st => 
+                                st.id === subtask.id 
+                                  ? {
+                                      ...st,
+                                      isCompleted: e.target.checked,
+                                      completedDate: e.target.checked ? new Date().toISOString() : null
+                                    }
+                                  : st
+                              )
+                            };
+                            setEditingTask(updatedTask);
+                            
+                            // Then update Firestore
+                            const planRef = doc(db, 'plans', editingCustomer.id);
+                            const planDoc = await getDoc(planRef);
+                            
+                            if (planDoc.exists()) {
+                              const plan = planDoc.data() as Plan;
+                              const updatedSections = plan.sections.map(section => ({
+                                ...section,
+                                tasks: section.tasks.map(task => {
+                                  if (task.id === editingTask.id) {
+                                    return {
+                                      ...task,
+                                      subtasks: task.subtasks?.map(st => 
+                                        st.id === subtask.id 
+                                          ? {
+                                              ...st,
+                                              isCompleted: e.target.checked,
+                                              completedDate: e.target.checked ? new Date().toISOString() : null
+                                            }
+                                          : st
+                                      )
+                                    };
+                                  }
+                                  return task;
+                                })
+                              }));
+
+                              await updateDoc(planRef, { 
+                                sections: updatedSections,
+                                updatedAt: new Date().toISOString()
+                              });
+
+                              message.success('Subtask updated');
+                              
+                              // Reload data in background
+                              if (plans.type === 'single') {
+                                loadPlan();
+                              } else {
+                                loadAllPlans();
+                              }
+                            }
+                          } catch (error) {
+                            // If Firestore update fails, revert local state
+                            setEditingTask(editingTask);
+                            console.error('Error updating subtask:', error);
+                            message.error('Failed to update subtask');
+                          }
+                        }}
+                        style={{ marginRight: 12 }}
+                      />
+                      <Text 
+                        style={{ 
+                          textDecoration: subtask.isCompleted ? 'line-through' : 'none',
+                          flex: 1,
+                          fontSize: '14px'
+                        }}
+                      >
+                        {subtask.text}
+                      </Text>
+                      <Space size="small">
+                        {subtask.completedDate && (
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            Completed: {dayjs(subtask.completedDate).format('MMM DD, YYYY')}
+                          </Text>
+                        )}
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          Added by {adminList.find(admin => admin.email === subtask.createdBy)?.name || subtask.createdBy} on {dayjs(subtask.createdAt).format('MMM DD, YYYY')}
+                        </Text>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <Form.Item label="Attachments">
+              <Upload
+                beforeUpload={handleFileUpload}
+                fileList={(editingTask?.files || []).map(file => ({
+                  uid: file.url,
+                  name: file.name,
+                  status: 'done',
+                  url: file.url,
+                }))}
+                onRemove={(file) => {
+                  // Handle file removal
+                  const updatedFiles = editingTask?.files?.filter(f => f.url !== file.uid) || [];
+                  setEditingTask(prev => prev ? { ...prev, files: updatedFiles } : null);
+                  return true;
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Upload File</Button>
+              </Upload>
+              <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                Max file size: 10MB
+              </Text>
+            </Form.Item>
+
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
                 mode="multiple"
@@ -1353,33 +1636,6 @@ export const PlanSimpleView: React.FC<Props> = ({
                   ))}
               </Select>
             </Form.Item>
-
-            {editingTask?.section === "Other Tasks" &&
-              editingTask.files &&
-              editingTask.files.length > 0 && (
-                <>
-                  <Divider />
-                  <div style={{ marginBottom: 16 }}>
-                    <Text strong>Attachments:</Text>
-                    <div style={{ marginTop: 8 }}>
-                      {editingTask.files.map((file, index) => (
-                        <div key={index} style={{ marginBottom: 8 }}>
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {file.name}
-                          </a>
-                          <Text type="secondary" style={{ marginLeft: 8 }}>
-                            ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                          </Text>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
 
             {editingTask?.section === "Other Tasks" &&
               editingTask.createdBy && (
@@ -1414,17 +1670,16 @@ export const PlanSimpleView: React.FC<Props> = ({
             addTaskForm.resetFields();
             setUploadedFiles([]);
           }}
+          destroyOnClose={true}
+          width={1000}
+          style={{ top: 20 }}
         >
-          <Form
-            form={addTaskForm}
-            onFinish={handleCustomTaskSave}
+          <Form 
+            form={addTaskForm} 
+            onFinish={handleAddTask} 
             layout="vertical"
           >
-            <Form.Item
-              name="task"
-              label="Task Name"
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="task" label="Task Name" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
 
@@ -1522,7 +1777,34 @@ export const PlanSimpleView: React.FC<Props> = ({
               <Input.TextArea rows={4} />
             </Form.Item>
 
-            {/* Add file upload section */}
+            {/* Add Subtasks section */}
+            <Divider orientation="left">Subtasks</Divider>
+            <Form.List name="subtasks">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field) => (
+                    <Space key={field.key} style={{ display: 'flex', width: '100%', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'text']}
+                        style={{ width: '500px' }}
+                        rules={[{ required: true, message: 'Missing subtask text' }]}
+                      >
+                        <Input placeholder="Subtask text" />
+                      </Form.Item>
+                      <MinusCircleOutlined onClick={() => remove(field.name)} />
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Subtask
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+
+            {/* File upload section follows */}
             <Form.Item label="Attachments">
               <Upload
                 beforeUpload={handleFileUpload}
@@ -1625,7 +1907,6 @@ export const PlanSimpleView: React.FC<Props> = ({
               <Input.TextArea rows={4} allowClear />
             </Form.Item>
 
-            {/* Add team member selection */}
             <Form.Item name="assignedTeamMembers" label="Assigned Team Members">
               <Select
                 mode="multiple"

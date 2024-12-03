@@ -18,6 +18,7 @@ export default function AddCustomer({
     const newCustomer: ICustomer = {
       ...values,
       date_joined: values.date_joined ? dayjs(values.date_joined).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
+      isActive: true,
     };
     const created = await onAddCustomer(newCustomer);
     if (created) {

@@ -913,9 +913,7 @@ const Social: React.FC = () => {
     setIsPostCreationModalOpen(true);
   };
 
-  const handleSavePost = async (
-    newPosts: Omit<ISocialPost, "id">[],
-  ): Promise<boolean> => {
+  const handleSavePost = async (newPosts: Omit<ISocialPost, "id">[]): Promise<boolean> => {
     setIsSavingPost(true);
     if (!selectedCustomer) {
       console.error("No customer selected");
@@ -932,6 +930,11 @@ const Social: React.FC = () => {
           continue;
         }
 
+        // Set scheduled field based on platform
+        const scheduled = post.platform === 'pinterest' ? false : 
+                         post.platform === 'facebookGroup' ? false : 
+                         undefined;
+
         const docRef = await addDoc(socialCollection, {
           ...post,
           scheduledDate: post.scheduledDate,
@@ -939,6 +942,7 @@ const Social: React.FC = () => {
           imageUrl: currentListing?.primaryImage,
           scheduled: post.platform === "pinterest" ? false : null,
         });
+
         savedPosts.push({
           id: docRef.id,
           ...post,

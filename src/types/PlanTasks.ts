@@ -1,14 +1,25 @@
+export interface SubTask {
+  id: string;
+  text: string;
+  isCompleted?: boolean;
+  completedDate: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface PlanTaskRule {
   id: string;
   task: string;
   section: string;
-  daysAfterJoin: number | null;
+  order: number;
+  frequency: 'One Time' | 'Monthly' | 'As Needed';
+  daysAfterJoin?: number | null;
   monthlyDueDate?: number | null;
-  frequency: 'Monthly' | 'One Time' | 'As Needed';
   isActive: boolean;
-  requiresGoal: boolean;
+  requiresGoal?: boolean;
   defaultGoal?: number | null;
   defaultCurrent?: number | null;
+  subtasks?: SubTask[];
   updatedAt: string;
   updatedBy: string;
 }
