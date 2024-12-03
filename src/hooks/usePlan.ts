@@ -43,16 +43,22 @@ export const usePlan = () => {
             .map((rule) => ({
               id: rule.id,
               task: rule.task,
+              section: sectionTitle,
               progress: 'To Do' as const,
-              isActive: rule.isActive,
+              isActive: true,
               notes: '',
               frequency: rule.frequency,
-              dueDate: calculateDueDate(customerData, rule),
+              dueDate: rule.frequency === 'Monthly' && rule.monthlyDueDate
+                ? dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD')
+                : rule.frequency === 'As Needed' || rule.daysAfterJoin === 0
+                ? null
+                : dayjs().add(rule.daysAfterJoin || 0, 'day').format('YYYY-MM-DD'),
               completedDate: null,
               current: rule.defaultCurrent || 0,
               goal: rule.defaultGoal || 0,
+              order: rule.order || 0,
               updatedAt: new Date().toISOString(),
-              updatedBy: user?.email || ''
+              updatedBy: 'system'
             }))
         }));
 

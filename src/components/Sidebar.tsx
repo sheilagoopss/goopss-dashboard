@@ -120,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
           },
         ]
       : []),
-    ...(!isAdmin
+    ...(isAdmin
       ? [
           {
             key: "plan",
@@ -149,6 +149,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin }) => {
       key: "design-hub",
       icon: <LayoutGrid className="h-6 w-6" />,
       label: <Link to="/design-hub">Design Hub</Link>,
+    },
+    {
+      key: "plan",
+      icon: <ClipboardList className="h-6 w-6" />,
+      label: <Link to="/plan">Plan</Link>,
     },
     {
       key: "listings",
