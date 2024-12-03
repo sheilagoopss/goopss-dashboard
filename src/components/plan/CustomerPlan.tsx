@@ -112,7 +112,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, editMode, onEdit, customer })
 
 export const CustomerPlan: React.FC = () => {
   // States
-  const { user } = useAuth();
+  const { customerData } = useAuth();
   const [sections, setSections] = useState<PlanSection[]>([]);
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do' | 'Doing' | 'Done'>('All');
   const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'thisWeek'>('all');
@@ -122,11 +122,11 @@ export const CustomerPlan: React.FC = () => {
   // Load customer's plan
   useEffect(() => {
     const loadCustomerPlan = async () => {
-      if (!user?.id) return;
+      if (!customerData?.id) return;
 
       try {
         setIsLoading(true);
-        const planRef = doc(db, 'plans', user.id);
+        const planRef = doc(db, 'plans', customerData.id);
         const planDoc = await getDoc(planRef);
 
         if (planDoc.exists()) {
@@ -146,7 +146,7 @@ export const CustomerPlan: React.FC = () => {
     };
 
     loadCustomerPlan();
-  }, [user?.id]);
+  }, [customerData?.id]);
 
   // Helper functions
   const isOverdue = (dueDate: string | null | undefined) => {
