@@ -69,13 +69,14 @@ interface EtsyListing {
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
-const PostCreationModal: React.FC<{
+const   PostCreationModal: React.FC<{
   isOpen: boolean;
   listing: EtsyListing | null;
   customerId: string;
   onSave: (posts: Omit<ISocialPost, "id">[]) => Promise<boolean>;
   onCancel: () => void;
-}> = ({ isOpen, listing, customerId, onSave, onCancel }) => {
+  isSaving: boolean;
+}> = ({ isOpen, listing, customerId, onSave, onCancel, isSaving }) => {
   const [form] = Form.useForm();
   const { fetchBoards, isFetchingBoards } = usePinterestBoard();
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
@@ -307,12 +308,12 @@ const PostCreationModal: React.FC<{
             okText="Yes"
             cancelText="No"
           >
-            <Button key="save" type="primary">
+            <Button key="save" type="primary" loading={isSaving}>
               Save
             </Button>
           </Popconfirm>
         ) : (
-          <Button key="save" type="primary" onClick={handleSave}>
+          <Button key="save" type="primary" onClick={handleSave} loading={isSaving}>
             Save
           </Button>
         ),
@@ -720,6 +721,7 @@ const Social: React.FC = () => {
   const [editablePost, setEditablePost] = useState<ISocialPost | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
+  const [isSavingPost, setIsSavingPost] = useState(false);
 
   const columns = [
     {
@@ -914,6 +916,7 @@ const Social: React.FC = () => {
   const handleSavePost = async (
     newPosts: Omit<ISocialPost, "id">[],
   ): Promise<boolean> => {
+    setIsSavingPost(true);
     if (!selectedCustomer) {
       console.error("No customer selected");
       return false;
@@ -934,7 +937,7 @@ const Social: React.FC = () => {
           scheduledDate: post.scheduledDate,
           dateCreated: new Date(),
           imageUrl: currentListing?.primaryImage,
-          scheduled: post.platform === "pinterest" ? false : undefined,
+          scheduled: post.platform === "pinterest" ? false : null,
         });
         savedPosts.push({
           id: docRef.id,
@@ -952,7 +955,7 @@ const Social: React.FC = () => {
       if (currentListing) {
         const listingRef = doc(db, "listings", currentListing.id);
         await updateDoc(listingRef, {
-          scheduled_post_date: savedPosts[0].scheduledDate.toISOString(),
+          scheduled_post_date: savedPosts[0].scheduledDate?.toISOString(),
         });
       }
 
@@ -992,6 +995,8 @@ const Social: React.FC = () => {
     } catch (error) {
       console.error("Error saving post:", error);
       return false;
+    } finally {
+      setIsSavingPost(false);
     }
   };
 
@@ -1512,6 +1517,7 @@ const Social: React.FC = () => {
           customerId={selectedCustomer?.id || ""}
           onSave={handleSavePost}
           onCancel={() => setIsPostCreationModalOpen(false)}
+          isSaving={isSavingPost}
         />
       )}
       {isEditModalOpen && editablePost && (

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { PlanTaskRule, PlanTaskRules } from '../types/PlanTasks';
 import { packageTypes } from '../types/Customer';

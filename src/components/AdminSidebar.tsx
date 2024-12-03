@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Layout,
@@ -78,15 +78,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const currentPath = location.pathname;
-  const navigate = useNavigate();
   const [isPopoverVisible, setIsPopoverVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [form, setForm] = useState({
     name: user && isAdminUser(user) ? user.name : "",
     avatarUrl: user && isAdminUser(user) ? user.avatarUrl || "" : "",
   });
-  const [fileList, setFileList] = useState<any[]>([]);
-  const [isEditingName, setIsEditingName] = useState(false);
 
   const [socialExpanded, setSocialExpanded] = useState(() => {
     const saved = localStorage.getItem("adminSocialExpanded");
