@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useCallback } from "react";
-import { endpoints } from "constants/endpoints";
-import HttpHelper from "helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import HttpHelper from "@/helpers/HttpHelper";
 
 export const usePinterestBoard = () => {
   const [isFetchingBoards, setIsFetchingBoards] = useState(false);

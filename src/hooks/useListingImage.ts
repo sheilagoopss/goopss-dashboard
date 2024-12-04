@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useCallback, useState } from "react";
 import {
   collection,
@@ -6,16 +5,16 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import FirebaseHelper from "helpers/FirebaseHelper";
-import { Listing, ListingImage } from "types/Listing";
-import { db, storage } from "../firebase/config";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { Listing, ListingImage } from "@/types/Listing";
+import { db, storage } from "@/firebase/config";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { useTaskCreate } from "./useTask";
-import { useAuth } from "contexts/AuthContext";
-import { IAdmin } from "types/Customer";
-import { endpoints } from "constants/endpoints";
-import HttpHelper from "helpers/HttpHelper";
-import { IServiceReturn } from "types/apiResponse";
+import { useAuth } from "@/contexts/AuthContext";
+import { IAdmin } from "@/types/Customer";
+import { endpoints } from "@/constants/endpoints";
+import HttpHelper from "@/helpers/HttpHelper";
+import { IServiceReturn } from "@/types/apiResponse";
 import dayjs from "dayjs";
 
 interface UseListingImageStatusUpdate {
@@ -57,7 +56,9 @@ interface UseUploadRevision {
 
 interface UseDownloadImage {
   downloadImage: (imageId: string) => Promise<IServiceReturn | null>;
-  downloadMultipleImages: (imageIds: string[]) => Promise<IServiceReturn | null>;
+  downloadMultipleImages: (
+    imageIds: string[],
+  ) => Promise<IServiceReturn | null>;
   isDownloading: boolean;
 }
 
@@ -351,7 +352,12 @@ export const useUploadListingImages = (): UseUploadListingImages => {
 
           const fullImageDoc = {
             ...newImageDoc,
-            title: `${Math.round(Math.random() * 999)} - ${listing.listingTitle?.substring(0, 10)}${new Date().toISOString()}`,
+            title: `${Math.round(
+              Math.random() * 999,
+            )} - ${listing.listingTitle?.substring(
+              0,
+              10,
+            )}${new Date().toISOString()}`,
             date: new Date().toISOString(),
           };
 
@@ -385,7 +391,7 @@ export const useUploadListingImages = (): UseUploadListingImages => {
         setIsUploading(false);
       }
     },
-    [],
+    [user, createTask],
   );
 
   return { uploadListingImages, isUploading };

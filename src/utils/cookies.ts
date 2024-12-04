@@ -17,6 +17,7 @@ export const getClientCookie = (key: SupportedKeys) => {
     const cookies = parseCookies();
     return cookies[key];
   } catch (e) {
+    console.error(e);
     return null;
   }
 };

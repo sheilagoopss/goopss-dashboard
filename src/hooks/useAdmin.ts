@@ -1,6 +1,6 @@
-import FirebaseHelper from "helpers/FirebaseHelper";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
 import { useState, useCallback } from "react";
-import { IAdmin } from "types/Customer";
+import { IAdmin } from "@/types/Customer";
 
 interface UseAdminFetchReturn {
   fetchAdmin: (adminId: string) => Promise<IAdmin | null>;

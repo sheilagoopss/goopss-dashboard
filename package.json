@@ -1,93 +1,38 @@
 {
-  "name": "listing-optimizer",
-  "version": "1.0.0",
-  "type": "commonjs",
+  "name": "goopss-dashboard-next",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "serve": "serve -s build",
-    "dev": "react-scripts start"
-  },
-  "devDependencies": {
-    "@types/babel__core": "^7.20.5",
-    "@types/babel__generator": "^7.6.8",
-    "@types/babel__template": "^7.4.4",
-    "@types/babel__traverse": "^7.20.6",
-    "@types/bonjour": "^3.5.13",
-    "@types/estree": "^1.0.6",
-    "@types/express": "^4.17.13",
-    "@types/history": "^5.0.0",
-    "@types/node": "^22.8.4",
-    "@types/papaparse": "^5.3.14",
-    "@types/prettier": "^3.0.0",
-    "@types/react": "^18.3.7",
-    "@types/react-big-calendar": "^1.15.0",
-    "@types/react-dom": "^18.3.0",
-    "@types/react-modal": "^3.16.3",
-    "@types/trusted-types": "^2.0.7",
-    "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.5.12",
-    "@types/xlsx": "^0.0.36",
-    "ts-node": "^10.9.2"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.5.1",
-    "@firebase/auth": "^1.8.0",
-    "@greatsumini/react-facebook-login": "^3.3.3",
-    "@intercom/messenger-js-sdk": "^0.0.14",
-    "@types/dompurify": "^3.0.5",
-    "@types/react-router-dom": "^5.3.3",
-    "antd": "^5.12.5",
-    "axios": "^0.21.1",
-    "cheerio": "^1.0.0",
-    "cors": "^2.8.5",
-    "dayjs": "^1.11.13",
-    "dompurify": "^3.1.7",
-    "dotenv": "^16.4.5",
-    "express": "^4.17.1",
-    "firebase": "^10.14.1",
-    "framer-motion": "^6.5.1",
-    "http-proxy-middleware": "^2.0.1",
-    "lucide-react": "^0.451.0",
-    "moment": "^2.30.1",
+    "@ant-design/icons": "^5.5.2",
+    "@ant-design/nextjs-registry": "^1.0.2",
+    "@firebase/auth": "^1.8.1",
+    "@firebase/firestore": "^4.7.5",
+    "antd": "^5.22.3",
+    "axios": "^1.7.9",
+    "firebase": "^11.0.2",
+    "lucide-react": "^0.465.0",
+    "next": "14.2.19",
     "nookies": "^2.5.2",
-    "openai": "^4.67.3",
-    "papaparse": "^5.3.0",
-    "react": "^17.0.2",
-    "react-big-calendar": "^1.15.0",
-    "react-dnd": "^16.0.1",
-    "react-dnd-html5-backend": "^16.0.1",
-    "react-dom": "^17.0.2",
-    "react-dropzone": "^14.2.9",
-    "react-ga4": "^2.1.0",
-    "react-modal": "^3.16.1",
-    "react-router-dom": "^6.26.2",
-    "react-scripts": "^5.0.1",
-    "serve": "^14.2.4",
-    "typescript": "^4.9.5",
-    "uuid": "^10.0.0",
-    "ws": "^8.18.0",
-    "xlsx": "^0.17.0"
+    "papaparse": "^5.4.1",
+    "react": "^18",
+    "react-dom": "^18",
+    "xlsx": "^0.18.5"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.19",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }

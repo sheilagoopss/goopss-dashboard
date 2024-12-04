@@ -40,6 +40,7 @@ class HTTPHelperService implements HTTPHelperInterface {
     try {
       const config: AxiosRequestConfig = {
         method: "delete",
+        headers: request?.headers,
         url,
       };
       const response = await axios(config);

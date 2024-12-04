@@ -1,18 +1,18 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Checkbox, Col, Input, message, Row, Select, Switch } from "antd";
-import { useCustomerListingImagesFetch } from "hooks/useCustomer";
+import { useCustomerListingImagesFetch } from "@/hooks/useCustomer";
 import { useEffect, useState } from "react";
-import { ICustomer } from "types/Customer";
-import { StatusFilterType } from "../../../components/StatusFilter";
+import { ICustomer } from "@/types/Customer";
 import { SearchOutlined } from "@ant-design/icons";
-import { Listing, ListingImage } from "types/Listing";
+import { Listing, ListingImage } from "@/types/Listing";
 // import ListingsTable from "../components/ListingsTable";
-import ListingsTableV2 from "../../../components/ListingsTableV2";
-import { useCustomerFetchListings } from "hooks/useListing";
+import { useCustomerFetchListings } from "@/hooks/useListing";
 import {
   useListingImageStatusUpdate,
   useUploadListingImages,
-} from "hooks/useListingImage";
+} from "@/hooks/useListingImage";
+import { StatusFilterType } from "@/components/designHub/StatusFilter";
+import ListingsTableV2 from "@/components/designHub/ListingsTableV2";
 
 interface UploadListingImageProps {
   selectedCustomer: ICustomer;

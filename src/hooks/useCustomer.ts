@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
-import { ICustomer } from "../types/Customer";
-import FirebaseHelper from "../helpers/FirebaseHelper";
-import { filterUndefined } from "../utils/filterUndefined";
-import { ListingImage } from "types/Listing";
+import { ICustomer } from "@/types/Customer";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { filterUndefined } from "@/utils/filterUndefined";
+import { ListingImage } from "@/types/Listing";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db, storage } from "../firebase/config";
-import { IUserActivity } from "types/UserActivityLog";
+import { db, storage } from "@/firebase/config";
+import { IUserActivity } from "@/types/UserActivityLog";
 import { getDownloadURL } from "firebase/storage";
 import { ref, uploadBytes } from "firebase/storage";
 

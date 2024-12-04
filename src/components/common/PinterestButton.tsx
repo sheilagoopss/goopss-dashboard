@@ -1,6 +1,7 @@
+"use client"
 import { PinterestOutlined } from "@ant-design/icons";
 import { Button } from "antd";
-import { endpoints } from "../../constants/endpoints";
+import { endpoints } from "@/constants/endpoints";
 
 interface PinterestButtonProps {
   email: string;
@@ -8,7 +9,7 @@ interface PinterestButtonProps {
 
 const PinterestButton: React.FC<PinterestButtonProps> = ({ email }) => {
   async function handlePinterestLogin() {
-    let queryParams = new URLSearchParams({
+    const queryParams = new URLSearchParams({
       callbackUrl: window.location.href,
       email: email,
     });

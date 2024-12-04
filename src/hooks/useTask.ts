@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
-import FirebaseHelper from "../helpers/FirebaseHelper";
-import { ITasklist, ITask } from "../types/Task";
-import { ICustomer } from "../types/Customer";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { ITasklist, ITask } from "@/types/Task";
+import { ICustomer } from "@/types/Customer";
 import dayjs from "dayjs";
 import { Timestamp } from "firebase/firestore";
 

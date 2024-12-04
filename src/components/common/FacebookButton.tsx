@@ -1,6 +1,7 @@
+"use client";
 import { FacebookOutlined } from "@ant-design/icons";
 import { Button } from "antd";
-import { endpoints } from "../../constants/endpoints";
+import { endpoints } from "@/constants/endpoints";
 
 interface FacebookButtonProps {
   email: string;
@@ -8,7 +9,7 @@ interface FacebookButtonProps {
 
 const FacebookButton: React.FC<FacebookButtonProps> = ({ email }) => {
   async function handleFacebookLogin() {
-    let queryParams = new URLSearchParams({
+    const queryParams = new URLSearchParams({
       callbackUrl: window.location.href,
       email: email,
     });

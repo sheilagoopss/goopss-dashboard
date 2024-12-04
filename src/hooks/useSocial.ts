@@ -1,9 +1,9 @@
-import { endpoints } from "constants/endpoints";
-import HttpHelper from "helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import HttpHelper from "@/helpers/HttpHelper";
 import { useCallback } from "react";
 import { useState } from "react";
-import { IAPIResponse } from "types/API";
-import { ISocialPost } from "../types/Social";
+import { IAPIResponse } from "@/types/API";
+import { ISocialPost } from "@/types/Social";
 
 interface UseFacebookScheduleReturn {
   schedulePosts: (params: {

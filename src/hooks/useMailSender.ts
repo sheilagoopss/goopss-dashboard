@@ -1,7 +1,7 @@
-import { IMail } from "types/Mail";
-import { endpoints } from "../constants/endpoints";
+import { IMail } from "@/types/Mail";
+import { endpoints } from "@/constants/endpoints";
 import { useState, useCallback } from "react";
-import HttpHelper from "helpers/HttpHelper";
+import HttpHelper from "@/helpers/HttpHelper";
 
 const useMailSender = () => {
   const [isSendingMail, setIsSendingMail] = useState(false);

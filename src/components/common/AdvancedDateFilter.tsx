@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from "react";
 import { DatePicker, Button, Select, Space, Divider, message } from "antd";
 import dayjs, { Dayjs } from "dayjs";
@@ -45,7 +46,7 @@ const AdvancedDateFilter: React.FC<AdvancedDateFilterProps> = ({
     setDateRange(null);
     setQuickSelect(null);
     handleClear();
-    onClose && onClose();
+    if (onClose) onClose();
   };
 
   const applyFilters = () => {
@@ -57,7 +58,7 @@ const AdvancedDateFilter: React.FC<AdvancedDateFilterProps> = ({
       startDate: dateRange[0],
       endDate: dateRange[1],
     });
-    onClose && onClose();
+    if (onClose) onClose();
   };
 
   return (

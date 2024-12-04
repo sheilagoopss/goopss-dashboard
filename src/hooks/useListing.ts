@@ -1,10 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useCallback } from "react";
-import { Listing, ListingImage } from "../types/Listing";
-import FirebaseHelper from "../helpers/FirebaseHelper";
-import { ITask } from "../types/Task";
-import { useAuth } from "../contexts/AuthContext";
-import { IAdmin } from "../types/Customer";
+import { Listing, ListingImage } from "@/types/Listing";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { ITask } from "@/types/Task";
+import { useAuth } from "@/contexts/AuthContext";
+import { IAdmin } from "@/types/Customer";
 import {
   serverTimestamp,
   collection,
@@ -14,7 +13,7 @@ import {
   writeBatch,
   orderBy,
 } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { db } from "@/firebase/config";
 
 interface UseListingFetchReturn {
   fetchListing: (listingId: string) => Promise<Listing | null>;
@@ -136,7 +135,7 @@ export function useListingUpdate(): UseListingUpdateReturn {
         setIsLoading(false);
       }
     },
-    [],
+    [user],
   );
 
   return { updateListing, isLoading };
@@ -238,9 +237,12 @@ export function useCustomerFetchListings(): UseCustomerFetchListingsReturn {
             );
             const imagesSnapshot = await getDocs(imagesQuery);
             const uploadedImages = imagesSnapshot.docs.map((imgDoc) => ({
-              ...imgDoc.data() as ListingImage,
+              ...(imgDoc.data() as ListingImage),
               id: imgDoc.id,
-              status: imgDoc.data().status as "pending" | "approved" | "revision",
+              status: imgDoc.data().status as
+                | "pending"
+                | "approved"
+                | "revision",
             }));
             return {
               ...listingData,
@@ -277,7 +279,7 @@ export function useListingFetchImages(): UseListingFetchImagesReturn {
         );
         const imagesSnapshot = await getDocs(imagesQuery);
         const imagesData = imagesSnapshot.docs.map((imgDoc) => ({
-          ...imgDoc.data() as ListingImage,
+          ...(imgDoc.data() as ListingImage),
           id: imgDoc.id,
         }));
         return imagesData;
@@ -293,4 +295,3 @@ export function useListingFetchImages(): UseListingFetchImagesReturn {
 
   return { fetchListingImages, isLoading };
 }
-

@@ -1,8 +1,6 @@
 import { useState, useCallback } from "react";
-// import { Stat } from "../types/Stat";
-import FirebaseHelper from "../helpers/FirebaseHelper";
-import { IStat } from "../types/Stat";
-
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { IStat } from "@/types/Stat";
 
 interface UseStatFetchReturn {
   fetchStat: (statId: string) => Promise<IStat | null>;

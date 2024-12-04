@@ -2,10 +2,10 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { CloseCircleFilled } from "@ant-design/icons";
 import { Button, Card, Col, Image, Layout, Row, Spin, Typography } from "antd";
 import { Content } from "antd/es/layout/layout";
-import DragDropUpload from "components/common/DragDropUpload";
-import { useCustomerBannerUpload } from "hooks/useCustomer";
+import DragDropUpload from "@/components/common/DragDropUpload";
+import { useCustomerBannerUpload } from "@/hooks/useCustomer";
 import { useState } from "react";
-import { ICustomer } from "types/Customer";
+import { ICustomer } from "@/types/Customer";
 
 interface UploadBannerProps {
   isFetchingCustomer: boolean;
@@ -56,7 +56,7 @@ const UploadBanner: React.FC<UploadBannerProps> = ({
             )}
             <Col span={24}>
               {selectedCustomer.banner && (
-                <Image src={selectedCustomer.banner} width={"100%"} />
+                <Image src={selectedCustomer.banner} width={"100%"} alt="banner" />
               )}
             </Col>
             <Col span={24}>
@@ -103,6 +103,7 @@ const UploadBanner: React.FC<UploadBannerProps> = ({
                     src={banner || ""}
                     style={{ width: "100%", minHeight: "200px" }}
                     preview={!isUploading}
+                    alt="banner"
                   />
                 </Card>
               )}

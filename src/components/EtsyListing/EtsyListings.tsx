@@ -1,4 +1,5 @@
-/* eslint-disable react-hooks/exhaustive-deps */
+"use client";
+
 import {
   Collapse,
   Divider,
@@ -10,13 +11,13 @@ import {
   Typography,
 } from "antd";
 import { Button } from "antd/es/radio";
-import { useEtsyListings, useUpdateListing } from "hooks/useEtsy";
-import { useEffect, useState } from "react";
+import { useEtsyListings, useUpdateListing } from "@/hooks/useEtsy";
+import { useEffect, useState, useCallback } from "react";
 import {
   IEtsyFetchedListing,
   IEtsyListingEdit,
   IEtsyListingUpdate,
-} from "types/Etsy";
+} from "@/types/Etsy";
 import ListingEdit from "./components/ListingEdit";
 import AnalyzeListing from "./components/AnalyzeListing";
 
@@ -33,11 +34,11 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
   const [optimizingListing, setOptimizingListing] =
     useState<IEtsyFetchedListing | null>(null);
 
-  const refetch = () => {
+  const refetch = useCallback(() => {
     fetchEtsyListings({ customerId }).then((listing) => {
       setEtsyListings(listing);
     });
-  };
+  }, [fetchEtsyListings, customerId]);
 
   const handleUpdate = (listing: {
     description: string;
@@ -53,7 +54,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
       tags: listing.tags.split(","),
       materials: listing.materials.split(","),
     };
-    updateListing(updateData).then((res) => {
+    updateListing(updateData).then(() => {
       setSelectedListing(null);
       message.success("Listing updated successfully");
       refetch();
@@ -64,7 +65,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
     if (customerId) {
       refetch();
     }
-  }, [customerId]);
+  }, [customerId, refetch]);
 
   return (
     <>
@@ -104,6 +105,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
                   key={item.listing_id}
                   extra={[
                     <Button
+                      key="edit"
                       type="primary"
                       onClick={() => {
                         setSelectedListing({
@@ -117,7 +119,10 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
                     >
                       Edit
                     </Button>,
-                    <Button onClick={() => setOptimizingListing(item)}>
+                    <Button
+                      key="analyze"
+                      onClick={() => setOptimizingListing(item)}
+                    >
                       Analyze
                     </Button>,
                   ]}

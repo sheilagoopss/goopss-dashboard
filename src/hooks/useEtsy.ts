@@ -1,7 +1,12 @@
-import { endpoints } from "constants/endpoints";
-import HttpHelper from "helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import HttpHelper from "@/helpers/HttpHelper";
 import { useCallback, useState } from "react";
-import { IEtsyFetchedListing, IEtsyListing, IEtsyListingUpdate, IEtsyShippingProfile } from "types/Etsy";
+import {
+  IEtsyFetchedListing,
+  IEtsyListing,
+  IEtsyListingUpdate,
+  IEtsyShippingProfile,
+} from "@/types/Etsy";
 
 export interface ITaxonomy {
   id: number;
@@ -80,9 +85,12 @@ export const useUpdateListing = () => {
     async (listing: IEtsyListingUpdate): Promise<IEtsyListing | null> => {
       setIsUpdatingListing(true);
       try {
-        const response = await HttpHelper.patch(endpoints.etsy.updateListing(listing.listingId), {
-          data: listing,
-        });
+        const response = await HttpHelper.patch(
+          endpoints.etsy.updateListing(listing.listingId),
+          {
+            data: listing,
+          },
+        );
         return response?.data?.data;
       } catch (error) {
         console.error("Error updating listing:", error);
@@ -130,7 +138,11 @@ export const useEtsyListings = () => {
   const [isFetchingEtsyListings, setIsFetchingEtsyListings] = useState(false);
 
   const fetchEtsyListings = useCallback(
-    async ({ customerId }: { customerId: string }): Promise<IEtsyFetchedListing[]> => {
+    async ({
+      customerId,
+    }: {
+      customerId: string;
+    }): Promise<IEtsyFetchedListing[]> => {
       setIsFetchingEtsyListings(true);
       try {
         const response = await HttpHelper.get(

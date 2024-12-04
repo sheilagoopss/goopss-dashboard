@@ -10,9 +10,9 @@ import {
   where,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { filterUndefined } from "../utils/filterUndefined";
-import { COLLECTIONS } from "../config/collections";
+import { db } from "@/firebase/config";
+import { filterUndefined } from "@/utils/filterUndefined";
+import { COLLECTIONS } from "@/config/collections";
 
 class FirebaseHandler {
   private db: Firestore;
@@ -48,7 +48,10 @@ class FirebaseHandler {
     field: keyof T,
     value: any,
   ): Promise<T[]> {
-    const q = query(collection(this.db, collectionName), where(field as string, "==", value));
+    const q = query(
+      collection(this.db, collectionName),
+      where(field as string, "==", value),
+    );
     const querySnapshot = await getDocs(q);
     const data: T[] = [];
     querySnapshot.forEach((doc) => {

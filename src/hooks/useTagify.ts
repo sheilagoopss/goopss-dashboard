@@ -1,7 +1,7 @@
-import { endpoints } from "constants/endpoints";
-import HttpHelper from "helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import HttpHelper from "@/helpers/HttpHelper";
 import { useCallback, useState } from "react";
-import { IServiceReturn } from "types/apiResponse";
+import { IServiceReturn } from "@/types/apiResponse";
 
 export const useGenerateTags = () => {
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);

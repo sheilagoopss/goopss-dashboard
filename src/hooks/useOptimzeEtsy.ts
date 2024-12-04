@@ -1,10 +1,10 @@
-import { endpoints } from "constants/endpoints";
-import FirebaseHelper from "helpers/FirebaseHelper";
-import HttpHelper from "helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import HttpHelper from "@/helpers/HttpHelper";
 import { useCallback } from "react";
 import { useState } from "react";
-import { IAPIResponse } from "types/API";
-import { IOptimizeEtsyListing } from "types/OptimizeEtsyListing";
+import { IAPIResponse } from "@/types/API";
+import { IOptimizeEtsyListing } from "@/types/OptimizeEtsyListing";
 
 interface UseOptimizeEtsyPromptFetchReturn {
   fetchPrompt: () => Promise<IOptimizeEtsyListing | null>;

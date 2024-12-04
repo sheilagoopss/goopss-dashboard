@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
-import { IImage } from "../types/DesignHub";
-import FirebaseHelper from "../helpers/FirebaseHelper";
-import { filterUndefined } from "../utils/filterUndefined";
-import { useAuth } from "../contexts/AuthContext";
-import { IAdmin } from "../types/Customer";
+import { IImage } from "@/types/DesignHub";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { filterUndefined } from "@/utils/filterUndefined";
+import { useAuth } from "@/contexts/AuthContext";
+import { IAdmin } from "@/types/Customer";
 import { serverTimestamp } from "firebase/firestore";
-import { ITask } from "../types/Task";
+import { ITask } from "@/types/Task";
 
 interface UseDesignHubFetchReturn {
   fetchDesignHub: (imageId: string) => Promise<IImage | null>;
@@ -21,7 +21,10 @@ interface UseDesignHubCreateReturn {
 }
 
 interface UseDesignHubUpdateReturn {
-  updateDesignHub: (imageId: string, image: Partial<IImage>) => Promise<boolean>;
+  updateDesignHub: (
+    imageId: string,
+    image: Partial<IImage>,
+  ) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -89,7 +92,7 @@ export function useDesignHubCreate(): UseDesignHubCreateReturn {
         setIsLoading(false);
       }
     },
-    [],
+    [user],
   );
 
   return { createDesignHub, isLoading };

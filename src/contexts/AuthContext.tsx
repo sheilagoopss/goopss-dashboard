@@ -1,3 +1,5 @@
+"use client";
+
 import React, {
   createContext,
   useContext,
@@ -16,20 +18,20 @@ import {
   linkWithCredential,
   EmailAuthProvider,
 } from "firebase/auth";
-import { auth } from "../firebase/config";
-import { IAdmin, ICustomer } from "../types/Customer";
+import { auth } from "@/firebase/config";
+import { IAdmin, ICustomer } from "@/types/Customer";
 import { message } from "antd";
 import {
   clientSetCookie,
   getClientCookie,
   clearCookie,
   SupportedKeys,
-} from "../utils/cookies";
-import FirebaseHelper from "../helpers/FirebaseHelper";
+} from "@/utils/cookies";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
 import dayjs from "dayjs";
 import { serverTimestamp, Timestamp } from "firebase/firestore";
-import { IUserActivity } from "types/UserActivityLog";
-import { useSubscribeCustomer } from "hooks/useKlaviyo";
+import { IUserActivity } from "@/types/UserActivityLog";
+import { useSubscribeCustomer } from "@/hooks/useKlaviyo";
 
 interface AuthContextType {
   user: IAdmin | null | undefined;

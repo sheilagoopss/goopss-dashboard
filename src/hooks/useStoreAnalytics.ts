@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
-import { IAIPrompt, IStoreDetail } from "../types/StoreDetail";
-import { IAPIResponse } from "../types/API";
-import HttpHelper from "../helpers/HttpHelper";
-import { endpoints } from "../constants/endpoints";
-import { db } from "../firebase/config";
+import { IAIPrompt, IStoreDetail } from "@/types/StoreDetail";
+import { IAPIResponse } from "@/types/API";
+import HttpHelper from "@/helpers/HttpHelper";
+import { endpoints } from "@/constants/endpoints";
+import { db } from "@/firebase/config";
 import {
   collection,
   getDocs,
@@ -11,8 +11,8 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import { filterUndefined } from "utils/filterUndefined";
-import FirebaseHelper from "helpers/FirebaseHelper";
+import { filterUndefined } from "@/utils/filterUndefined";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
 import dayjs from "dayjs";
 
 interface UseStoreAnalyticsReturn {
@@ -263,8 +263,9 @@ export function usePromptFetch(): UsePromptFetchReturn {
   const fetchPrompt = useCallback(async () => {
     setIsFetchingPrompt(true);
     try {
-      const promptData =
-        await FirebaseHelper.find<IAIPrompt>("feedbackPrompts");
+      const promptData = await FirebaseHelper.find<IAIPrompt>(
+        "feedbackPrompts",
+      );
       return promptData;
     } catch (error) {
       console.error(error);
