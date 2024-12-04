@@ -87,7 +87,6 @@ interface SavedFilters {
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
   showMyTasks: boolean;
-  sectionFilter: string;
 }
 
 // Add these helper functions
@@ -179,26 +178,14 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
   const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
 
-  // First, set better default values for filters
+  // Keep only these declarations with saved filters
   const savedFilters = getFiltersFromStorage();
-  const defaultFilters = {
-    showActiveOnly: true, // Default to showing active only
-    progressFilter: 'To Do and Doing' as const, // Default to showing ongoing tasks
-    search: '',
-    frequencyFilter: 'All' as const,
-    teamMemberFilter: 'all',
-    showMyTasks: false,
-    sectionFilter: 'all'
-  };
-
-  // Use these defaults when initializing state
-  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? defaultFilters.showActiveOnly);
-  const [progressFilter, setProgressFilter] = useState(savedFilters?.progressFilter ?? defaultFilters.progressFilter);
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
-  const [sectionFilter, setSectionFilter] = useState<string>('all');
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -211,11 +198,10 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       search,
       frequencyFilter,
       teamMemberFilter,
-      showMyTasks,
-      sectionFilter
+      showMyTasks
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, sectionFilter]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -231,14 +217,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'))
   }
 
-  // Add this near other state declarations
-  const [isFetching, setIsFetching] = useState(false);
-
-  // Modify loadAllPlans to be more efficient
   const loadAllPlans = async () => {
     try {
       setIsLoading(true);
-      
+      console.log('Starting to load all plans...');
+
+      // Get only active paid customers first
       const customersRef = collection(db, 'customers');
       const customersSnapshot = await getDocs(
         query(customersRef, 
@@ -246,41 +230,35 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           where('isActive', '==', true)
         )
       );
+      console.log('Found active paid customers:', customersSnapshot.size);
 
-      // Increase batch size for fewer iterations
-      const BATCH_SIZE = 25; // Increased from 10
+      // Load plans in batches of 10
+      const BATCH_SIZE = 10;
       const plansData: { [customerId: string]: Plan } = {};
       
-      // Process in larger batches
       for (let i = 0; i < customersSnapshot.docs.length; i += BATCH_SIZE) {
-        setIsFetching(true);
         const batch = customersSnapshot.docs.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(customerDoc => 
+          getDoc(doc(db, 'plans', customerDoc.id))
+        );
         
-        // Use Promise.all for parallel fetching
-        const batchPromises = batch.map(async customerDoc => {
-          try {
-            const planRef = doc(db, 'plans', customerDoc.id);
-            const planDoc = await getDoc(planRef);
-            if (planDoc.exists()) {
-              plansData[customerDoc.id] = planDoc.data() as Plan;
-            }
-          } catch (error) {
-            console.error(`Error loading plan for ${customerDoc.id}:`, error);
+        const batchResults = await Promise.all(batchPromises);
+        
+        batchResults.forEach((planDoc, index) => {
+          if (planDoc.exists()) {
+            plansData[batch[index].id] = planDoc.data() as Plan;
           }
         });
 
-        await Promise.all(batchPromises);
-        
-        // Update state less frequently
-        if (i + BATCH_SIZE >= customersSnapshot.docs.length || i % (BATCH_SIZE * 2) === 0) {
-          setPlans({
-            type: 'all',
-            selectedCustomer: null,
-            data: { ...plansData }
-          });
-        }
-        setIsFetching(false);
+        // Update state after each batch to show progress
+        setPlans({
+          type: 'all',
+          selectedCustomer: null,
+          data: { ...plansData }
+        });
       }
+
+      console.log('Loaded plans data:', Object.keys(plansData).length);
 
     } catch (error) {
       console.error('Error loading all plans:', error);
@@ -764,62 +742,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
   const [packageFilter, setPackageFilter] = useState<string>('all');
 
-  // Add this helper function to get unique sections
-  const getUniqueSections = (plansData: { [customerId: string]: Plan }) => {
-    const sections = new Set<string>();
-    
-    Object.values(plansData).forEach(plan => {
-      plan.sections.forEach(section => {
-        sections.add(section.title);
-      });
-    });
-    
-    return Array.from(sections).sort();
-  };
-
-  // Add this helper function to group and sort tasks
-  const groupAndSortTasks = (tasks: TableRecord[]) => {
-    // First, group tasks by task name
-    const groupedTasks = tasks.reduce((acc, task) => {
-      if (!acc[task.task]) {
-        acc[task.task] = [];
-      }
-      acc[task.task].push(task);
-      return acc;
-    }, {} as { [taskName: string]: TableRecord[] });
-
-    // For each group, sort by customer join date
-    Object.keys(groupedTasks).forEach(taskName => {
-      groupedTasks[taskName].sort((a, b) => {
-        const dateA = dayjs(a.customer.date_joined);
-        const dateB = dayjs(b.customer.date_joined);
-        return dateB.valueOf() - dateA.valueOf(); // Most recent first
-      });
-    });
-
-    // Convert back to array and sort groups by earliest due date in each group
-    const sortedGroups = Object.entries(groupedTasks)
-      .sort(([, tasksA], [, tasksB]) => {
-        const earliestDueDateA = tasksA
-          .filter(t => t.dueDate)
-          .sort((a, b) => dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf())[0]?.dueDate;
-        const earliestDueDateB = tasksB
-          .filter(t => t.dueDate)
-          .sort((a, b) => dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf())[0]?.dueDate;
-        
-        if (!earliestDueDateA && !earliestDueDateB) return 0;
-        if (!earliestDueDateA) return 1;
-        if (!earliestDueDateB) return -1;
-        return dayjs(earliestDueDateA).valueOf() - dayjs(earliestDueDateB).valueOf();
-      });
-
-    // Flatten the groups back into a single array
-    return sortedGroups.flatMap(([, tasks]) => tasks);
-  };
-
-  // Update the filteredData useMemo
   const filteredData = useMemo(() => {
-    if (!plans.data) return [];
+    if (!plans.data) return [];  // Add this safety check
 
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
       const customer = customers.find(c => c.id === customerId);
@@ -843,8 +767,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
                 : task.frequency === frequencyFilter)) &&
             (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
-            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || '')) &&
-            (sectionFilter === 'all' || section.title === sectionFilter)
+            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''))
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
@@ -873,11 +796,10 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       );
     });
 
-    // Apply the grouping and sorting
-    return groupAndSortTasks(allTasks);
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user, packageFilter, sectionFilter]);
+    return allTasks;
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user, packageFilter]);
 
-  // Update the handleResetFilters function
+  // Update the reset filters function
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
@@ -886,7 +808,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setTeamMemberFilter('all');
     setShowMyTasks(false);
     setPackageFilter('all');
-    setSectionFilter('all');
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -1187,13 +1108,6 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     });
   };
 
-  // Add this effect to save default filters on first load
-  useEffect(() => {
-    if (!savedFilters) {
-      saveFiltersToStorage(defaultFilters);
-    }
-  }, []);
-
   return (
     <Layout>
       <Content style={{ padding: '16px' }}>
@@ -1265,7 +1179,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Switch
                 checked={showActiveOnly}
                 onChange={(checked) => {
-                  setShowActiveOnly(checked);
+                  setShowActiveOnly(checked);  // This will be immediate
                 }}
               />
               <Text>Show Active Only</Text>
@@ -1274,7 +1188,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Switch
                 checked={showMyTasks}
                 onChange={(checked) => {
-                  setShowMyTasks(checked);
+                  setShowMyTasks(checked);  // This will be immediate
                 }}
               />
               <Text>My Tasks</Text>
@@ -1288,25 +1202,12 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Option value="To Do and Doing">To Do & Doing</Option>
               <Option value="Done">Done</Option>
             </Select>
-            <Select
-              style={{ width: 200 }}
-              value={sectionFilter}
-              onChange={setSectionFilter}
-              placeholder="Filter by Section"
-            >
-              <Option value="all">All Sections</Option>
-              {getUniqueSections(plans.data).map(section => (
-                <Option key={section} value={section}>
-                  {section}
-                </Option>
-              ))}
-            </Select>
             <Search
               placeholder="Search tasks..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onSearch={(value) => {
-                setSearch(value);
+                setSearch(value);  // Only update search state when user hits enter or clicks search
               }}
               allowClear
               style={{ width: 200 }}
