@@ -43,6 +43,7 @@ import DescriptionHero from "components/descriptionHero/DescriptionHero";
 import RoleManagement from "components/roleManagement/RoleManagement";
 import { ClipboardList } from "lucide-react";
 import { Link } from "react-router-dom";
+import NewPlanPage from "../components/plan/NewPlanPage";
 
 export default function AppRoutes() {
   const {
@@ -188,6 +189,18 @@ export default function AppRoutes() {
       element={
         <div style={{ paddingTop: "16px" }}>
           <PlanSimpleView
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+          />
+        </div>
+      }
+    />,
+    <Route
+      path="new-plan"
+      element={
+        <div style={{ paddingTop: "16px" }}>
+          <NewPlanPage
             customers={customers}
             selectedCustomer={selectedCustomer}
             setSelectedCustomer={setSelectedCustomer}

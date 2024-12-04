@@ -133,6 +133,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = () => {
                 icon: <TableOutlined />,
                 label: <Link to="/plan-simple-view">Simple View</Link>,
               },
+              {
+                key: "/new-plan",
+                icon: <ProjectOutlined />,
+                label: <Link to="/new-plan">New Plan</Link>,
+              },
               ...((user as IAdmin).role === "SuperAdmin"
                 ? [
                     {
