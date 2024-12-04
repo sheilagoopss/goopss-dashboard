@@ -12,7 +12,7 @@ import { useAuth } from "contexts/AuthContext";
 import { useListingImageStatusUpdate } from "hooks/useListingImage";
 
 const DesignHubCustomer = () => {
-  const { user } = useAuth();
+  const { customerData } = useAuth();
   const { fetchCustomerListings, isLoading: isFetchingListings } =
     useCustomerFetchListings();
   const { fetchCustomerListingImages, isLoading: isFetchingImages } =
@@ -33,12 +33,12 @@ const DesignHubCustomer = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const refetch = () => {
-    if (user) {
-      fetchCustomerListings(user.id).then((listings) => {
+    if (customerData) {
+      fetchCustomerListings(customerData.id).then((listings) => {
         setListings(listings);
         setFilteredListings(listings);
       });
-      fetchCustomerListingImages(user.id).then((images) => {
+      fetchCustomerListingImages(customerData.id).then((images) => {
         setListingImages(images);
       });
     }
@@ -46,7 +46,7 @@ const DesignHubCustomer = () => {
 
   useEffect(() => {
     refetch();
-  }, [user]);
+  }, [customerData]);
 
   const handleApprove = async (imageId: string) => {
     try {

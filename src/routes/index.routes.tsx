@@ -365,7 +365,7 @@ export default function AppRoutes() {
             />
             <Route
               path="my-info"
-              element={<StoreInformation customerId={user?.id || ""} isAdmin={false} />}
+              element={<StoreInformation customerId={customerData?.id || ""} isAdmin={false} />}
             />
             <Route
               path="design-hub"
@@ -398,7 +398,7 @@ export default function AppRoutes() {
                 userType === "Free" ? (
                   <UpgradeNotice />
                 ) : (
-                  <SocialInsights customerId={user?.id || ""} isAdmin={false} />
+                  <SocialInsights customerId={customerData?.id || ""} isAdmin={false} />
                 )
               }
             />
