@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
-  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider, Row, Col, Card as AntCard, Pagination
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
@@ -87,6 +87,7 @@ interface SavedFilters {
   frequencyFilter: 'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed';
   teamMemberFilter: string;
   showMyTasks: boolean;
+  sectionFilter: string;
 }
 
 // Add these helper functions
@@ -156,7 +157,9 @@ interface TaskFile {
   uploadedAt: string;
 }
 
-export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
+const TASKS_PER_PAGE = 8;
+
+export const NewPlanPage: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false)
   const [plans, setPlans] = useState<{ type: 'all' | 'single'; selectedCustomer: ICustomer | null; data: { [customerId: string]: Plan } }>({
@@ -178,14 +181,26 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   const [cachedPlans, setCachedPlans] = useState<{ [customerId: string]: Plan }>({});
   const [lastCacheUpdate, setLastCacheUpdate] = useState<number>(Date.now());
 
-  // Keep only these declarations with saved filters
+  // First, set better default values for filters
   const savedFilters = getFiltersFromStorage();
-  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? false);
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>(savedFilters?.progressFilter ?? 'To Do and Doing');
+  const defaultFilters = {
+    showActiveOnly: true, // Default to showing active only
+    progressFilter: 'To Do and Doing' as const, // Default to showing ongoing tasks
+    search: '',
+    frequencyFilter: 'All' as const,
+    teamMemberFilter: 'all',
+    showMyTasks: false,
+    sectionFilter: 'all'
+  };
+
+  // Use these defaults when initializing state
+  const [showActiveOnly, setShowActiveOnly] = useState(savedFilters?.showActiveOnly ?? defaultFilters.showActiveOnly);
+  const [progressFilter, setProgressFilter] = useState(savedFilters?.progressFilter ?? defaultFilters.progressFilter);
   const [search, setSearch] = useState(savedFilters?.search ?? '');
   const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>(savedFilters?.frequencyFilter ?? 'All');
   const [teamMemberFilter, setTeamMemberFilter] = useState<string>(savedFilters?.teamMemberFilter ?? 'all');
   const [showMyTasks, setShowMyTasks] = useState(savedFilters?.showMyTasks ?? false);
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
 
   // Add searchInput state if not already present
   const [searchInput, setSearchInput] = useState(savedFilters?.search ?? '');
@@ -198,10 +213,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       search,
       frequencyFilter,
       teamMemberFilter,
-      showMyTasks
+      showMyTasks,
+      sectionFilter
     };
     saveFiltersToStorage(filters);
-  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks]);
+  }, [showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, sectionFilter]);
 
   const isOverdue = (dueDate: string | null) => {
     if (!dueDate) return false
@@ -217,12 +233,14 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     return dueDay.isAfter(today) && dueDay.isBefore(today.add(7, 'day'))
   }
 
+  // Add this near other state declarations
+  const [isFetching, setIsFetching] = useState(false);
+
+  // Modify loadAllPlans to be more efficient
   const loadAllPlans = async () => {
     try {
       setIsLoading(true);
-      console.log('Starting to load all plans...');
-
-      // Get only active paid customers first
+      
       const customersRef = collection(db, 'customers');
       const customersSnapshot = await getDocs(
         query(customersRef, 
@@ -230,35 +248,41 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           where('isActive', '==', true)
         )
       );
-      console.log('Found active paid customers:', customersSnapshot.size);
 
-      // Load plans in batches of 10
-      const BATCH_SIZE = 10;
+      // Increase batch size for fewer iterations
+      const BATCH_SIZE = 25; // Increased from 10
       const plansData: { [customerId: string]: Plan } = {};
       
+      // Process in larger batches
       for (let i = 0; i < customersSnapshot.docs.length; i += BATCH_SIZE) {
+        setIsFetching(true);
         const batch = customersSnapshot.docs.slice(i, i + BATCH_SIZE);
-        const batchPromises = batch.map(customerDoc => 
-          getDoc(doc(db, 'plans', customerDoc.id))
-        );
         
-        const batchResults = await Promise.all(batchPromises);
-        
-        batchResults.forEach((planDoc, index) => {
-          if (planDoc.exists()) {
-            plansData[batch[index].id] = planDoc.data() as Plan;
+        // Use Promise.all for parallel fetching
+        const batchPromises = batch.map(async customerDoc => {
+          try {
+            const planRef = doc(db, 'plans', customerDoc.id);
+            const planDoc = await getDoc(planRef);
+            if (planDoc.exists()) {
+              plansData[customerDoc.id] = planDoc.data() as Plan;
+            }
+          } catch (error) {
+            console.error(`Error loading plan for ${customerDoc.id}:`, error);
           }
         });
 
-        // Update state after each batch to show progress
-        setPlans({
-          type: 'all',
-          selectedCustomer: null,
-          data: { ...plansData }
-        });
+        await Promise.all(batchPromises);
+        
+        // Update state less frequently
+        if (i + BATCH_SIZE >= customersSnapshot.docs.length || i % (BATCH_SIZE * 2) === 0) {
+          setPlans({
+            type: 'all',
+            selectedCustomer: null,
+            data: { ...plansData }
+          });
+        }
+        setIsFetching(false);
       }
-
-      console.log('Loaded plans data:', Object.keys(plansData).length);
 
     } catch (error) {
       console.error('Error loading all plans:', error);
@@ -742,8 +766,62 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
 
   const [packageFilter, setPackageFilter] = useState<string>('all');
 
+  // Add this helper function to get unique sections
+  const getUniqueSections = (plansData: { [customerId: string]: Plan }) => {
+    const sections = new Set<string>();
+    
+    Object.values(plansData).forEach(plan => {
+      plan.sections.forEach(section => {
+        sections.add(section.title);
+      });
+    });
+    
+    return Array.from(sections).sort();
+  };
+
+  // Add this helper function to group and sort tasks
+  const groupAndSortTasks = (tasks: TableRecord[]) => {
+    // First, group tasks by task name
+    const groupedTasks = tasks.reduce((acc, task) => {
+      if (!acc[task.task]) {
+        acc[task.task] = [];
+      }
+      acc[task.task].push(task);
+      return acc;
+    }, {} as { [taskName: string]: TableRecord[] });
+
+    // For each group, sort by customer join date
+    Object.keys(groupedTasks).forEach(taskName => {
+      groupedTasks[taskName].sort((a, b) => {
+        const dateA = dayjs(a.customer.date_joined);
+        const dateB = dayjs(b.customer.date_joined);
+        return dateB.valueOf() - dateA.valueOf(); // Most recent first
+      });
+    });
+
+    // Convert back to array and sort groups by earliest due date in each group
+    const sortedGroups = Object.entries(groupedTasks)
+      .sort(([, tasksA], [, tasksB]) => {
+        const earliestDueDateA = tasksA
+          .filter(t => t.dueDate)
+          .sort((a, b) => dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf())[0]?.dueDate;
+        const earliestDueDateB = tasksB
+          .filter(t => t.dueDate)
+          .sort((a, b) => dayjs(a.dueDate).valueOf() - dayjs(b.dueDate).valueOf())[0]?.dueDate;
+        
+        if (!earliestDueDateA && !earliestDueDateB) return 0;
+        if (!earliestDueDateA) return 1;
+        if (!earliestDueDateB) return -1;
+        return dayjs(earliestDueDateA).valueOf() - dayjs(earliestDueDateB).valueOf();
+      });
+
+    // Flatten the groups back into a single array
+    return sortedGroups.flatMap(([, tasks]) => tasks);
+  };
+
+  // Update the filteredData useMemo
   const filteredData = useMemo(() => {
-    if (!plans.data) return [];  // Add this safety check
+    if (!plans.data) return [];
 
     const allTasks = Object.entries(plans.data).flatMap(([customerId, plan]) => {
       const customer = customers.find(c => c.id === customerId);
@@ -767,7 +845,8 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
                 ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
                 : task.frequency === frequencyFilter)) &&
             (teamMemberFilter === 'all' || task.assignedTeamMembers?.includes(teamMemberFilter)) &&
-            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || ''))
+            (!showMyTasks || task.assignedTeamMembers?.includes(user?.email || '')) &&
+            (sectionFilter === 'all' || section.title === sectionFilter)
           )
           .map(task => ({
             key: `${customerId}-${task.id}`,
@@ -796,10 +875,11 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
       );
     });
 
-    return allTasks;
-  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user, packageFilter]);
+    // Apply the grouping and sorting
+    return groupAndSortTasks(allTasks);
+  }, [plans, showActiveOnly, progressFilter, search, frequencyFilter, teamMemberFilter, showMyTasks, customers, user, packageFilter, sectionFilter]);
 
-  // Update the reset filters function
+  // Update the handleResetFilters function
   const handleResetFilters = () => {
     setShowActiveOnly(false);
     setProgressFilter('All');
@@ -808,6 +888,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     setTeamMemberFilter('all');
     setShowMyTasks(false);
     setPackageFilter('all');
+    setSectionFilter('all');
     localStorage.removeItem('planSimpleViewFilters');
   };
 
@@ -1108,6 +1189,34 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     });
   };
 
+  // Add this effect to save default filters on first load
+  useEffect(() => {
+    if (!savedFilters) {
+      saveFiltersToStorage(defaultFilters);
+    }
+  }, []);
+
+  // Add state declarations here, with other states
+  const [currentPage, setCurrentPage] = useState<{ [section: string]: number }>({});
+
+  // Add helper functions inside the component
+  const handlePageChange = (section: string, page: number) => {
+    setCurrentPage(prev => ({
+      ...prev,
+      [section]: page
+    }));
+  };
+
+  const groupTasksBySection = (tasks: TableRecord[]) => {
+    return tasks.reduce((acc, task) => {
+      if (!acc[task.section]) {
+        acc[task.section] = [];
+      }
+      acc[task.section].push(task);
+      return acc;
+    }, {} as { [section: string]: TableRecord[] });
+  };
+
   return (
     <Layout>
       <Content style={{ padding: '16px' }}>
@@ -1179,7 +1288,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Switch
                 checked={showActiveOnly}
                 onChange={(checked) => {
-                  setShowActiveOnly(checked);  // This will be immediate
+                  setShowActiveOnly(checked);
                 }}
               />
               <Text>Show Active Only</Text>
@@ -1188,7 +1297,7 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Switch
                 checked={showMyTasks}
                 onChange={(checked) => {
-                  setShowMyTasks(checked);  // This will be immediate
+                  setShowMyTasks(checked);
                 }}
               />
               <Text>My Tasks</Text>
@@ -1202,12 +1311,25 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
               <Option value="To Do and Doing">To Do & Doing</Option>
               <Option value="Done">Done</Option>
             </Select>
+            <Select
+              style={{ width: 200 }}
+              value={sectionFilter}
+              onChange={setSectionFilter}
+              placeholder="Filter by Section"
+            >
+              <Option value="all">All Sections</Option>
+              {getUniqueSections(plans.data).map(section => (
+                <Option key={section} value={section}>
+                  {section}
+                </Option>
+              ))}
+            </Select>
             <Search
               placeholder="Search tasks..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onSearch={(value) => {
-                setSearch(value);  // Only update search state when user hits enter or clicks search
+                setSearch(value);
               }}
               allowClear
               style={{ width: 200 }}
@@ -1302,19 +1424,151 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
           </Space>
         </Card>
 
-        <Table 
-          columns={columns as ColumnsType<TableRecord>} 
-          dataSource={filteredData}
-          style={{ marginTop: 16 }}
-          loading={isLoading}
-          rowSelection={{
-            type: 'checkbox',
-            onChange: (selectedRowKeys: Key[], selectedRows: TableRecord[]) => {
-              setSelectedRows(selectedRows);
-            },
-            selectedRowKeys: selectedRows.map(row => row.key),
-          }}
-        />
+        {Object.entries(groupTasksBySection(filteredData)).map(([sectionTitle, tasks]) => (
+          <Card key={sectionTitle} style={{ marginTop: 16 }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: 16,
+              background: '#f5f5f5',
+              padding: '12px 16px',
+              borderRadius: '6px'
+            }}>
+              <Title level={4} style={{ margin: 0 }}>{sectionTitle}</Title>
+              <Text type="secondary">
+                {tasks.length} tasks
+              </Text>
+            </div>
+
+            <Row gutter={[16, 16]}>
+              {tasks
+                .slice(
+                  (currentPage[sectionTitle] || 1 - 1) * TASKS_PER_PAGE,
+                  (currentPage[sectionTitle] || 1) * TASKS_PER_PAGE
+                )
+                .map(record => (
+                  <Col xs={24} sm={12} md={8} lg={6} key={record.key}>
+                    <Card
+                      hoverable
+                      style={{ height: '100%' }}
+                      actions={[
+                        <Checkbox
+                          checked={selectedRows.some(row => row.key === record.key)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRows(prev => [...prev, record]);
+                            } else {
+                              setSelectedRows(prev => prev.filter(row => row.key !== record.key));
+                            }
+                          }}
+                        />,
+                        <Button 
+                          icon={<EditOutlined />} 
+                          onClick={() => handleEdit(record, record.customer)}
+                        >
+                          Edit
+                        </Button>
+                      ]}
+                    >
+                      <div style={{ marginBottom: 12 }}>
+                        <Space align="start">
+                          <Avatar 
+                            src={record.customer.logo} 
+                            icon={<UserOutlined />}
+                            style={{ flexShrink: 0 }}
+                          />
+                          <div>
+                            <Text strong style={{ display: 'block' }}>
+                              {record.store_name}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              {dayjs(record.customer.date_joined).format('MMM DD, YYYY')}
+                            </Text>
+                          </div>
+                        </Space>
+                      </div>
+
+                      <div style={{ marginBottom: 12 }}>
+                        <Text strong style={{ display: 'block' }}>
+                          {record.task}
+                        </Text>
+                        <Tag color={pastelColors[record.progress as keyof typeof pastelColors]}>
+                          {record.progress}
+                        </Tag>
+                        <Tag color={pastelColors[record.frequency as keyof typeof pastelColors]}>
+                          {record.frequency}
+                        </Tag>
+                      </div>
+
+                      {record.dueDate && (
+                        <div style={{ marginBottom: 8 }}>
+                          <Tag 
+                            color={isOverdue(record.dueDate) ? 'red' : 'blue'}
+                            icon={<CalendarOutlined />}
+                          >
+                            Due: {dayjs(record.dueDate).format('MMM DD')}
+                          </Tag>
+                        </div>
+                      )}
+
+                      {(record.frequency === 'Monthly' || record.frequency === 'As Needed') && (
+                        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                          <Progress
+                            type="circle"
+                            percent={Math.round((record.current || 0) / (record.goal || 1) * 100)}
+                            size={50}
+                            strokeColor={{
+                              '0%': '#108ee9',
+                              '100%': '#87d068',
+                            }}
+                            format={() => (
+                              <Text style={{ fontSize: '12px' }}>
+                                {record.current || 0}/{record.goal || 0}
+                              </Text>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {record.assignedTeamMembers && record.assignedTeamMembers.length > 0 && (
+                        <div style={{ marginTop: 12 }}>
+                          <Avatar.Group maxCount={3} size="small">
+                            {record.assignedTeamMembers.map((email) => {
+                              const admin = adminList.find((a) => a.email === email);
+                              return (
+                                <Tooltip key={email} title={admin?.name || email}>
+                                  <Avatar
+                                    size="small"
+                                    style={{ backgroundColor: '#1890ff' }}
+                                    src={admin?.avatarUrl}
+                                  >
+                                    {!admin?.avatarUrl && (admin?.name || email)[0].toUpperCase()}
+                                  </Avatar>
+                                </Tooltip>
+                              );
+                            })}
+                          </Avatar.Group>
+                        </div>
+                      )}
+                    </Card>
+                  </Col>
+                ))}
+            </Row>
+
+            {tasks.length > TASKS_PER_PAGE && (
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Pagination
+                  current={currentPage[sectionTitle] || 1}
+                  total={tasks.length}
+                  pageSize={TASKS_PER_PAGE}
+                  onChange={(page) => handlePageChange(sectionTitle, page)}
+                  size="small"
+                />
+              </div>
+            )}
+          </Card>
+        ))}
 
         <Modal
           title={editingTask ? 'Edit Task' : 'Add Task'}
@@ -1843,4 +2097,4 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
     </Layout>
   )
 }
-export default PlanSimpleView;
+export default NewPlanPage;

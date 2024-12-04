@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { 
   Layout, Typography, Card, Select, Switch, Input, Button, Space, Table, Tag, Tooltip,
-  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider, Card as AntCard, Row, Col, Pagination
+  DatePicker, Modal, message, Avatar, Form, Checkbox, InputNumber, Alert, Progress, Upload, Divider
 } from 'antd'
 import { 
   CalendarOutlined, CheckCircleOutlined, EditOutlined,
@@ -155,14 +155,6 @@ interface TaskFile {
   url: string;
   size: number;
   uploadedAt: string;
-}
-
-// Add this type for section data
-interface SectionData {
-  title: string;
-  tasks: TableRecord[];
-  currentPage: number;
-  totalTasks: number;
 }
 
 export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, setSelectedCustomer }) => {
@@ -1117,25 +1109,86 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
   // Add this near other state declarations
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Add these state declarations with your other states
-  const [sectionsData, setSectionsData] = useState<{ [key: string]: SectionData }>({});
-  const TASKS_PER_PAGE = 8;
+  // Add this function before the return statement
+  const handleBulkDelete = () => {
+    Modal.confirm({
+      title: `Delete ${selectedRows.length} Tasks`,
+      content: (
+        <div>
+          <p>Are you sure you want to delete these tasks?</p>
+          <p>This will:</p>
+          <ul>
+            <li>Remove selected tasks from customer plans</li>
+            <li>This action cannot be undone</li>
+          </ul>
+        </div>
+      ),
+      async onOk() {
+        try {
+          setIsDeleting(true);
+          const batch = writeBatch(db);
+          let batchCount = 0;
+          const BATCH_LIMIT = 500;
 
-  // Add this useEffect to organize tasks by sections
-  useEffect(() => {
-    const sections: { [key: string]: SectionData } = {};
-    
-    filteredData.forEach(task => {
-      if (!sections[task.section]) {
-        sections[task.section] = {
-          title: task.section,
-          tasks: [],
-          currentPage: 1,
-          totalTasks: 0
-        };
+          // Group tasks by customer
+          const tasksByCustomer = selectedRows.reduce((acc, row) => {
+            if (!acc[row.customer.id]) {
+              acc[row.customer.id] = [];
+            }
+            acc[row.customer.id].push(row.id);
+            return acc;
+          }, {} as { [customerId: string]: string[] });
+
+          // Update each customer's plan
+          for (const [customerId, taskIds] of Object.entries(tasksByCustomer)) {
+            const planRef = doc(db, 'plans', customerId);
+            const planDoc = await getDoc(planRef);
+
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              const updatedSections = plan.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.filter(task => !taskIds.includes(task.id))
+              }));
+
+              if (batchCount >= BATCH_LIMIT) {
+                await batch.commit();
+                batchCount = 0;
+              }
+
+              batch.update(planRef, {
+                sections: updatedSections,
+                updatedAt: new Date().toISOString()
+              });
+              batchCount++;
+            }
+          }
+
+          if (batchCount > 0) {
+            await batch.commit();
+          }
+
+          message.success(`Successfully deleted ${selectedRows.length} tasks`);
+          setSelectedRows([]);
+
+          // Reload data
+          if (selectedCustomer) {
+            loadPlan();
+          } else {
+            loadAllPlans();
+          }
+        } catch (error) {
+          console.error('Error deleting tasks:', error);
+          message.error('Failed to delete tasks');
+        } finally {
+          setIsDeleting(false);
+        }
       }
-      sections[task.section].tasks.push(task);
-      sections[task.section].totalTasks++;
+    });
+  };
+
+  // Add this effect to save default filters on first load
+  useEffect(() => {
     if (!savedFilters) {
       saveFiltersToStorage(defaultFilters);
     }
