@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../../contexts/AuthContext";
-import { ICustomer } from "../../../types/Customer";
 import { Button, Col, Divider, Row, Spin } from "antd";
 import { IStoreDetail } from "../../../types/StoreDetail";
 import { useCustomerStoreAnalyticsFetch } from "../../../hooks/useStoreAnalytics";

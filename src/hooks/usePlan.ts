@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useCallback } from 'react';
-import { collection, doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Plan, PlanSection, PlanTask } from '../types/Plan';
 import { PlanTaskRules } from '../types/PlanTasks';

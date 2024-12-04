@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, momentLocalizer, Event } from 'react-big-calendar';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import dayjs from 'dayjs';
 import { Avatar, Space, Tooltip, Modal, Button, Input, Select, DatePicker } from 'antd';
@@ -137,16 +137,16 @@ const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, adminList, onEdit })
     };
   };
 
-  const handleEditClick = () => {
-    setIsEditing(true);
-    setTempValues({
-      progress: selectedTask?.progress,
-      dueDate: selectedTask?.dueDate,
-      completedDate: selectedTask?.completedDate,
-      notes: selectedTask?.notes,
-      assignedTeamMembers: selectedTask?.assignedTeamMembers,
-    });
-  };
+  // const handleEditClick = () => {
+  //   setIsEditing(true);
+  //   setTempValues({
+  //     progress: selectedTask?.progress,
+  //     dueDate: selectedTask?.dueDate,
+  //     completedDate: selectedTask?.completedDate,
+  //     notes: selectedTask?.notes,
+  //     assignedTeamMembers: selectedTask?.assignedTeamMembers,
+  //   });
+  // };
 
   const handleSave = async () => {
     if (selectedTask && onEdit) {
@@ -160,10 +160,10 @@ const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, adminList, onEdit })
     }
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
-    setTempValues({});
-  };
+  // const handleCancel = () => {
+  //   setIsEditing(false);
+  //   setTempValues({});
+  // };
 
   return (
     <div style={{ height: 700 }}>
