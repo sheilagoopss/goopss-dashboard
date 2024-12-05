@@ -36,45 +36,7 @@ const { Title } = Typography;
 const { Content, Sider } = Layout;
 const { TextArea } = Input;
 
-interface SocialInsightsProps {
-  customerId: string;
-  isAdmin: boolean;
-}
-
-const convertLinksToClickable = (text: string) => {
-  // URL regex pattern
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
-
-  // Split text by URLs and map through parts
-  const parts = text.split(urlPattern);
-
-  return parts.map((part, index) => {
-    // Check if part matches URL pattern
-    if (part.match(urlPattern)) {
-      return (
-        <a
-          key={index}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            color: "#1890ff",
-            textDecoration: "underline",
-            wordBreak: "break-all",
-          }}
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
-
-const SocialInsights: React.FC<SocialInsightsProps> = ({
-  customerId,
-  isAdmin,
-}) => {
+const SocialInsights: React.FC = () => {
   const [form] = Form.useForm();
   const [currentSection, setCurrentSection] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
@@ -83,12 +45,10 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Fetch customers for admin
   useEffect(() => {
     const fetchCustomers = async () => {
-      if (!isAdmin) return;
       try {
         const customersCollection = collection(db, "customers");
         const customersSnapshot = await getDocs(customersCollection);
@@ -103,9 +63,9 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
     };
 
     fetchCustomers();
-  }, [isAdmin]);
+  }, []);
 
-  const effectiveCustomerId = isAdmin ? selectedCustomer?.id || "" : customerId;
+  const effectiveCustomerId = selectedCustomer?.id || "";
 
   // Fetch customer data
   useEffect(() => {
@@ -123,7 +83,6 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
             facebookField: data.facebook_groups_goopss || "",
             instagramField: data.instagram_hashtags_goopss || "",
           });
-          setIsDataLoaded(true);
         }
       } catch (error) {
         console.error("Error fetching customer data:", error);
@@ -140,50 +99,22 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
       icon: <PinterestOutlined />,
       content: (
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          {isAdmin ? (
-            <Form.Item
-              name="pinterestField"
-              label={
-                <div style={{ marginBottom: "12px" }}>
-                  We&apos;ve found 10 relevant Pinterest group boards, increasing
-                  your exposure to thousands of potential customers. We&apos;ve
-                  selected these boards because they are relevant to your niche,
-                  have active members, and are easy to join. This combination
-                  maximizes your exposure and potential for engagement. We will
-                  join these boards.
-                </div>
-              }
-              style={{ marginBottom: 0 }}
-            >
-              <TextArea rows={15} />
-            </Form.Item>
-          ) : (
-            <div>
-              <div style={{ marginBottom: "12px", fontWeight: 500 }}>
+          <Form.Item
+            name="pinterestField"
+            label={
+              <div style={{ marginBottom: "12px" }}>
                 We&apos;ve found 10 relevant Pinterest group boards, increasing
                 your exposure to thousands of potential customers. We&apos;ve
                 selected these boards because they are relevant to your niche,
                 have active members, and are easy to join. This combination
-                maximizes your exposure and potential for engagement. We will join
-                these boards.
+                maximizes your exposure and potential for engagement. We will
+                join these boards.
               </div>
-              <div
-                style={{
-                  whiteSpace: "pre-wrap",
-                  padding: "16px",
-                  background: "#f5f5f5",
-                  borderRadius: "8px",
-                  minHeight: "300px",
-                  lineHeight: "1.8",
-                }}
-              >
-                {isDataLoaded &&
-                  convertLinksToClickable(
-                    form.getFieldValue("pinterestField") || "",
-                  )}
-              </div>
-            </div>
-          )}
+            }
+            style={{ marginBottom: 0 }}
+          >
+            <TextArea rows={15} />
+          </Form.Item>
         </Space>
       ),
     },
@@ -192,41 +123,17 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
       icon: <FacebookOutlined />,
       content: (
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          {isAdmin ? (
-            <Form.Item
-              name="facebookField"
-              label={
-                <div style={{ marginBottom: "12px" }}>
-                  We&apos;ve found 5 relevant Facebook shared boards, increasing
-                  your exposure to thousands of potential customers.
-                </div>
-              }
-            >
-              <TextArea rows={10} />
-            </Form.Item>
-          ) : (
-            <div>
-              <div style={{ marginBottom: "12px", fontWeight: 500 }}>
+          <Form.Item
+            name="facebookField"
+            label={
+              <div style={{ marginBottom: "12px" }}>
                 We&apos;ve found 5 relevant Facebook shared boards, increasing
                 your exposure to thousands of potential customers.
               </div>
-              <div
-                style={{
-                  whiteSpace: "pre-wrap",
-                  padding: "16px",
-                  background: "#f5f5f5",
-                  borderRadius: "8px",
-                  minHeight: "200px",
-                  lineHeight: "1.8",
-                }}
-              >
-                {isDataLoaded &&
-                  convertLinksToClickable(
-                    form.getFieldValue("facebookField") || "",
-                  )}
-              </div>
-            </div>
-          )}
+            }
+          >
+            <TextArea rows={10} />
+          </Form.Item>
         </Space>
       ),
     },
@@ -235,41 +142,19 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
       icon: <InstagramOutlined />,
       content: (
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          {isAdmin ? (
-            <Form.Item
-              name="instagramField"
-              label={
-                <div style={{ marginBottom: "12px" }}>
-                  We&apos;ve researched and compiled a list of popular
-                  hashtags relevant to your products. Using these hashtags will
-                  help people discover your content on Instagram and expand your
-                  reach. We will use these hashtags when creating new posts.
-                </div>
-              }
-            >
-              <TextArea rows={4} />
-            </Form.Item>
-          ) : (
-            <div>
-              <div style={{ marginBottom: "12px", fontWeight: 500 }}>
+          <Form.Item
+            name="instagramField"
+            label={
+              <div style={{ marginBottom: "12px" }}>
                 We&apos;ve researched and compiled a list of popular hashtags
                 relevant to your products. Using these hashtags will help people
                 discover your content on Instagram and expand your reach. We
                 will use these hashtags when creating new posts.
               </div>
-              <div
-                style={{
-                  whiteSpace: "pre-wrap",
-                  padding: "16px",
-                  background: "#f5f5f5",
-                  borderRadius: "8px",
-                  minHeight: "100px",
-                }}
-              >
-                {isDataLoaded ? form.getFieldValue("instagramField") : ""}
-              </div>
-            </div>
-          )}
+            }
+          >
+            <TextArea rows={4} />
+          </Form.Item>
         </Space>
       ),
     },
@@ -329,26 +214,32 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
 
   return (
     <Card>
-      {isAdmin && (
-        <div
-          style={{
-            marginBottom: "24px",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          <div style={{ width: "300px" }}>
-            <CustomersDropdown
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              isAdmin={true}
-            />
-          </div>
+      <div
+        style={{
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "flex-end",
+        }}
+      >
+        <div style={{ width: "300px" }}>
+          <CustomersDropdown
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={true}
+          />
         </div>
-      )}
+      </div>
 
-      {isAdmin && !selectedCustomer ? (
+      {error && (
+        <Alert
+          message={error}
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      {!selectedCustomer ? (
         <Alert
           message="Please select a customer"
           description="Use the dropdown above to select a customer and view their social insights."
@@ -357,15 +248,6 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
         />
       ) : (
         <>
-          {error && (
-            <Alert
-              message={error}
-              type="error"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-          )}
-
           <Title level={2} style={{ marginBottom: "3rem" }}>
             Social Media Insights
           </Title>
@@ -407,60 +289,56 @@ const SocialInsights: React.FC<SocialInsightsProps> = ({
             <Content style={{ padding: "0 24px" }}>
               <Form form={form} layout="vertical" style={{ maxWidth: 800 }}>
                 {sections[currentSection].content}
-
-                {isAdmin && (
-                  <>
-                    <Divider />
-
-                    <Row justify="space-between">
-                      <Col>
-                        <Button
-                          onClick={() => setCurrentSection((prev) => prev - 1)}
-                          disabled={currentSection === 0}
-                        >
-                          Previous
+                <>
+                  <Divider />
+                  <Row justify="space-between">
+                    <Col>
+                      <Button
+                        onClick={() => setCurrentSection((prev) => prev - 1)}
+                        disabled={currentSection === 0}
+                      >
+                        Previous
+                      </Button>
+                    </Col>
+                    <Col>
+                      <Space>
+                        <Button onClick={() => form.resetFields()}>
+                          Reset
                         </Button>
-                      </Col>
-                      <Col>
-                        <Space>
-                          <Button onClick={() => form.resetFields()}>
-                            Reset
+                        {currentSection === sections.length - 1 ? (
+                          <Button
+                            type="primary"
+                            onClick={handleSave}
+                            loading={loading}
+                            style={{
+                              backgroundColor: "#000000",
+                              borderColor: "#000000",
+                            }}
+                          >
+                            Save
                           </Button>
-                          {currentSection === sections.length - 1 ? (
-                            <Button
-                              type="primary"
-                              onClick={handleSave}
-                              loading={loading}
-                              style={{
-                                backgroundColor: "#000000",
-                                borderColor: "#000000",
-                              }}
-                            >
-                              Save
-                            </Button>
-                          ) : (
-                            <Button
-                              type="primary"
-                              onClick={async () => {
-                                await handleSave();
-                                if (!error) {
-                                  setCurrentSection((prev) => prev + 1);
-                                }
-                              }}
-                              loading={loading}
-                              style={{
-                                backgroundColor: "#000000",
-                                borderColor: "#000000",
-                              }}
-                            >
-                              Next
-                            </Button>
-                          )}
-                        </Space>
-                      </Col>
-                    </Row>
-                  </>
-                )}
+                        ) : (
+                          <Button
+                            type="primary"
+                            onClick={async () => {
+                              await handleSave();
+                              if (!error) {
+                                setCurrentSection((prev) => prev + 1);
+                              }
+                            }}
+                            loading={loading}
+                            style={{
+                              backgroundColor: "#000000",
+                              borderColor: "#000000",
+                            }}
+                          >
+                            Next
+                          </Button>
+                        )}
+                      </Space>
+                    </Col>
+                  </Row>
+                </>
               </Form>
             </Content>
           </Layout>

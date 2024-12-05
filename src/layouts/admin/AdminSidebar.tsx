@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Menu,
@@ -35,11 +35,11 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { IAdmin, ICustomer } from "@/types/Customer";
-import Link from "@/components/common/Link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
+import Sider from "antd/es/layout/Sider";
 
 type MenuItem = Required<MenuProps>["items"][number];
 
@@ -50,29 +50,9 @@ const isAdminUser = (
   return "name" in user;
 };
 
-const styles = `
-  .avatar-overlay {
-    opacity: 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: opacity 0.2s;
-  }
-  
-  .avatar-container:hover .avatar-overlay {
-    opacity: 1;
-  }
-`;
-
 const AdminSidebar = () => {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const currentPath = usePathname();
   const [isPopoverVisible, setIsPopoverVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -80,32 +60,6 @@ const AdminSidebar = () => {
     name: user && isAdminUser(user) ? user.name : "",
     avatarUrl: user && isAdminUser(user) ? user.avatarUrl || "" : "",
   });
-
-  const [socialExpanded, setSocialExpanded] = useState(() => {
-    const saved = localStorage.getItem("adminSocialExpanded");
-    return saved
-      ? JSON.parse(saved)
-      : currentPath === "social" || currentPath === "social-insights";
-  });
-
-  useEffect(() => {
-    if (currentPath === "social" || currentPath === "social-insights") {
-      setSocialExpanded(true);
-    }
-  }, [currentPath]);
-
-  React.useEffect(() => {
-    localStorage.setItem("adminSocialExpanded", JSON.stringify(socialExpanded));
-  }, [socialExpanded]);
-
-  const [openKeys, setOpenKeys] = useState<string[]>(() => {
-    const saved = localStorage.getItem("adminOpenKeys");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem("adminOpenKeys", JSON.stringify(openKeys));
-  }, [openKeys]);
 
   const adminMenuItems: MenuItem[] = [
     // Plan menu for all roles including Designer
@@ -117,28 +71,33 @@ const AdminSidebar = () => {
           {
             key: "plan",
             icon: <PieChartOutlined />,
-            label: <span>Plan</span>,
+            label: "Plan",
             children: [
               {
                 key: ROUTES.ADMIN.PLAN,
                 icon: <PieChartOutlined />,
-                label: <Link to={ROUTES.ADMIN.PLAN}>Default View</Link>,
+                label: "Default View",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.PLAN);
+                },
               },
               {
                 key: ROUTES.ADMIN.PLAN_SIMPLE_VIEW,
                 icon: <TableOutlined />,
-                label: <Link to={ROUTES.ADMIN.PLAN_SIMPLE_VIEW}>Simple View</Link>,
+                label: "Simple View",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.PLAN_SIMPLE_VIEW);
+                },
               },
               ...((user as IAdmin).role === "SuperAdmin"
                 ? [
                     {
                       key: ROUTES.ADMIN.PLAN_TASK_RULES,
                       icon: <FormOutlined />,
-                      label: (
-                        <Link to={ROUTES.ADMIN.PLAN_TASK_RULES}>
-                          Plan Task Rules
-                        </Link>
-                      ),
+                      label: "Plan Task Rules",
+                      onClick: () => {
+                        router.push(ROUTES.ADMIN.PLAN_TASK_RULES);
+                      },
                     },
                   ]
                 : []),
@@ -155,30 +114,36 @@ const AdminSidebar = () => {
           {
             key: "customers",
             icon: <UserOutlined />,
-            label: <span>Customers</span>,
+            label: "Customers",
             children: [
               {
                 key: ROUTES.ADMIN.CUSTOMER_MANAGEMENT,
                 icon: <UserOutlined />,
-                label: <Link to={ROUTES.ADMIN.CUSTOMER_MANAGEMENT}>Customers List</Link>,
+                label: "Customers List",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.CUSTOMER_MANAGEMENT);
+                },
               },
               {
                 key: ROUTES.ADMIN.CUSTOMER_FORM,
                 icon: <FormOutlined />,
-                label: (
-                  <Link to={ROUTES.ADMIN.CUSTOMER_FORM}>Customer Form</Link>
-                ),
+                label: "Customer Form",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.CUSTOMER_FORM);
+                },
               },
-              // ... more menu items
             ],
           },
         ]
       : []),
 
     {
-      key: "design-hub",
+      key: ROUTES.ADMIN.DESIGN_HUB,
       icon: <AppstoreOutlined />,
-      label: <Link to={ROUTES.ADMIN.DESIGN_HUB}>Design Hub</Link>,
+      label: "Design Hub",
+      onClick: () => {
+        router.push(ROUTES.ADMIN.DESIGN_HUB);
+      },
     },
 
     ...((user as IAdmin).role === "SuperAdmin" ||
@@ -192,11 +157,17 @@ const AdminSidebar = () => {
             children: [
               {
                 key: ROUTES.ADMIN.LISTINGS,
-                label: <Link to={ROUTES.ADMIN.LISTINGS}>Optimization</Link>,
+                label: "Optimization",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.LISTINGS);
+                },
               },
               {
                 key: ROUTES.ADMIN.LISTINGS_DUPLICATE,
-                label: <Link to={ROUTES.ADMIN.LISTINGS_DUPLICATE}>Duplication</Link>,
+                label: "Duplication",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.LISTINGS_DUPLICATE);
+                },
               },
             ],
           },
@@ -207,44 +178,61 @@ const AdminSidebar = () => {
             children: [
               {
                 key: ROUTES.ADMIN.SOCIAL,
-                label: <Link to={ROUTES.ADMIN.SOCIAL}>Social Calendar</Link>,
+                label: "Social Calendar",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.SOCIAL);
+                },
               },
               {
                 key: ROUTES.ADMIN.SOCIAL_INSIGHTS,
-                label: (
-                  <Link to={ROUTES.ADMIN.SOCIAL_INSIGHTS}>
-                    Social Media Insights
-                  </Link>
-                ),
+                label: "Social Media Insights",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.SOCIAL_INSIGHTS);
+                },
               },
             ],
           },
           {
-            key: "pinterest",
+            key: ROUTES.ADMIN.PINTEREST,
             icon: <InstagramOutlined />,
-            label: <Link to={ROUTES.ADMIN.PINTEREST}>Pinterest</Link>,
+            label: "Pinterest",
+            onClick: () => {
+              router.push(ROUTES.ADMIN.PINTEREST);
+            },
           },
           {
-            key: "ads-recommendation",
+            key: ROUTES.ADMIN.ADS_RECOMMENDATION,
             icon: <StarOutlined />,
-            label: <Link to={ROUTES.ADMIN.ADS_RECOMMENDATION}>Ads Analysis</Link>,
+            label: "Ads Analysis",
+            onClick: () => {
+              router.push(ROUTES.ADMIN.ADS_RECOMMENDATION);
+            },
           },
           {
-            key: "store-analysis",
+            key: ROUTES.ADMIN.STORE_ANALYSIS,
             icon: <BarChartOutlined />,
-            label: <Link to={ROUTES.ADMIN.STORE_ANALYSIS}>Store Analysis</Link>,
+            label: "Store Analysis",
+            onClick: () => {
+              router.push(ROUTES.ADMIN.STORE_ANALYSIS);
+            },
           },
           {
-            key: "stats",
+            key: ROUTES.ADMIN.STATS,
             icon: <LineChartOutlined />,
-            label: <Link to={ROUTES.ADMIN.STATS}>Stats</Link>,
+            label: "Stats",
+            onClick: () => {
+              router.push(ROUTES.ADMIN.STATS);
+            },
           },
           ...((user as IAdmin).role === "SuperAdmin"
             ? [
                 {
-                  key: "tasks",
+                  key: ROUTES.ADMIN.TASKS,
                   icon: <ProjectOutlined />,
-                  label: <Link to={ROUTES.ADMIN.TASKS}>Tasks Summary</Link>,
+                  label: "Tasks Summary",
+                  onClick: () => {
+                    router.push(ROUTES.ADMIN.TASKS);
+                  },
                 },
               ]
             : []),
@@ -253,9 +241,12 @@ const AdminSidebar = () => {
     ...((user as IAdmin).role === "SuperAdmin"
       ? [
           {
-            key: "role-management",
+            key: ROUTES.ADMIN.ROLE_MANAGEMENT,
             icon: <UserOutlined />,
-            label: <Link to={ROUTES.ADMIN.ROLE_MANAGEMENT}>Role Management</Link>,
+            label: "Role Management",
+            onClick: () => {
+              router.push(ROUTES.ADMIN.ROLE_MANAGEMENT);
+            },
           },
         ]
       : []),
@@ -403,118 +394,102 @@ const AdminSidebar = () => {
     </Modal>
   );
 
-  React.useEffect(() => {
-    const styleSheet = document.createElement("style");
-    styleSheet.innerText = styles;
-    document.head.appendChild(styleSheet);
-    return () => {
-      document.head.removeChild(styleSheet);
-    };
-  }, []);
-
   return (
-    <div
-      style={{
-        // height: "100%",
-        position: "fixed",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <Sider width={280} theme="light">
       <div
         style={{
-          padding: "16px",
-          textAlign: "center",
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "visible",
         }}
       >
-        <Image
-          src={"/images/logo.png"}
-          alt="goopss logo"
-          width={100}
-          height={40}
-        />
-      </div>
+        <div style={{ padding: "4px 24px 0" }}>
+          <Image
+            src={"/images/logo.png"}
+            alt="goopss logo"
+            style={{ height: 64, marginBottom: 0 }}
+            width={100}
+            height={64}
+          />
+        </div>
 
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
-        }}
-      >
         <Menu
           mode="inline"
           selectedKeys={[currentPath]}
-          openKeys={openKeys}
-          onOpenChange={setOpenKeys}
           style={{
-            borderRight: 0,
-            padding: "8px",
+            borderRight: "none",
+            flex: 1,
+            position: "relative",
+            paddingTop: 0,
           }}
           items={adminMenuItems}
-          className="admin-sidebar-menu"
         />
-      </div>
 
-      <Popover
-        content={profileContent}
-        trigger="click"
-        open={isPopoverVisible}
-        onOpenChange={setIsPopoverVisible}
-        placement="topRight"
-        arrow={false}
-        overlayStyle={{
-          width: "280px",
-          position: "fixed",
-          left: "0 !important",
-          boxShadow: "0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
-          borderRadius: 0,
-          marginBottom: 0,
-          bottom: "72px",
-        }}
-        overlayInnerStyle={{
-          padding: "8px",
-          margin: 0,
-          boxShadow: "none",
-          borderRadius: 0,
-        }}
-      >
-        <div
-          style={{
-            padding: "16px",
-            borderTop: "1px solid #f0f0f0",
-            backgroundColor: "#fff",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
+        <Popover
+          content={profileContent}
+          trigger="click"
+          open={isPopoverVisible}
+          onOpenChange={setIsPopoverVisible}
+          placement="topRight"
+          arrow={false}
+          overlayStyle={{
+            width: "280px",
             position: "fixed",
-            bottom: "0",
+            left: "0 !important",
+            boxShadow: "0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
+            borderRadius: 0,
+            marginBottom: 0,
+            bottom: "72px",
+          }}
+          overlayInnerStyle={{
+            padding: "8px",
+            margin: 0,
+            boxShadow: "none",
+            borderRadius: 0,
           }}
         >
-          <Avatar
-            size={40}
-            src={user && isAdminUser(user) ? user.avatarUrl : undefined}
-            icon={
-              !(user && isAdminUser(user) && user.avatarUrl) && <UserOutlined />
-            }
+          <div
             style={{
-              backgroundColor: !(user && isAdminUser(user) && user.avatarUrl)
-                ? "#1890ff"
-                : undefined,
+              padding: "16px",
+              borderTop: "1px solid #f0f0f0",
+              backgroundColor: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              position: "fixed",
+              bottom: "0",
             }}
-          />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>
-              {user && isAdminUser(user) ? user.name : "Admin"}
+          >
+            <Avatar
+              size={40}
+              src={user && isAdminUser(user) ? user.avatarUrl : undefined}
+              icon={
+                !(user && isAdminUser(user) && user.avatarUrl) && (
+                  <UserOutlined />
+                )
+              }
+              style={{
+                backgroundColor: !(user && isAdminUser(user) && user.avatarUrl)
+                  ? "#1890ff"
+                  : undefined,
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500 }}>
+                {user && isAdminUser(user) ? user.name : "Admin"}
+              </div>
+              <div style={{ fontSize: "12px", color: "#666" }}>
+                {user?.email}
+              </div>
             </div>
-            <div style={{ fontSize: "12px", color: "#666" }}>{user?.email}</div>
+            <ChevronDown size={16} />
           </div>
-          <ChevronDown size={16} />
-        </div>
-      </Popover>
-      {editProfileModal}
-    </div>
+        </Popover>
+        {editProfileModal}
+      </div>
+    </Sider>
   );
 };
 

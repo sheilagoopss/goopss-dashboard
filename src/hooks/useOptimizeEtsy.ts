@@ -31,6 +31,16 @@ interface UseOptimizeEtsyListingReturn {
   isGenerating: boolean;
 }
 
+interface UseOptimizeListingReturn {
+  optimizeText: (params: {
+    title: string;
+    description: string;
+    version: number;
+    storeUrl?: string;
+  }) => Promise<{ title: string; description: string } | null>;
+  isOptimizing: boolean;
+}
+
 export function useOptimizeEtsyPromptFetch(): UseOptimizeEtsyPromptFetchReturn {
   const [isFetchingPrompt, setIsFetchingPrompt] = useState(false);
 
@@ -116,4 +126,36 @@ export function useOptimizeEtsyListing(): UseOptimizeEtsyListingReturn {
   );
 
   return { generateFeedback, isGenerating };
+}
+
+export function useOptimizeListing(): UseOptimizeListingReturn {
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const optimizeText = useCallback(
+    async (params: {
+      title: string;
+      description: string;
+      version: number;
+      storeUrl?: string;
+    }): Promise<{ title: string; description: string } | null> => {
+      setIsOptimizing(true);
+      try {
+        const response = await HttpHelper.post(
+          endpoints.listing.optimizeListing,
+          {
+            data: params,
+          },
+        );
+        return response?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsOptimizing(false);
+      }
+    },
+    [],
+  );
+
+  return { optimizeText, isOptimizing };
 }

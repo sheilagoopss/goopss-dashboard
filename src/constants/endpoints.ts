@@ -56,4 +56,7 @@ export const endpoints = {
   mailSender: {
     sendMail: `${API_URL}/api/v1/mail/send-email`,
   },
+  listing: {
+    optimizeListing: `${API_URL}/api/optimize-listing`,
+  },
 };

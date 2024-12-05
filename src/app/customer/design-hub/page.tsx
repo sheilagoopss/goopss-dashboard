@@ -1,4 +1,5 @@
-/* eslint-disable react-hooks/exhaustive-deps */
+"use client";
+
 import { Button, Col, Input, message, Row, Select, Typography } from "antd";
 import StatusFilter, {
   StatusFilterType,
@@ -6,12 +7,13 @@ import StatusFilter, {
 import ListingsTable from "@/components/designHub/ListingsTable";
 import { Listing } from "@/types/Listing";
 import { ListingImage } from "@/types/Listing";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useCustomerListingImagesFetch } from "@/hooks/useCustomer";
 import { useCustomerFetchListings } from "@/hooks/useListing";
 import { useAuth } from "@/contexts/AuthContext";
 import { useListingImageStatusUpdate } from "@/hooks/useListingImage";
+import { Content } from "antd/es/layout/layout";
 
 const DesignHubCustomerPage = () => {
   const { customerData } = useAuth();
@@ -33,7 +35,7 @@ const DesignHubCustomerPage = () => {
   const [listingImages, setListingImages] = useState<ListingImage[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const refetch = () => {
+  const refetch = useCallback(() => {
     if (customerData) {
       fetchCustomerListings(customerData.id).then((listings) => {
         setListings(listings);
@@ -43,11 +45,11 @@ const DesignHubCustomerPage = () => {
         setListingImages(images);
       });
     }
-  };
+  }, [customerData, fetchCustomerListingImages, fetchCustomerListings]);
 
   useEffect(() => {
     refetch();
-  }, [customerData]);
+  }, [customerData, refetch]);
 
   const handleApprove = async (imageId: string) => {
     try {
@@ -139,8 +141,9 @@ const DesignHubCustomerPage = () => {
   };
 
   return (
-    <Row gutter={[16, 16]}>
-      <Col
+    <Content className="p-4 bg-white">
+      <Row gutter={[16, 16]}>
+        <Col
         span={24}
         style={{
           display: "flex",
@@ -220,7 +223,8 @@ const DesignHubCustomerPage = () => {
           handleSupersede={handleSupersede}
         />
       </Col>
-    </Row>
+      </Row>
+    </Content>
   );
 };
 

@@ -8,9 +8,9 @@ import { IAdmin, ICustomer } from "@/types/Customer";
 import {
   useCustomerUpdate,
   useCustomerDelete,
-} from "../../../hooks/useCustomer";
-import { CustomerForm } from "@/components/admin/customers/form/CustomerForm";
-import { useListingDeleteAll } from "../../../hooks/useListing";
+} from "@/hooks/useCustomer";
+import { CustomerForm } from "@/components/customers/form/CustomerForm";
+import { useListingDeleteAll } from "@/hooks/useListing";
 import dayjs from "dayjs";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, updateDoc, getDoc } from "firebase/firestore";

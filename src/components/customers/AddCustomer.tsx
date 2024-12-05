@@ -2,7 +2,7 @@
 import { Form } from "antd";
 import { ICustomer } from "@/types/Customer";
 import dayjs from "dayjs";
-import { CustomerForm } from "@/components/admin/customers/form/CustomerForm";
+import { CustomerForm } from "@/components/customers/form/CustomerForm";
 
 interface AddCustomerProps {
   onAddCustomer: (customer: ICustomer) => Promise<boolean>;

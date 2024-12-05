@@ -1,10 +1,10 @@
 import { ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { Button, Form, Input, message, Spin } from "antd";
 import { Content } from "antd/es/layout/layout";
-import { useUpdateListing } from "hooks/useEtsy";
-import { useOptimizeEtsyListing } from "hooks/useOptimzeEtsy";
+import { useUpdateListing } from "@/hooks/useEtsy";
+import { useOptimizeEtsyListing } from "@/hooks/useOptimizeEtsy";
 import { useEffect, useMemo, useState } from "react";
-import { IEtsyFetchedListing, IEtsyListingUpdate } from "types/Etsy";
+import { IEtsyFetchedListing, IEtsyListingUpdate } from "@/types/Etsy";
 
 interface IAnalyzeListingProps {
   listing: IEtsyFetchedListing;
@@ -39,7 +39,7 @@ const AnalyzeListing: React.FC<IAnalyzeListingProps> = ({
       description: values.description,
       tags: values.tags?.split(",")?.map((tag: string) => tag.trim()),
     };
-    updateListing(data).then((res) => {
+    updateListing(data).then(() => {
       message.success("Listing updated successfully");
     });
   };

@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Layout, Row, Col, Button, Modal, message, Segmented } from "antd";
-import CustomerList from "@/components/admin/customers/CustomerList";
-import AddCustomer from "@/components/admin/customers/AddCustomer";
-import Analytics from "@/components/admin/customers/Analytics";
+import CustomerList from "@/components/customers/CustomerList";
+import AddCustomer from "@/components/customers/AddCustomer";
+import Analytics from "@/components/customers/Analytics";
 import { useCustomerCreate, useCustomerFetchAll } from "@/hooks/useCustomer";
 import { ICustomer } from "@/types/Customer";
 import { caseInsensitiveSearch } from "@/utils/caseInsensitveMatch";
@@ -97,96 +97,80 @@ export default function CustomersPage() {
   };
 
   return (
-    <Layout style={{ backgroundColor: "none" }}>
-      <Content style={{ padding: "24px" }}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: "1ch",
-            }}
-          >
-            <Store size={"2ch"} />
-            <h2 style={{ fontWeight: "bolder" }}>Etsy Store Owners</h2>
-          </div>
-          <div style={{ display: "flex", gap: "2ch" }}>
-            <Button onClick={() => setAddNewCustomerModal(true)}>
-              Add New Customer
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => refresh()}
-              loading={isLoading}
-            />
-          </div>
+    <Content className="p-4">
+      <div className="flex flex-row justify-between items-center mb-2">
+        <div className="flex flex-row items-center gap-2">
+          <Store size={"2ch"} />
+          <h2 className="font-bold">Etsy Store Owners</h2>
         </div>
-        <Row gutter={[16, 16]}>
-          <Col span={24}>
-            <Analytics
-              customers={customers}
-              handleSearch={handleSearch}
-              handleCSVExport={handleCSVExport}
-            />
-          </Col>
-          {/* <Col span={24}>
+        <div className="flex flex-row gap-2">
+          <Button onClick={() => setAddNewCustomerModal(true)}>
+            Add New Customer
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => refresh()}
+            loading={isLoading}
+          />
+        </div>
+      </div>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Analytics
+            customers={customers}
+            handleSearch={handleSearch}
+            handleCSVExport={handleCSVExport}
+          />
+        </Col>
+        {/* <Col span={24}>
             <SearchFilter onSearch={handleSearch} />
           </Col> */}
-          <Col span={24}>
-            <Segmented
-              options={[
-                { label: "Paying Customers", value: "Paid" }, //TODO: temp
-                { label: "Free Customers", value: "Free" },
-              ]}
-              onChange={(value) => {
-                if (value === "Free") {
-                  setSegmentValue("Free");
-                  const filteredCustomers = customers.filter(
-                    (customer) => customer.customer_type === value,
-                  );
-                  setFilteredCustomers(filteredCustomers);
-                } else {
-                  setSegmentValue("Paid");
-                  const filteredCustomers = customers.filter(
-                    (customer) => customer.customer_type !== "Free",
-                  );
-                  setFilteredCustomers(filteredCustomers);
-                }
-              }}
-              style={{ padding: "0.5ch" }}
-              span={24}
-              value={segmentValue}
-            />
-          </Col>
-          <Col span={24}>
-            <CustomerList
-              customers={filteredCustomers}
-              loading={isLoading}
-              refresh={refresh}
-            />
-          </Col>
-        </Row>
-        <Modal
-          title="Add Customer"
-          style={{ top: "3ch" }}
-          open={addNewCustomerModal}
-          onCancel={() => setAddNewCustomerModal(false)}
-          footer={null}
-        >
-          <AddCustomer
-            onAddCustomer={handleAddCustomer}
-            isCreating={isCreating}
+        <Col span={24}>
+          <Segmented
+            options={[
+              { label: "Paying Customers", value: "Paid" }, //TODO: temp
+              { label: "Free Customers", value: "Free" },
+            ]}
+            onChange={(value) => {
+              if (value === "Free") {
+                setSegmentValue("Free");
+                const filteredCustomers = customers.filter(
+                  (customer) => customer.customer_type === value,
+                );
+                setFilteredCustomers(filteredCustomers);
+              } else {
+                setSegmentValue("Paid");
+                const filteredCustomers = customers.filter(
+                  (customer) => customer.customer_type !== "Free",
+                );
+                setFilteredCustomers(filteredCustomers);
+              }
+            }}
+            style={{ padding: "0.5ch" }}
+            span={24}
+            value={segmentValue}
           />
-        </Modal>
-      </Content>
-    </Layout>
+        </Col>
+        <Col span={24}>
+          <CustomerList
+            customers={filteredCustomers}
+            loading={isLoading}
+            refresh={refresh}
+          />
+        </Col>
+      </Row>
+      <Modal
+        title="Add Customer"
+        style={{ top: "3ch" }}
+        open={addNewCustomerModal}
+        onCancel={() => setAddNewCustomerModal(false)}
+        footer={null}
+      >
+        <AddCustomer
+          onAddCustomer={handleAddCustomer}
+          isCreating={isCreating}
+        />
+      </Modal>
+    </Content>
   );
 }

@@ -1,22 +1,10 @@
-"use client";
+import { AuthProvider } from "@/contexts/AuthContext";
+import AdminLayout from "@/layouts/admin/AdminLayout";
 
-import AdminSidebar from "@/components/admin/AdminSidebar";
-import { Layout } from "antd";
-import Sider from "antd/es/layout/Sider";
-
-const { Content } = Layout;
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <Layout className="bg-white">
-      <Sider width={"35ch"} style={{ backgroundColor: "#fff" }}>
-        <AdminSidebar />
-      </Sider>
-      <Content style={{ padding: "2ch" }}>{children}</Content>
-    </Layout>
+    <AuthProvider>
+      <AdminLayout>{children}</AdminLayout>
+    </AuthProvider>
   );
 }

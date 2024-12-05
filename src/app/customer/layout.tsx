@@ -1,20 +1,10 @@
-import { Layout, Menu } from "antd";
+import { AuthProvider } from "@/contexts/AuthContext";
+import CustomerLayout from "@/layouts/customer/CustomerLayout";
 
-const { Content, Sider } = Layout;
-
-export default function CustomerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <Layout>
-      <Sider>
-        <Menu>
-          <Menu.Item>Dashboard</Menu.Item>
-        </Menu>
-      </Sider>
-      <Content>{children}</Content>
-    </Layout>
+    <AuthProvider>
+      <CustomerLayout>{children}</CustomerLayout>
+    </AuthProvider>
   );
 }

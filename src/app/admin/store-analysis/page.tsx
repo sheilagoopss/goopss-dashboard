@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ICustomer } from "@/types/Customer";
 import PreviousAnalysis from "@/components/storeAnalysis/PreviousAnalysis";
-import { Button, Col, message, Modal, Popconfirm, Row, Spin } from "antd";
+import { Button, Card, Col, message, Modal, Popconfirm, Row, Spin } from "antd";
 import ScrapeDataModal from "@/components/storeAnalysis/ScrapeDataModal";
 import { IStoreDetail } from "@/types/StoreDetail";
 import {
@@ -27,6 +27,8 @@ import { FEEDBACKS } from "@/components/storeAnalysis/constants/feedback";
 import CustomersDropdown from "@/components/common/CustomersDropdown";
 import Image from "next/image";
 import Setting from "@/components/storeAnalysis/Setting";
+import { Content } from "antd/es/layout/layout";
+import Title from "antd/es/typography/Title";
 
 const StoreAnalysisAdmin: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -181,52 +183,35 @@ const StoreAnalysisAdmin: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-        }}
-      >
-        <h1>Store Analysis</h1>
-        {isAdmin && (
-          <div style={{ display: "flex", alignItems: "center", gap: "2ch" }}>
-            <Button
-              icon={<SettingOutlined />}
-              size="large"
-              onClick={() => setOpenSetting(true)}
-            >
-              Settings
-            </Button>
-            <CustomersDropdown
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              isAdmin={isAdmin}
-            />
-          </div>
-        )}
+    <Content className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <Title level={2}>Store Analysis</Title>
+        <div className="flex items-center gap-4">
+          <Button
+            icon={<SettingOutlined />}
+            size="large"
+            onClick={() => setOpenSetting(true)}
+          >
+            Settings
+          </Button>
+          <CustomersDropdown
+            customers={customers}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            isAdmin={isAdmin}
+          />
+        </div>
       </div>
 
       {isLoading && (
-        <div style={{ display: "flex", justifyContent: "center" }}>
+        <div className="flex justify-center">
           <Spin />
         </div>
       )}
 
       {selectedCustomer && (
-        <div
-          style={{
-            backgroundColor: "white",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            borderRadius: "8px",
-            padding: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div className="bg-white shadow-md rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-4">
             <Image
               src={selectedCustomer.logo || "/placeholder-logo.png"}
               alt={`${selectedCustomer.store_name} logo`}
@@ -261,11 +246,8 @@ const StoreAnalysisAdmin: React.FC = () => {
           <p>Please select a customer first to view store analysis.</p>
         )}
         {selectedCustomer && (
-          <>
+          <Card title={`Store analysis for ${selectedCustomer.store_name}`}>
             <Row gutter={[16, 16]}>
-              <Col span={24}>
-                Store analysis for {selectedCustomer.store_name}
-              </Col>
               <div
                 style={{
                   width: "100%",
@@ -346,7 +328,7 @@ const StoreAnalysisAdmin: React.FC = () => {
                 </Button>,
               ]}
             />
-          </>
+          </Card>
         )}
       </div>
       <Modal
@@ -358,7 +340,7 @@ const StoreAnalysisAdmin: React.FC = () => {
       >
         <Setting />
       </Modal>
-    </div>
+    </Content>
   );
 };
 

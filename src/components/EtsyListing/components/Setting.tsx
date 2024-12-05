@@ -1,10 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect } from "react";
 import { Form, Input, Button, message, Spin } from "antd";
 import {
   useOptimizeEtsyPromptUpdate,
   useOptimizeEtsyPromptFetch,
-} from "hooks/useOptimzeEtsy";
+} from "@/hooks/useOptimizeEtsy";
 
 const Setting: React.FC = () => {
   const [form] = Form.useForm();
@@ -24,7 +23,7 @@ const Setting: React.FC = () => {
         form.setFieldsValue(data);
       }
     });
-  }, []);
+  }, [fetchPrompt, form]);
 
   return isFetchingPrompt ? (
     <div
