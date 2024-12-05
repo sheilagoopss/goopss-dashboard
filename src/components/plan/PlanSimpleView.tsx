@@ -613,7 +613,14 @@ export const PlanSimpleView: React.FC<Props> = ({ customers, selectedCustomer, s
         <Space direction="vertical" size={4}>
           <Space>
             <Avatar src={record.customer.logo} icon={<UserOutlined />} />
-            <span>{text}</span>
+            <a 
+              href={`https://${record.customer.store_name.toLowerCase().replace(/\s+/g, '')}.etsy.com`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'black', textDecoration: 'underline' }}
+            >
+              {text}
+            </a>
             {record.notes && (
               <Tooltip title={record.notes}>
                 <FileTextOutlined style={{ color: '#8c8c8c' }} />
