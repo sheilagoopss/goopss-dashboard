@@ -37,9 +37,9 @@ import {
 } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { UserAvatars } from './components/user-avatars'
-import { TaskCalendar } from './components/task-calendar'
-import { User, Task, TaskGroup, SubTask } from './types'
+import { UserAvatars } from '@/components/plan/user-avatars'
+import { TaskCalendar } from '@/components/plan/task-calendar'
+import { User, Task, TaskGroup, SubTask } from '@/types/types'
 
 const users: User[] = [
   { id: '1', name: 'Alice Johnson', avatar: 'https://i.pravatar.cc/150?img=1' },
@@ -102,7 +102,7 @@ const initialTaskGroups: TaskGroup[] = [
         status: "In Progress",
         assignee: users[2],
         isActive: true,
-        frequency: "Quarterly",
+        frequency: "Monthly",
         goal: "Provide accurate financial overview to stakeholders",
         notes: "Include year-over-year comparison",
         attachments: [],
@@ -131,7 +131,7 @@ const initialTaskGroups: TaskGroup[] = [
         status: "To Do",
         assignee: users[3],
         isActive: true,
-        frequency: "Yearly",
+        frequency: "Monthly",
         goal: "Ensure all policies are up-to-date",
         notes: "Collaborate with HR and Legal departments",
         attachments: ["current_handbook.pdf"],
@@ -160,7 +160,7 @@ const initialTaskGroups: TaskGroup[] = [
         status: "To Do",
         assignee: users[4],
         isActive: true,
-        frequency: "Yearly",
+        frequency: "As Needed",
         goal: "Evaluate employee performance and set goals",
         notes: "Prepare evaluation forms",
         attachments: [],
@@ -291,7 +291,7 @@ const initialTaskGroups: TaskGroup[] = [
         status: "To Do",
         assignee: users[1],
         isActive: true,
-        frequency: "Quarterly",
+        frequency: "As Needed",
         goal: "Identify and address security vulnerabilities",
         notes: "Engage external security consultant",
         attachments: [],
@@ -861,7 +861,6 @@ const TaskDialog = ({
                   </ul>
                 )}
               </div>
-            <continuation_point>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status" className="text-right">
