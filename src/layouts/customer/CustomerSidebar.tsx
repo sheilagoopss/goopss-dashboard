@@ -177,6 +177,8 @@ const CustomerSidebar: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           overflow: "visible",
+          position: "fixed",
+          width: "280px",
         }}
       >
         <div style={{ padding: "4px 24px 0" }}>
