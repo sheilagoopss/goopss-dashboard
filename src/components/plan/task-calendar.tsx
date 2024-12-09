@@ -29,9 +29,10 @@ interface TaskCalendarProps {
   taskGroups: { title: string; tasks: PlanTask[] }[]
   users: IAdmin[]
   onUpdateTask: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>
+  onEdit: (task: PlanTask) => void
 }
 
-export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarProps) {
+export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCalendarProps) {
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
@@ -66,7 +67,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarPr
 
   const handleTaskClick = (e: React.MouseEvent, task: PlanTask) => {
     e.stopPropagation() // Prevent day selection when clicking on a task
-    setEditingTask(task)
+    onEdit(task)
   }
 
   const colStartClasses = [

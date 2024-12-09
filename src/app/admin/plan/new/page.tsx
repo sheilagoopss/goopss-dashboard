@@ -175,6 +175,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('All')
   const [search, setSearch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [teamMemberFilter, setTeamMemberFilter] = useState('all')
   const [teamMembers, setTeamMembers] = useState<IAdmin[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -206,7 +207,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 ? true
                 : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
 
-            const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+            const matchesSearch = task.task.toLowerCase().includes(searchQuery.toLowerCase())
             const matchesProgress = progressFilter === 'All' || 
               (progressFilter === 'To Do and Doing' ? 
                 (task.progress === 'To Do' || task.progress === 'Doing') : 
@@ -236,7 +237,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   ? true
                   : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
 
-              const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+              const matchesSearch = task.task.toLowerCase().includes(searchQuery.toLowerCase())
               const matchesProgress = progressFilter === 'All' || 
                 (progressFilter === 'To Do and Doing' ? 
                   (task.progress === 'To Do' || task.progress === 'Doing') : 
@@ -265,12 +266,12 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     }
 
     setFilteredSections(sections)
-  }, [selectedCustomer, plans, allPlans, customers, teamMemberFilter, search, progressFilter, showActiveOnly])
+  }, [selectedCustomer, plans, allPlans, customers, teamMemberFilter, searchQuery, progressFilter, showActiveOnly])
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage({})
-  }, [search, progressFilter, teamMemberFilter, showActiveOnly, selectedCustomer])
+  }, [searchQuery, progressFilter, teamMemberFilter, showActiveOnly, selectedCustomer])
 
   const handleEditTask = (task: PlanTask) => {
     setEditingTask(task)
@@ -498,8 +499,24 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   }, [localCustomers])
 
   // Filters section with new UI
+  const filterTasks = (task: PlanTask) => {
+    const matchesTeamMember = 
+      teamMemberFilter === 'all' 
+        ? true
+        : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
+
+    const matchesSearch = searchQuery === '' || task.task.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesProgress = progressFilter === 'All' || 
+      (progressFilter === 'To Do and Doing' ? 
+        (task.progress === 'To Do' || task.progress === 'Doing') : 
+        task.progress === progressFilter)
+    const matchesActive = !showActiveOnly || task.isActive
+    
+    return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+  }
+
   const FiltersSection = () => {
-    console.log('Current team members:', teamMembers); // Debug log
+    const [inputValue, setInputValue] = useState('')
 
     return (
       <div className="space-y-4">
@@ -569,10 +586,18 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search tasks..." 
+              placeholder="Search tasks... (Press Enter to search)" 
               className="pl-8 bg-white" 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setSearchQuery(inputValue);
+                }
+              }}
             />
           </div>
 
@@ -822,7 +847,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           </TabsList>
           <TabsContent 
             value="list" 
-            key={`list-${teamMemberFilter}-${search}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
+            key={`list-${teamMemberFilter}-${searchQuery}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
           >
             <div className="space-y-12 mt-8">
               {(() => {
@@ -830,22 +855,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach(section => {
-                    const filteredTasks = section.tasks
-                      .filter(task => {
-                        const matchesTeamMember = 
-                          teamMemberFilter === 'all' 
-                            ? true
-                            : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
-
-                        const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
-                        const matchesProgress = progressFilter === 'All' || 
-                          (progressFilter === 'To Do and Doing' ? 
-                            (task.progress === 'To Do' || task.progress === 'Doing') : 
-                            task.progress === progressFilter)
-                        const matchesActive = !showActiveOnly || task.isActive
-                        
-                        return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
-                      });
+                    const filteredTasks = section.tasks.filter(filterTasks);
 
                     if (filteredTasks.length > 0) {
                       sections[section.title] = {
@@ -860,22 +870,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
 
                     plan.sections.forEach(section => {
-                      const filteredTasks = section.tasks
-                        .filter(task => {
-                          const matchesTeamMember = 
-                            teamMemberFilter === 'all' 
-                              ? true
-                              : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
-
-                          const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
-                          const matchesProgress = progressFilter === 'All' || 
-                            (progressFilter === 'To Do and Doing' ? 
-                              (task.progress === 'To Do' || task.progress === 'Doing') : 
-                              task.progress === progressFilter)
-                          const matchesActive = !showActiveOnly || task.isActive
-                          
-                          return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
-                        });
+                      const filteredTasks = section.tasks.filter(filterTasks);
 
                       if (filteredTasks.length > 0) {
                         if (!sections[section.title]) {
@@ -942,23 +937,55 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           </TabsContent>
           <TabsContent 
             value="calendar" 
-            key={`calendar-${teamMemberFilter}-${search}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
+            key={`calendar-${teamMemberFilter}-${searchQuery}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
+            className="mt-6"
           >
             <TaskCalendar 
               taskGroups={(() => {
                 const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {};
                 
                 if (selectedCustomer && plans) {
-                  // ... same filtering logic as above ...
+                  plans.sections.forEach(section => {
+                    const filteredTasks = section.tasks.filter(filterTasks);
+
+                    if (filteredTasks.length > 0) {
+                      sections[section.title] = {
+                        tasks: filteredTasks.map(task => ({ ...task, customer: selectedCustomer })),
+                        customers: [selectedCustomer]
+                      }
+                    }
+                  });
                 } else {
-                  // ... same filtering logic as above ...
+                  Object.entries(allPlans).forEach(([customerId, plan]) => {
+                    const customer = customers.find(c => c.id === customerId)
+                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+
+                    plan.sections.forEach(section => {
+                      const filteredTasks = section.tasks.filter(filterTasks);
+
+                      if (filteredTasks.length > 0) {
+                        if (!sections[section.title]) {
+                          sections[section.title] = { tasks: [], customers: [] }
+                        }
+                        
+                        sections[section.title].tasks.push(...filteredTasks.map(task => ({
+                          ...task,
+                          customer
+                        })));
+
+                        if (!sections[section.title].customers.find(c => c.id === customer.id)) {
+                          sections[section.title].customers.push(customer)
+                        }
+                      }
+                    });
+                  });
                 }
 
                 return Object.entries(sections).map(([title, { tasks }]) => ({
                   title,
                   tasks
                 }));
-              })()} 
+              })()}
               users={teamMembers.map(member => ({
                 id: member.email,
                 email: member.email,
@@ -968,6 +995,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 isAdmin: true
               }))}
               onUpdateTask={handleUpdateTask}
+              onEdit={handleEditTask}
             />
           </TabsContent>
         </Tabs>
