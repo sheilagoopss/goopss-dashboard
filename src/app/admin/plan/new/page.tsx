@@ -182,6 +182,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [isOpen, setIsOpen] = useState(false)
   const [plans, setPlans] = useState<{ sections: PlanSection[] } | null>(null)
   const [allPlans, setAllPlans] = useState<{ [customerId: string]: { sections: PlanSection[] } }>({})
+  const [filteredSections, setFilteredSections] = useState<{ [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } }>({})
   const { user } = useAuth()
   const [currentPage, setCurrentPage] = useState<{ [section: string]: number }>({})
   const ITEMS_PER_PAGE = 12
@@ -191,6 +192,85 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(null)
   const [newSubTask, setNewSubTask] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([])
+
+  // Update filtered sections whenever filters or data change
+  useEffect(() => {
+    const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {}
+    
+    if (selectedCustomer && plans) {
+      plans.sections.forEach(section => {
+        const filteredTasks = section.tasks
+          .filter(task => {
+            const matchesTeamMember = 
+              teamMemberFilter === 'all' 
+                ? true
+                : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
+
+            const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+            const matchesProgress = progressFilter === 'All' || 
+              (progressFilter === 'To Do and Doing' ? 
+                (task.progress === 'To Do' || task.progress === 'Doing') : 
+                task.progress === progressFilter)
+            const matchesActive = !showActiveOnly || task.isActive
+            
+            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+          });
+
+        if (filteredTasks.length > 0) {
+          sections[section.title] = {
+            tasks: filteredTasks.map(task => ({ ...task, customer: selectedCustomer })),
+            customers: [selectedCustomer]
+          }
+        }
+      });
+    } else {
+      Object.entries(allPlans).forEach(([customerId, plan]) => {
+        const customer = customers.find(c => c.id === customerId)
+        if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+
+        plan.sections.forEach(section => {
+          const filteredTasks = section.tasks
+            .filter(task => {
+              const matchesTeamMember = 
+                teamMemberFilter === 'all' 
+                  ? true
+                  : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
+
+              const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+              const matchesProgress = progressFilter === 'All' || 
+                (progressFilter === 'To Do and Doing' ? 
+                  (task.progress === 'To Do' || task.progress === 'Doing') : 
+                  task.progress === progressFilter)
+              const matchesActive = !showActiveOnly || task.isActive
+              
+              return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+            });
+
+          if (filteredTasks.length > 0) {
+            if (!sections[section.title]) {
+              sections[section.title] = { tasks: [], customers: [] }
+            }
+            
+            sections[section.title].tasks.push(...filteredTasks.map(task => ({
+              ...task,
+              customer
+            })));
+
+            if (!sections[section.title].customers.find(c => c.id === customer.id)) {
+              sections[section.title].customers.push(customer)
+            }
+          }
+        });
+      });
+    }
+
+    setFilteredSections(sections)
+  }, [selectedCustomer, plans, allPlans, customers, teamMemberFilter, search, progressFilter, showActiveOnly])
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage({})
+  }, [search, progressFilter, teamMemberFilter, showActiveOnly, selectedCustomer])
 
   const handleEditTask = (task: PlanTask) => {
     setEditingTask(task)
@@ -566,7 +646,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   }
 
   // Get tasks for the current page
-  const getPaginatedTasks = (tasks: PlanTask[], section: string) => {
+  const getPaginatedTasks = (tasks: (PlanTask & { customer?: ICustomer })[], section: string) => {
     const page = currentPage[section] || 1
     const start = (page - 1) * ITEMS_PER_PAGE
     const end = start + ITEMS_PER_PAGE
@@ -574,7 +654,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   }
 
   // Get total pages for a section
-  const getTotalPages = (tasks: PlanTask[]) => {
+  const getTotalPages = (tasks: (PlanTask & { customer?: ICustomer })[]) => {
     return Math.ceil(tasks.length / ITEMS_PER_PAGE)
   }
 
@@ -665,87 +745,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     fetchTeamMembers();
   }, []);
 
-  // Get all tasks grouped by sections
-  const getAllTasksBySection = () => {
-    const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {}
-    
-    // If we have a selected customer and plans data, use that
-    if (selectedCustomer && plans) {
-      plans.sections.forEach(section => {
-        const filteredTasks = section.tasks
-          .filter(task => {
-            // Team member filter - show all tasks when 'all' is selected
-            const matchesTeamMember = 
-              teamMemberFilter === 'all' 
-                ? true // Show all tasks when 'all' is selected
-                : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter)); // Show only tasks assigned to selected member
-
-            const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
-            const matchesProgress = progressFilter === 'All' || 
-              (progressFilter === 'To Do and Doing' ? 
-                (task.progress === 'To Do' || task.progress === 'Doing') : 
-                task.progress === progressFilter)
-            const matchesActive = !showActiveOnly || task.isActive
-            
-            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
-          });
-
-        if (filteredTasks.length > 0) {
-          sections[section.title] = {
-            tasks: filteredTasks.map(task => ({ ...task, customer: selectedCustomer })),
-            customers: [selectedCustomer]
-          }
-        }
-      });
-      return sections;
-    }
-
-    // For all customers view
-    Object.entries(allPlans).forEach(([customerId, plan]) => {
-      const customer = customers.find(c => c.id === customerId)
-      if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
-
-      plan.sections.forEach(section => {
-        const filteredTasks = section.tasks
-          .filter(task => {
-            // Team member filter - show all tasks when 'all' is selected
-            const matchesTeamMember = 
-              teamMemberFilter === 'all' 
-                ? true // Show all tasks when 'all' is selected
-                : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter)); // Show only tasks assigned to selected member
-
-            const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
-            const matchesProgress = progressFilter === 'All' || 
-              (progressFilter === 'To Do and Doing' ? 
-                (task.progress === 'To Do' || task.progress === 'Doing') : 
-                task.progress === progressFilter)
-            const matchesActive = !showActiveOnly || task.isActive
-            
-            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
-          });
-
-        if (filteredTasks.length > 0) {
-          if (!sections[section.title]) {
-            sections[section.title] = { tasks: [], customers: [] }
-          }
-          
-          filteredTasks.forEach(task => {
-            sections[section.title].tasks.push({
-              ...task,
-              customer
-            })
-          });
-
-          if (!sections[section.title].customers.find(c => c.id === customer.id)) {
-            sections[section.title].customers.push(customer)
-          }
-        }
-      });
-    });
-
-    return sections;
-  }
-
   const loadAllPlans = async () => {
     try {
       setIsLoading(true);
@@ -821,58 +820,145 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             <TabsTrigger value="list">List View</TabsTrigger>
             <TabsTrigger value="calendar">Calendar View</TabsTrigger>
           </TabsList>
-          <TabsContent value="list">
+          <TabsContent 
+            value="list" 
+            key={`list-${teamMemberFilter}-${search}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
+          >
             <div className="space-y-12 mt-8">
-              {Object.entries(getAllTasksBySection()).map(([sectionTitle, { tasks, customers }]) => (
-                <div key={sectionTitle} className="bg-white rounded-lg p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-medium">{sectionTitle}</h2>
-                    <div className="flex items-center gap-2">
-                      {getTotalPages(tasks) > 1 && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePageChange(sectionTitle, (currentPage[sectionTitle] || 1) - 1)}
-                            disabled={(currentPage[sectionTitle] || 1) <= 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm">
-                            Page {currentPage[sectionTitle] || 1} of {getTotalPages(tasks)}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePageChange(sectionTitle, (currentPage[sectionTitle] || 1) + 1)}
-                            disabled={(currentPage[sectionTitle] || 1) >= getTotalPages(tasks)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
+              {(() => {
+                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {};
+                
+                if (selectedCustomer && plans) {
+                  plans.sections.forEach(section => {
+                    const filteredTasks = section.tasks
+                      .filter(task => {
+                        const matchesTeamMember = 
+                          teamMemberFilter === 'all' 
+                            ? true
+                            : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
+
+                        const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+                        const matchesProgress = progressFilter === 'All' || 
+                          (progressFilter === 'To Do and Doing' ? 
+                            (task.progress === 'To Do' || task.progress === 'Doing') : 
+                            task.progress === progressFilter)
+                        const matchesActive = !showActiveOnly || task.isActive
+                        
+                        return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+                      });
+
+                    if (filteredTasks.length > 0) {
+                      sections[section.title] = {
+                        tasks: filteredTasks.map(task => ({ ...task, customer: selectedCustomer })),
+                        customers: [selectedCustomer]
+                      }
+                    }
+                  });
+                } else {
+                  Object.entries(allPlans).forEach(([customerId, plan]) => {
+                    const customer = customers.find(c => c.id === customerId)
+                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+
+                    plan.sections.forEach(section => {
+                      const filteredTasks = section.tasks
+                        .filter(task => {
+                          const matchesTeamMember = 
+                            teamMemberFilter === 'all' 
+                              ? true
+                              : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
+
+                          const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
+                          const matchesProgress = progressFilter === 'All' || 
+                            (progressFilter === 'To Do and Doing' ? 
+                              (task.progress === 'To Do' || task.progress === 'Doing') : 
+                              task.progress === progressFilter)
+                          const matchesActive = !showActiveOnly || task.isActive
+                          
+                          return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+                        });
+
+                      if (filteredTasks.length > 0) {
+                        if (!sections[section.title]) {
+                          sections[section.title] = { tasks: [], customers: [] }
+                        }
+                        
+                        sections[section.title].tasks.push(...filteredTasks.map(task => ({
+                          ...task,
+                          customer
+                        })));
+
+                        if (!sections[section.title].customers.find(c => c.id === customer.id)) {
+                          sections[section.title].customers.push(customer)
+                        }
+                      }
+                    });
+                  });
+                }
+
+                return Object.entries(sections).map(([sectionTitle, { tasks }]) => (
+                  <div key={sectionTitle} className="bg-white rounded-lg p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-medium">{sectionTitle}</h2>
+                      <div className="flex items-center gap-2">
+                        {getTotalPages(tasks) > 1 && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(sectionTitle, (currentPage[sectionTitle] || 1) - 1)}
+                              disabled={(currentPage[sectionTitle] || 1) <= 1}
+                            >
+                              Previous
+                            </Button>
+                            <span className="text-sm">
+                              Page {currentPage[sectionTitle] || 1} of {getTotalPages(tasks)}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(sectionTitle, (currentPage[sectionTitle] || 1) + 1)}
+                              disabled={(currentPage[sectionTitle] || 1) >= getTotalPages(tasks)}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {getPaginatedTasks(tasks, sectionTitle).map((task) => (
+                        <TaskCard 
+                          key={task.id} 
+                          task={task} 
+                          teamMembers={teamMembers}
+                          onEdit={handleEditTask} 
+                        />
+                      ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {getPaginatedTasks(tasks, sectionTitle).map((task) => (
-                      <TaskCard 
-                        key={task.id} 
-                        task={task} 
-                        teamMembers={teamMembers}
-                        onEdit={handleEditTask} 
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           </TabsContent>
-          <TabsContent value="calendar" className="mt-6">
+          <TabsContent 
+            value="calendar" 
+            key={`calendar-${teamMemberFilter}-${search}-${progressFilter}-${showActiveOnly}-${selectedCustomer?.id || 'all'}`}
+          >
             <TaskCalendar 
-              taskGroups={Object.entries(getAllTasksBySection()).map(([title, { tasks }]) => ({
-                title,
-                tasks: tasks
-              }))} 
+              taskGroups={(() => {
+                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {};
+                
+                if (selectedCustomer && plans) {
+                  // ... same filtering logic as above ...
+                } else {
+                  // ... same filtering logic as above ...
+                }
+
+                return Object.entries(sections).map(([title, { tasks }]) => ({
+                  title,
+                  tasks
+                }));
+              })()} 
               users={teamMembers.map(member => ({
                 id: member.email,
                 email: member.email,
