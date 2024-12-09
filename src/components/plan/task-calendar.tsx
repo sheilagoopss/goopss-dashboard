@@ -7,7 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { Task, TaskGroup, User } from "@/types/types"
+import { PlanTask, PlanSection } from "@/types/Plan"
+import { IAdmin } from "@/types/Customer"
 import { TaskDialog } from "./task-dialog"
 import {
   add,
@@ -25,16 +26,16 @@ import {
 } from "date-fns"
 
 interface TaskCalendarProps {
-  taskGroups: TaskGroup[]
-  users: User[]
-  onUpdateTask: (task: Task) => void
+  taskGroups: { title: string; tasks: PlanTask[] }[]
+  users: IAdmin[]
+  onUpdateTask: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>
 }
 
 export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarProps) {
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
-  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
   
   const firstDayCurrentMonth = parse(currentMonth, 'MMM-yyyy', new Date())
   
@@ -57,12 +58,13 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarPr
 
   const tasksForDate = (date: Date) => {
     return allTasks.filter(task => {
+      if (!task.dueDate) return false
       const taskDate = new Date(task.dueDate)
       return isSameDay(taskDate, date)
     })
   }
 
-  const handleTaskClick = (e: React.MouseEvent, task: Task) => {
+  const handleTaskClick = (e: React.MouseEvent, task: PlanTask) => {
     e.stopPropagation() // Prevent day selection when clicking on a task
     setEditingTask(task)
   }
@@ -173,12 +175,12 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarPr
                         onClick={(e) => handleTaskClick(e, task)}
                         className={cn(
                           'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
-                          task.status === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-                          task.status === 'In Progress' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-                          task.status === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
+                          task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                          task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+                          task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
                         )}
                       >
-                        {task.title}
+                        {task.task}
                       </button>
                     ))}
                   </div>
@@ -195,7 +197,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask }: TaskCalendarPr
         users={users}
         handleSaveTask={() => {
           if (editingTask) {
-            onUpdateTask(editingTask)
+            onUpdateTask(editingTask, {})
             setEditingTask(null)
           }
         }}

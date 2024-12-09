@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { PlanSection, PlanTask } from '@/types/Plan'
+import { PlanSection, PlanTask, Plan } from '@/types/Plan'
 import { ICustomer, IAdmin } from '@/types/Customer'
 import { message } from 'antd'
 import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore'
@@ -49,23 +49,26 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
 
+interface TaskFile {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+}
+
 interface Props {
   customers: ICustomer[];
   selectedCustomer: ICustomer | null;
   setSelectedCustomer: (customer: ICustomer | null) => void;
 }
 
-const TaskCard = ({ 
-  task, 
-  customer,
-  teamMembers,
-  onEdit 
-}: { 
-  task: PlanTask;
-  customer: ICustomer;
+interface TaskCardProps {
+  task: PlanTask & { customer?: ICustomer };
   teamMembers: IAdmin[];
-  onEdit: (task: PlanTask, customer: ICustomer) => void;
-}) => {
+  onEdit: (task: PlanTask) => void;
+}
+
+const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
   const assignedMembers = teamMembers.filter(member => 
     task.assignedTeamMembers?.includes(member.email)
   )
@@ -110,7 +113,7 @@ const TaskCard = ({
   return (
     <Card 
       className={`relative overflow-hidden cursor-pointer transition-all duration-300 ${getCardColor(task.progress)} rounded-xl`}
-      onClick={() => onEdit(task, customer)}
+      onClick={() => onEdit(task)}
     >
       <div className="absolute top-2 right-2 flex items-center space-x-2">
         <Button
@@ -132,13 +135,15 @@ const TaskCard = ({
           {getStatusIcon(task.progress)}
         </div>
         <h3 className="text-base font-semibold mb-1 line-clamp-2">{task.task}</h3>
-        <div className="flex items-center gap-2 text-xs text-white/80 mb-0.5">
-          <Avatar className="h-4 w-4">
-            <AvatarImage src={customer.logo} alt={customer.store_name} />
-            <AvatarFallback>{customer.store_name[0]}</AvatarFallback>
-          </Avatar>
-          <span>{customer.store_name}</span>
-        </div>
+        {task.customer && (
+          <div className="flex items-center gap-2 text-xs text-white/80 mb-0.5">
+            <Avatar className="h-4 w-4">
+              <AvatarImage src={task.customer.logo} alt={task.customer.store_name} />
+              <AvatarFallback>{task.customer.store_name[0]}</AvatarFallback>
+            </Avatar>
+            <span>{task.customer.store_name}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-xs text-white/80 mb-0.5">
           <Calendar className="h-3 w-3" />
           <span>Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
@@ -167,11 +172,10 @@ const TaskCard = ({
 }
 
 function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: Props) {
-  const [showActiveOnly, setShowActiveOnly] = useState(false)
-  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('To Do and Doing')
+  const [showActiveOnly, setShowActiveOnly] = useState(true)
+  const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('All')
   const [search, setSearch] = useState('')
-  const [frequencyFilter, setFrequencyFilter] = useState<'All' | 'One Time' | 'Monthly' | 'As Needed' | 'Monthly and As Needed'>('All')
-  const [teamMemberFilter, setTeamMemberFilter] = useState<string>('all')
+  const [teamMemberFilter, setTeamMemberFilter] = useState('all')
   const [teamMembers, setTeamMembers] = useState<IAdmin[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [localCustomers, setLocalCustomers] = useState<ICustomer[]>(customers)
@@ -188,61 +192,120 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [newSubTask, setNewSubTask] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([])
 
-  const handleEditTask = (task: PlanTask, customer: ICustomer) => {
-    console.log('Starting edit with task:', task);
-    setEditingTask(task);
-    setEditingCustomer(customer);
-    setEditModalVisible(true);
-  };
+  const handleEditTask = (task: PlanTask) => {
+    setEditingTask(task)
+    setEditModalVisible(true)
+  }
 
-  const handleEditSave = async (values: any) => {
-    if (!editingTask || !editingCustomer) return;
-    
+  const handleEditSave = async (updates: Partial<PlanTask>) => {
+    if (!editingTask || !selectedCustomer) return
+
+    try {
+      setIsLoading(true)
+      const planRef = doc(db, 'plans', selectedCustomer.id)
+      const planDoc = await getDoc(planRef)
+      
+      if (!planDoc.exists()) {
+        throw new Error('Plan not found')
+      }
+
+      const plan = planDoc.data() as Plan
+      const updatedSections = plan.sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(task => 
+          task.id === editingTask.id ? { ...task, ...updates } : task
+        )
+      }))
+
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      })
+
+      // Update local state
+      setPlans(prevPlans => {
+        if (!prevPlans) return null
+        return {
+          ...prevPlans,
+          sections: prevPlans.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(task =>
+              task.id === editingTask.id ? { ...task, ...updates } : task
+            )
+          }))
+        }
+      })
+
+      // If we're in "All Customers" view, also update allPlans
+      if (!selectedCustomer) {
+        setAllPlans(prevPlans => {
+          const newPlans = { ...prevPlans }
+          Object.keys(newPlans).forEach(customerId => {
+            newPlans[customerId] = {
+              ...newPlans[customerId],
+              sections: newPlans[customerId].sections.map(section => ({
+                ...section,
+                tasks: section.tasks.map(task =>
+                  task.id === editingTask.id ? { ...task, ...updates } : task
+                )
+              }))
+            }
+          })
+          return newPlans
+        })
+      }
+
+      setEditModalVisible(false)
+      setEditingTask(null)
+      message.success('Task updated successfully')
+    } catch (error) {
+      console.error('Error updating task:', error)
+      message.error('Failed to update task')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleUpdateTask = async (task: PlanTask, updates: Partial<PlanTask>) => {
+    if (!selectedCustomer) return;
+
     try {
       setIsLoading(true);
-      const planRef = doc(db, 'plans', editingCustomer.id);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
       const planDoc = await getDoc(planRef);
       
       if (!planDoc.exists()) {
-        message.error('Plan not found');
-        return;
+        throw new Error('Plan not found');
       }
 
-      const plan = planDoc.data() as { sections: PlanSection[] };
+      const plan = planDoc.data() as Plan;
       const updatedSections = plan.sections.map(section => ({
         ...section,
-        tasks: section.tasks.map(task => {
-          if (task.id === editingTask.id) {
-            return {
-              ...task,
-              progress: values.progress,
-              dueDate: values.dueDate,
-              completedDate: values.completedDate,
-              isActive: values.isActive,
-              current: values.current || 0,
-              goal: values.goal || 0,
-              notes: values.notes || '',
-              assignedTeamMembers: values.assignedTeamMembers || [],
-              subtasks: values.subtasks || [],
-              files: values.files || [],
-              updatedAt: new Date().toISOString(),
-              updatedBy: user?.email || ''
-            };
-          }
-          return task;
-        })
+        tasks: section.tasks.map(t => 
+          t.id === task.id ? { ...t, ...updates } : t
+        )
       }));
 
-      await updateDoc(planRef, { sections: updatedSections });
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state
+      setPlans(prevPlans => {
+        if (!prevPlans) return null
+        return {
+          ...prevPlans,
+          sections: prevPlans.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(t =>
+              t.id === task.id ? { ...t, ...updates } : t
+            )
+          }))
+        }
+      })
+
       message.success('Task updated successfully');
-      setEditModalVisible(false);
-      
-      // Reload data
-      if (selectedCustomer) {
-        await loadPlan();
-      } else {
-        await loadAllPlans();
-      }
     } catch (error) {
       console.error('Error updating task:', error);
       message.error('Failed to update task');
@@ -250,40 +313,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       setIsLoading(false);
     }
   };
-
-  const handleUpdateTask = async (task: Task, updates: Partial<Task>) => {
-    if (!task.id) return
-
-    try {
-      const customerId = task.assignee?.id.split('-')[0]
-      if (!customerId) return
-
-      const planRef = doc(db, 'plans', customerId)
-      const planDoc = await getDoc(planRef)
-      
-      if (planDoc.exists()) {
-        const plan = planDoc.data() as Plan
-        const updatedSections = plan.sections.map(section => ({
-          ...section,
-          tasks: section.tasks.map(t => {
-            if (t.id === task.id) {
-              return {
-                ...t,
-                ...updates,
-                updatedAt: new Date().toISOString(),
-                updatedBy: user?.email || ''
-              }
-            }
-            return t
-          })
-        }))
-
-        await updateDoc(planRef, { sections: updatedSections })
-      }
-    } catch (error) {
-      console.error('Error updating task:', error)
-    }
-  }
 
   // Fetch all plans when in "All Customers" view
   useEffect(() => {
@@ -457,19 +486,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             </SelectContent>
           </Select>
 
-          <Select value={frequencyFilter} onValueChange={(value: any) => setFrequencyFilter(value)}>
-            <SelectTrigger className="w-[180px] bg-white">
-              <SelectValue placeholder="Filter by frequency" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Frequencies</SelectItem>
-              <SelectItem value="One Time">One Time</SelectItem>
-              <SelectItem value="Monthly">Monthly</SelectItem>
-              <SelectItem value="As Needed">As Needed</SelectItem>
-              <SelectItem value="Monthly and As Needed">Monthly & As Needed</SelectItem>
-            </SelectContent>
-          </Select>
-
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -495,8 +511,10 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 users={teamMembers.map(member => ({
                   id: member.email,
                   email: member.email,
-                  name: member.name || member.email,
-                  avatarUrl: member.avatarUrl
+                  name: member.name,
+                  avatarUrl: member.avatarUrl || '',
+                  role: 'Admin',
+                  isAdmin: true
                 }))}
                 selectedUsers={teamMemberFilter !== 'all' ? [teamMemberFilter] : []}
                 onUserClick={(userId: string) => {
@@ -532,7 +550,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     setSearch('');
                     setShowActiveOnly(false);
                     setTeamMemberFilter('all');
-                    setFrequencyFilter('All');
                   }}
                   className="ml-2"
                   aria-label="Reset filters"
@@ -657,10 +674,10 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       plans.sections.forEach(section => {
         const filteredTasks = section.tasks
           .filter(task => {
-            // Team member filter - strict matching
+            // Team member filter - show all tasks when 'all' is selected
             const matchesTeamMember = 
               teamMemberFilter === 'all' 
-                ? Boolean(task.assignedTeamMembers?.length) // Show only tasks with assigned members when 'all'
+                ? true // Show all tasks when 'all' is selected
                 : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter)); // Show only tasks assigned to selected member
 
             const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
@@ -669,25 +686,21 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 (task.progress === 'To Do' || task.progress === 'Doing') : 
                 task.progress === progressFilter)
             const matchesActive = !showActiveOnly || task.isActive
-            const matchesFrequency = frequencyFilter === 'All' || 
-              (frequencyFilter === 'Monthly and As Needed' 
-                ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                : task.frequency === frequencyFilter)
             
-            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive && matchesFrequency
+            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
           });
 
         if (filteredTasks.length > 0) {
           sections[section.title] = {
             tasks: filteredTasks.map(task => ({ ...task, customer: selectedCustomer })),
             customers: [selectedCustomer]
-          };
+          }
         }
       });
       return sections;
     }
 
-    // For all customers view, use the same filtering logic
+    // For all customers view
     Object.entries(allPlans).forEach(([customerId, plan]) => {
       const customer = customers.find(c => c.id === customerId)
       if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
@@ -695,10 +708,10 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       plan.sections.forEach(section => {
         const filteredTasks = section.tasks
           .filter(task => {
-            // Team member filter - strict matching
+            // Team member filter - show all tasks when 'all' is selected
             const matchesTeamMember = 
               teamMemberFilter === 'all' 
-                ? Boolean(task.assignedTeamMembers?.length) // Show only tasks with assigned members when 'all'
+                ? true // Show all tasks when 'all' is selected
                 : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter)); // Show only tasks assigned to selected member
 
             const matchesSearch = task.task.toLowerCase().includes(search.toLowerCase())
@@ -707,12 +720,8 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 (task.progress === 'To Do' || task.progress === 'Doing') : 
                 task.progress === progressFilter)
             const matchesActive = !showActiveOnly || task.isActive
-            const matchesFrequency = frequencyFilter === 'All' || 
-              (frequencyFilter === 'Monthly and As Needed' 
-                ? (task.frequency === 'Monthly' || task.frequency === 'As Needed')
-                : task.frequency === frequencyFilter)
             
-            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive && matchesFrequency
+            return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
           });
 
         if (filteredTasks.length > 0) {
@@ -735,7 +744,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     });
 
     return sections;
-  };
+  }
 
   const loadAllPlans = async () => {
     try {
@@ -849,7 +858,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       <TaskCard 
                         key={task.id} 
                         task={task} 
-                        customer={task.customer} 
                         teamMembers={teamMembers}
                         onEdit={handleEditTask} 
                       />
@@ -863,19 +871,15 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             <TaskCalendar 
               taskGroups={Object.entries(getAllTasksBySection()).map(([title, { tasks }]) => ({
                 title,
-                tasks: tasks.map(task => ({
-                  ...task,
-                  assignee: {
-                    id: task.assignedTeamMembers?.[0] || '',
-                    name: teamMembers.find(m => m.email === task.assignedTeamMembers?.[0])?.name || '',
-                    avatar: teamMembers.find(m => m.email === task.assignedTeamMembers?.[0])?.avatarUrl || ''
-                  }
-                }))
+                tasks: tasks
               }))} 
               users={teamMembers.map(member => ({
                 id: member.email,
+                email: member.email,
                 name: member.name,
-                avatar: member.avatarUrl || ''
+                avatarUrl: member.avatarUrl || '',
+                role: 'Admin',
+                isAdmin: true
               }))}
               onUpdateTask={handleUpdateTask}
             />
@@ -887,7 +891,9 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         <Dialog open={editModalVisible} onOpenChange={(open) => !open && setEditModalVisible(false)}>
           <DialogContent className="sm:max-w-[625px]">
             <DialogHeader>
-              <DialogTitle>Edit Task</DialogTitle>
+              <DialogTitle>
+                Edit Task: {editingTask?.task}
+              </DialogTitle>
               <DialogDescription>
                 Make changes to the task here. Click save when you're done.
               </DialogDescription>
@@ -1130,18 +1136,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           if (e.key === 'Enter' && newSubTask.trim()) {
                             setEditingTask(prev => {
                               if (!prev) return null;
+                              const newSubtask = {
+                                id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                text: newSubTask.trim(),
+                                isCompleted: false,
+                                completedDate: null,
+                                createdAt: new Date().toISOString(),
+                                createdBy: 'user'
+                              };
                               return {
                                 ...prev,
-                                subtasks: [
-                                  ...(prev.subtasks || []),
-                                  {
-                                    id: `subtask-${Date.now()}`,
-                                    text: newSubTask.trim(),
-                                    isCompleted: false,
-                                    createdAt: new Date().toISOString(),
-                                    createdBy: user?.email || ''
-                                  }
-                                ]
+                                subtasks: [...(prev.subtasks || []), newSubtask]
                               };
                             });
                             setNewSubTask('');
@@ -1153,18 +1158,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           if (!newSubTask.trim()) return;
                           setEditingTask(prev => {
                             if (!prev) return null;
+                            const newSubtask = {
+                              id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                              text: newSubTask.trim(),
+                              isCompleted: false,
+                              completedDate: null,
+                              createdAt: new Date().toISOString(),
+                              createdBy: 'user'
+                            };
                             return {
                               ...prev,
-                              subtasks: [
-                                ...(prev.subtasks || []),
-                                {
-                                  id: `subtask-${Date.now()}`,
-                                  text: newSubTask.trim(),
-                                  isCompleted: false,
-                                  createdAt: new Date().toISOString(),
-                                  createdBy: user?.email || ''
-                                }
-                              ]
+                              subtasks: [...(prev.subtasks || []), newSubtask]
                             };
                           });
                           setNewSubTask('');
