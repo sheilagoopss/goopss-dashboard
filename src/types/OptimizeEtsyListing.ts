@@ -3,3 +3,11 @@ export interface IOptimizeEtsyListing {
   description: string;
   tags: string;
 }
+
+export type OptimizationType =
+  | "Title"
+  | "Description"
+  | "Tags"
+  | "Images"
+  | "Attributes"
+  | "Alt text";

@@ -1,5 +1,3 @@
-import { FieldValue } from 'firebase/firestore';
-
 interface DuplicateInfo {
   listingId: string;
   createdAt: Date;
@@ -38,13 +36,12 @@ export interface Listing {
   duplicatedAt?: Date | null;
   duplicatedFrom?: string;
   duplicates?: DuplicateInfo[];
-
 }
 
 export interface ListingImage {
   id: string;
   url: string;
-  status: 'pending' | 'approved' | 'revision' | 'superseded';
+  status: "pending" | "approved" | "revision" | "superseded";
   listing_id: string;
   customer_id: string;
   statusChangeDate?: Date;

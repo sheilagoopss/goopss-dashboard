@@ -4,9 +4,12 @@ import { useCallback, useState } from "react";
 import {
   IEtsyFetchedListing,
   IEtsyListing,
+  IEtsyListingImage,
   IEtsyListingUpdate,
   IEtsyShippingProfile,
 } from "@/types/Etsy";
+import FirebaseHelper from "@/helpers/FirebaseHelper";
+import { COLLECTIONS } from "@/config/collections";
 
 export interface ITaxonomy {
   id: number;
@@ -160,6 +163,134 @@ export const useEtsyListings = () => {
   );
 
   return { fetchEtsyListings, isFetchingEtsyListings };
+};
+export const useEtsyListingImages = () => {
+  const [isFetchingEtsyListingImages, setIsFetchingEtsyListingImages] =
+    useState(false);
+
+  const fetchEtsyListingImages = useCallback(
+    async ({
+      customerId,
+      listingId,
+    }: {
+      customerId: string;
+      listingId: string;
+    }): Promise<IEtsyListingImage[]> => {
+      setIsFetchingEtsyListingImages(true);
+      try {
+        const response = await HttpHelper.get(
+          endpoints.etsy.getListingImages({ customerId, listingId }),
+        );
+        return response?.data?.data?.results || [];
+      } catch (error) {
+        console.error("Error fetching Etsy listings:", error);
+        return [];
+      } finally {
+        setIsFetchingEtsyListingImages(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchEtsyListingImages, isFetchingEtsyListingImages };
+};
+export const useSaveOptimizedEtsyListing = () => {
+  const [isSavingOptimization, setIsSavingOptimization] = useState(false);
+
+  const saveOptimization = useCallback(
+    async (
+      data: IEtsyFetchedListing & {
+        optimizedTitle: string;
+        optimizedDescription: string;
+        optimizedTags: string[];
+        optimizationStatus: boolean;
+      },
+    ): Promise<
+      | (IEtsyFetchedListing & {
+          optimizedTitle: string;
+          optimizedDescription: string;
+          optimizedTags: string[];
+          optimizationStatus: boolean;
+        })
+      | null
+    > => {
+      setIsSavingOptimization(true);
+      try {
+        const response = await FirebaseHelper.create(
+          COLLECTIONS.optimizedEtsyListings,
+          data,
+        );
+        return response;
+      } catch (error) {
+        console.error("Error saving optimization:", error);
+        return null;
+      } finally {
+        setIsSavingOptimization(false);
+      }
+    },
+    [],
+  );
+
+  return { saveOptimization, isSavingOptimization };
+};
+export const useGetOptimizedEtsyListing = () => {
+  const [isFetchingOptimization, setIsFetchingOptimization] = useState(false);
+
+  const fetchOptimizedListing = useCallback(
+    async (listingId: string): Promise<IEtsyFetchedListing | null> => {
+      setIsFetchingOptimization(true);
+      try {
+        const response =
+          await FirebaseHelper.findWithFilter<IEtsyFetchedListing>(
+            COLLECTIONS.optimizedEtsyListings,
+            "listing_id",
+            listingId,
+          );
+        return Array.isArray(response) ? response[0] : null;
+      } catch (error) {
+        console.error("Error fetching optimized listing:", error);
+        return null;
+      } finally {
+        setIsFetchingOptimization(false);
+      }
+    },
+    [],
+  );
+
+  return { fetchOptimizedListing, isFetchingOptimization };
+};
+export const useFetchOptimizedEtsyListings = () => {
+  const [isFetchingOptimizedListings, setIsFetchingOptimizedListings] =
+    useState(false);
+
+  const fetchOptimizedListing = useCallback(async (): Promise<
+    (IEtsyFetchedListing & {
+      optimizedTitle: string;
+      optimizedDescription: string;
+      optimizedTags: string[];
+      optimizationStatus: boolean;
+    })[]
+  > => {
+    setIsFetchingOptimizedListings(true);
+    try {
+      const response = await FirebaseHelper.find<
+        IEtsyFetchedListing & {
+          optimizedTitle: string;
+          optimizedDescription: string;
+          optimizedTags: string[];
+          optimizationStatus: boolean;
+        }
+      >(COLLECTIONS.optimizedEtsyListings);
+      return response;
+    } catch (error) {
+      console.error("Error fetching optimized listing:", error);
+      return [];
+    } finally {
+      setIsFetchingOptimizedListings(false);
+    }
+  }, []);
+
+  return { fetchOptimizedListing, isFetchingOptimizedListings };
 };
 
 export default useEtsy;

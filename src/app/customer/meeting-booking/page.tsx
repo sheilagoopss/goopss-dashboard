@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect } from "react";
 import { Layout, Typography, Card, Button, Space, Row, Col } from "antd";
 import { LeftOutlined } from "@ant-design/icons";
