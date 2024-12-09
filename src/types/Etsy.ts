@@ -46,6 +46,29 @@ export interface IEtsyShippingProfile {
   shipping_profile_upgrades: unknown[]; // Use specific type if upgrades have a defined structure
 }
 
+export interface IEtsyListingImage {
+  listing_id: number;
+  listing_image_id: number;
+  hex_code: string;
+  red: number;
+  green: number;
+  blue: number;
+  hue: number;
+  saturation: number;
+  brightness: number;
+  is_black_and_white: boolean;
+  creation_tsz: number;
+  created_timestamp: number;
+  rank: number;
+  url_75x75: string;
+  url_170x135: string;
+  url_570xN: string;
+  url_fullxfull: string;
+  full_height: number;
+  full_width: number;
+  alt_text: string | null;
+}
+
 export interface IEtsyFetchedListing {
   listing_id: number;
   user_id: number;
@@ -105,11 +128,13 @@ export interface IEtsyFetchedListing {
   views: number;
   shipping_profile: any | null; // Replace `any` with the correct type if known.
   shop: any | null;
-  images: any | null;
+  images: IEtsyListingImage[] | null;
   videos: any | null;
   user: any | null;
   translations: any | null;
   inventory: any | null;
+
+  isOptimized: boolean;
 }
 
 export interface IEtsyListingEdit

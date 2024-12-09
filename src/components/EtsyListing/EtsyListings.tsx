@@ -1,65 +1,68 @@
 "use client";
 
+import { Spin } from "antd";
 import {
-  Collapse,
-  Divider,
-  List,
-  message,
-  Modal,
-  Spin,
-  Tag,
-  Typography,
-} from "antd";
-import { Button } from "antd/es/radio";
-import { useEtsyListings, useUpdateListing } from "@/hooks/useEtsy";
+  useEtsyListings,
+  useFetchOptimizedEtsyListings,
+} from "@/hooks/useEtsy";
 import { useEffect, useState, useCallback } from "react";
-import {
-  IEtsyFetchedListing,
-  IEtsyListingEdit,
-  IEtsyListingUpdate,
-} from "@/types/Etsy";
-import ListingEdit from "./components/ListingEdit";
-import AnalyzeListing from "./components/AnalyzeListing";
+import { IEtsyFetchedListing } from "@/types/Etsy";
+import EtsyListingOptimizationList from "./Optimization/EtsyListingOptimizationList";
 
 interface EtsyListingsProps {
   customerId: string;
 }
 
 const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
-  const [etsyListings, setEtsyListings] = useState<IEtsyFetchedListing[]>([]);
   const { fetchEtsyListings, isFetchingEtsyListings } = useEtsyListings();
-  const { updateListing, isUpdatingListing } = useUpdateListing();
-  const [selectedListing, setSelectedListing] =
-    useState<IEtsyListingEdit | null>(null);
-  const [optimizingListing, setOptimizingListing] =
-    useState<IEtsyFetchedListing | null>(null);
+  const { fetchOptimizedListing, isFetchingOptimizedListings } =
+    useFetchOptimizedEtsyListings();
+
+  const [etsyListings, setEtsyListings] = useState<
+    (IEtsyFetchedListing & {
+      optimizedTitle: string;
+      optimizedDescription: string;
+      optimizedTags: string[];
+      optimizationStatus: boolean;
+    })[]
+  >([]);
 
   const refetch = useCallback(() => {
-    fetchEtsyListings({ customerId }).then((listing) => {
-      setEtsyListings(listing);
-    });
-  }, [fetchEtsyListings, customerId]);
+    fetchEtsyListings({ customerId }).then((listings) => {
+      fetchOptimizedListing().then((optimizedListings) => {
+        const checkOptimized: (IEtsyFetchedListing & {
+          optimizedTitle: string;
+          optimizedDescription: string;
+          optimizedTags: string[];
+          optimizationStatus: boolean;
+        })[] = listings.map((listing) => ({
+          ...listing,
+          isOptimized: optimizedListings.some(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          ),
+          optimizedTitle: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.optimizedTitle || "",
+          optimizedDescription: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.optimizedDescription || "",
+          optimizedTags: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.optimizedTags || [],
+          optimizationStatus: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.optimizationStatus || false,
+        }));
 
-  const handleUpdate = (listing: {
-    description: string;
-    quantity: number;
-    tags: string;
-    materials: string;
-  }) => {
-    if (!selectedListing?.listing_id) return;
-    const updateData: IEtsyListingUpdate = {
-      ...listing,
-      customerId,
-      listingId: String(selectedListing?.listing_id),
-      tags: listing.tags.split(","),
-      materials: listing.materials.split(","),
-    };
-    updateListing(updateData).then(() => {
-      setSelectedListing(null);
-      message.success("Listing updated successfully");
-      refetch();
+        setEtsyListings(checkOptimized);
+      });
     });
-  };
+  }, [fetchEtsyListings, customerId, fetchOptimizedListing]);
 
   useEffect(() => {
     if (customerId) {
@@ -69,7 +72,7 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
 
   return (
     <>
-      {isFetchingEtsyListings ? (
+      {isFetchingEtsyListings || isFetchingOptimizedListings ? (
         <div
           style={{
             width: "100%",
@@ -83,121 +86,10 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
         </div>
       ) : (
         <>
-          <List
-            dataSource={etsyListings}
-            renderItem={(item) => (
-              <Collapse style={{ marginTop: 10 }}>
-                <Collapse.Panel
-                  header={
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>{item.title}</span>
-                      <Typography.Text type="secondary" className="block">
-                        ID: {item.listing_id}
-                      </Typography.Text>
-                    </div>
-                  }
-                  key={item.listing_id}
-                  extra={[
-                    <Button
-                      key="edit"
-                      type="primary"
-                      onClick={() => {
-                        setSelectedListing({
-                          ...item,
-                          tags: item.tags ? item.tags.join(",") : "",
-                          materials: item.materials
-                            ? item.materials.join(",")
-                            : "",
-                        });
-                      }}
-                    >
-                      Edit
-                    </Button>,
-                    <Button
-                      key="analyze"
-                      onClick={() => setOptimizingListing(item)}
-                    >
-                      Analyze
-                    </Button>,
-                  ]}
-                >
-                  <Typography.Paragraph>
-                    <span style={{ fontWeight: "bold" }}>ID: </span>
-                    {item.listing_id}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph>
-                    <span style={{ fontWeight: "bold" }}>Description: </span>
-                    {item.description}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph>
-                    <span style={{ fontWeight: "bold" }}>Tags: </span>
-                    {item.tags.map((tag) => (
-                      <Tag key={tag}>{tag}</Tag>
-                    ))}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph>
-                    <span style={{ fontWeight: "bold" }}>Materials: </span>
-                  </Typography.Paragraph>
-                  <ul>
-                    {item.materials.map((material) => (
-                      <li key={material}>{material}</li>
-                    ))}
-                  </ul>
-                  <Divider />
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <Typography.Paragraph>
-                      <span style={{ fontWeight: "bold" }}>Quantity: </span>
-                      {item.quantity}
-                    </Typography.Paragraph>
-                    <Typography.Paragraph>
-                      <span style={{ fontWeight: "bold" }}>Price: </span>
-                      {item.price.amount / item.price.divisor}{" "}
-                      {item.price.currency_code}
-                    </Typography.Paragraph>
-                  </div>
-                </Collapse.Panel>
-              </Collapse>
-            )}
-            pagination={{
-              pageSize: 10,
-            }}
+          <EtsyListingOptimizationList
+            listings={etsyListings}
+            selectedCustomerId={customerId}
           />
-          <Modal
-            title="Edit Listing"
-            open={!!selectedListing}
-            footer={null}
-            onCancel={() => setSelectedListing(null)}
-          >
-            {selectedListing && (
-              <ListingEdit
-                listing={selectedListing}
-                handleUpdate={handleUpdate}
-                isUpdating={isUpdatingListing}
-              />
-            )}
-          </Modal>
-          <Modal
-            title="Analyzing Listing"
-            open={!!optimizingListing}
-            footer={null}
-            onCancel={() => setOptimizingListing(null)}
-            width={"80%"}
-          >
-            {optimizingListing && (
-              <AnalyzeListing
-                listing={optimizingListing}
-                customerId={customerId}
-              />
-            )}
-          </Modal>
         </>
       )}
     </>

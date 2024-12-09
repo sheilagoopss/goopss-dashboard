@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { PlanSection, PlanTask, Plan } from '@/types/Plan'
 import { ICustomer, IAdmin } from '@/types/Customer'
 import { message } from 'antd'
 import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { useAuth } from '@/contexts/AuthContext'
-import FirebaseHelper from '@/helpers/FirebaseHelper'
 import { 
   Search, AlertCircle, RefreshCw, Calendar, Clock, 
-  CheckCircle2, Pencil, Info, Target, Paperclip, Plus, X 
+  CheckCircle2, Pencil, Target, Paperclip, X 
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -34,7 +33,6 @@ import { Label } from "@/components/ui/label"
 import { UserAvatars } from '@/components/plan/user-avatars'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { TaskCalendar } from '@/components/plan/task-calendar'
-import { Task } from '@/types/types'
 import { format } from "date-fns"
 import {
   Dialog,

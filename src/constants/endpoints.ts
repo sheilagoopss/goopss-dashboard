@@ -48,6 +48,8 @@ export const endpoints = {
       `${API_URL}/api/v1/etsy/listings/${customerId}`,
     updateListing: (listingId: string) =>
       `${API_URL}/api/v1/etsy/update-listing/${listingId}`,
+    getListingImages: (params: { customerId: string; listingId: string }) =>
+      `${API_URL}/api/v1/etsy/listing-images/${params.customerId}/${params.listingId}`,
   },
   optimizeEtsy: {
     feedback: `${API_URL}/api/v1/optimizeEtsy/feedback`,
