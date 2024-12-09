@@ -16,36 +16,36 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-
-interface User {
-  id: string
-  name: string
-  avatar: string
-}
+import { IAdmin } from '@/types/Customer'
 
 interface UserAvatarsProps {
-  users: User[]
-  selectedUser: string | null
-  onSelectUser: (userId: string | null) => void
+  users: {
+    id: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+  }[]
+  selectedUsers?: string[]
+  onUserClick: (userId: string) => void
 }
 
-export function UserAvatars({ users, selectedUser, onSelectUser }: UserAvatarsProps) {
+export function UserAvatars({ users, selectedUsers = [], onUserClick }: UserAvatarsProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const visibleUsers = users.slice(0, 3)
   const remainingUsers = users.slice(3)
 
-  const UserAvatar = ({ user }: { user: User }) => (
+  const UserAvatar = ({ user }: { user: { id: string; email: string; name: string; avatarUrl?: string } }) => (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <Avatar
             className={cn(
               "h-8 w-8 cursor-pointer transition-all hover:scale-110 border-2 border-background",
-              selectedUser === user.id && "ring-2 ring-primary ring-offset-2"
+              selectedUsers.includes(user.id) && "ring-2 ring-primary ring-offset-2"
             )}
-            onClick={() => onSelectUser(selectedUser === user.id ? null : user.id)}
+            onClick={() => onUserClick(user.id)}
           >
-            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarImage src={user.avatarUrl || ''} alt={user.name} />
             <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
           </Avatar>
         </TooltipTrigger>
