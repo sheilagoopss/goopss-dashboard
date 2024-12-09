@@ -89,6 +89,14 @@ const AdminSidebar = () => {
                   router.push(ROUTES.ADMIN.PLAN_SIMPLE_VIEW);
                 },
               },
+              {
+                key: ROUTES.ADMIN.PLAN_NEW,
+                icon: <AppstoreOutlined />,
+                label: "New Plan",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.PLAN_NEW);
+                },
+              },
               ...((user as IAdmin).role === "SuperAdmin"
                 ? [
                     {
