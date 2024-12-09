@@ -9,7 +9,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { PlanTask, PlanSection } from "@/types/Plan"
 import { IAdmin } from "@/types/Customer"
-import { TaskDialog } from "./task-dialog"
 import {
   add,
   eachDayOfInterval,
@@ -36,7 +35,6 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
-  const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
   
   const firstDayCurrentMonth = parse(currentMonth, 'MMM-yyyy', new Date())
   
@@ -191,23 +189,6 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
           )
         })}
       </div>
-
-      <TaskDialog
-        task={editingTask}
-        setTask={setEditingTask}
-        users={users}
-        handleSaveTask={() => {
-          if (editingTask) {
-            onUpdateTask(editingTask, {})
-            setEditingTask(null)
-          }
-        }}
-        isOpen={!!editingTask}
-        onOpenChange={(open) => {
-          if (!open) setEditingTask(null)
-        }}
-        isCreating={false}
-      />
     </div>
   )
 }

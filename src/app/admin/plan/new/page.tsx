@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 interface TaskFile {
   name: string;
@@ -65,7 +66,7 @@ interface Props {
 interface TaskCardProps {
   task: PlanTask & { customer?: ICustomer };
   teamMembers: IAdmin[];
-  onEdit: (task: PlanTask) => void;
+  onEdit: (task: PlanTask & { customer?: ICustomer }) => void;
 }
 
 const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
@@ -109,6 +110,9 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
   }
 
   const progress = calculateProgress()
+
+  console.log('Task in card:', task);
+  console.log('Task files:', task.files);
 
   return (
     <Card 
@@ -273,79 +277,93 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     setCurrentPage({})
   }, [searchQuery, progressFilter, teamMemberFilter, showActiveOnly, selectedCustomer])
 
-  const handleEditTask = (task: PlanTask) => {
-    setEditingTask(task)
-    setEditModalVisible(true)
+  const handleEditTask = (task: PlanTask & { customer?: ICustomer }) => {
+    console.log('Opening task for editing:', task);
+    console.log('Task files:', task.files);
+
+    // Make sure we get the full task data including files
+    let fullTask = task;
+
+    if (selectedCustomer && plans) {
+      // Find the task in the current plans data
+      const taskInPlans = plans.sections
+        .find(s => s.title === task.section)
+        ?.tasks.find(t => t.id === task.id);
+      
+      if (taskInPlans) {
+        fullTask = taskInPlans;
+      }
+    }
+
+    console.log('Full task data:', fullTask);
+
+    setEditingTask({
+      ...fullTask,
+      files: fullTask.files || []
+    });
+    setEditModalVisible(true);
   }
 
   const handleEditSave = async (updates: Partial<PlanTask>) => {
-    if (!editingTask || !selectedCustomer) return
+    if (!editingTask || !selectedCustomer) return;
 
     try {
-      setIsLoading(true)
-      const planRef = doc(db, 'plans', selectedCustomer.id)
-      const planDoc = await getDoc(planRef)
+      setIsLoading(true);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
       
       if (!planDoc.exists()) {
-        throw new Error('Plan not found')
+        throw new Error('Plan not found');
       }
 
-      const plan = planDoc.data() as Plan
+      // Include files in the updates
+      const updatedTask = {
+        ...editingTask,  // Use the full editingTask to ensure we have all properties
+        ...updates,
+        files: editingTask.files || []  // Ensure files array is included
+      };
+
+      console.log('Saving task with updates:', updatedTask);
+
+      const plan = planDoc.data() as Plan;
       const updatedSections = plan.sections.map(section => ({
         ...section,
         tasks: section.tasks.map(task => 
-          task.id === editingTask.id ? { ...task, ...updates } : task
+          task.id === editingTask.id 
+            ? updatedTask
+            : task
         )
-      }))
+      }));
 
       await updateDoc(planRef, {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
-      })
+      });
 
       // Update local state
       setPlans(prevPlans => {
-        if (!prevPlans) return null
+        if (!prevPlans) return null;
         return {
           ...prevPlans,
           sections: prevPlans.sections.map(section => ({
             ...section,
             tasks: section.tasks.map(task =>
-              task.id === editingTask.id ? { ...task, ...updates } : task
+              task.id === editingTask.id ? updatedTask : task
             )
           }))
-        }
-      })
+        };
+      });
 
-      // If we're in "All Customers" view, also update allPlans
-      if (!selectedCustomer) {
-        setAllPlans(prevPlans => {
-          const newPlans = { ...prevPlans }
-          Object.keys(newPlans).forEach(customerId => {
-            newPlans[customerId] = {
-              ...newPlans[customerId],
-              sections: newPlans[customerId].sections.map(section => ({
-                ...section,
-                tasks: section.tasks.map(task =>
-                  task.id === editingTask.id ? { ...task, ...updates } : task
-                )
-              }))
-            }
-          })
-          return newPlans
-        })
-      }
-
-      setEditModalVisible(false)
-      setEditingTask(null)
-      message.success('Task updated successfully')
+      setEditModalVisible(false);
+      setEditingTask(null);
+      message.success('Task updated successfully');
     } catch (error) {
-      console.error('Error updating task:', error)
-      message.error('Failed to update task')
+      console.error('Error updating task:', error);
+      message.error('Failed to update task');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleUpdateTask = async (task: PlanTask, updates: Partial<PlanTask>) => {
     if (!selectedCustomer) return;
@@ -516,7 +534,12 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   }
 
   const FiltersSection = () => {
-    const [inputValue, setInputValue] = useState('')
+    const [inputValue, setInputValue] = useState(searchQuery)
+
+    // Keep input value in sync with searchQuery
+    useEffect(() => {
+      setInputValue(searchQuery)
+    }, [searchQuery])
 
     return (
       <div className="space-y-4">
@@ -587,7 +610,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search tasks... (Press Enter to search)" 
-              className="pl-8 bg-white" 
+              className="pl-8 pr-10 bg-white" 
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -599,6 +622,20 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 }
               }}
             />
+            {(inputValue || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1 h-7 w-7 p-0 hover:bg-muted"
+                onClick={() => {
+                  setInputValue('');
+                  setSearchQuery('');
+                }}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Clear search</span>
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -704,31 +741,28 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         const planRef = doc(db, 'plans', selectedCustomer.id)
         const planDoc = await getDoc(planRef)
         
-        console.log('Fetching plan for customer:', selectedCustomer.id)
-        console.log('Plan exists:', planDoc.exists())
+        console.log('Loading plan for customer:', selectedCustomer.id)
         
         if (planDoc.exists()) {
-          const planData = planDoc.data()
-          console.log('Plan data:', planData)
-          setPlans(planData as { sections: PlanSection[] })
-        } else {
-          // If no plan exists, create a default plan structure
-          const defaultPlan = {
-            sections: [
-              {
-                title: 'General Tasks',
-                tasks: []
-              },
-              {
-                title: 'Other Tasks',
-                tasks: []
-              }
-            ]
+          const planData = planDoc.data() as Plan
+          console.log('Loaded plan data:', planData)
+          // Ensure files array exists for each task
+          const processedPlan = {
+            ...planData,
+            sections: planData.sections.map(section => ({
+              ...section,
+              tasks: section.tasks.map(task => ({
+                ...task,
+                files: task.files || []
+              }))
+            }))
           }
-          setPlans(defaultPlan)
+          setPlans(processedPlan)
+        } else {
+          setPlans({ sections: [] })
         }
       } catch (error) {
-        console.error('Error fetching plan:', error)
+        console.error('Error loading plan:', error)
         message.error('Failed to load plan')
       } finally {
         setIsLoading(false)
@@ -812,18 +846,115 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       const planRef = doc(db, 'plans', selectedCustomer.id);
       const planDoc = await getDoc(planRef);
       
+      console.log('Loading plan for customer:', selectedCustomer.id);
+      
       if (planDoc.exists()) {
-        const planData = planDoc.data() as { sections: PlanSection[] };
-        setPlans(planData);
-        setAllPlans({}); // Clear all plans when viewing single customer
+        const planData = planDoc.data() as Plan;
+        console.log('Loaded plan data:', planData);
+        // Ensure files array exists for each task
+        const processedPlan = {
+          ...planData,
+          sections: planData.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(task => ({
+              ...task,
+              files: task.files || []
+            }))
+          }))
+        };
+        setPlans(processedPlan);
       } else {
-        setPlans({ sections: [] }); // Set empty plan if none exists
+        setPlans({ sections: [] });
       }
     } catch (error) {
       console.error('Error loading plan:', error);
       message.error('Failed to load plan');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Update the file upload handler to immediately save file metadata to Firestore
+  const handleFileUpload = async (file: File) => {
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `customTask/${selectedCustomer?.id}/${Date.now()}_${file.name}`);
+      
+      if (file.size > 10 * 1024 * 1024) {
+        message.error('File size must be less than 10MB');
+        return false;
+      }
+
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      const newFile = {
+        name: file.name,
+        url,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      };
+
+      // Update editingTask with the new file
+      setEditingTask(prev => {
+        if (!prev) return null;
+        const updatedFiles = [...(prev.files || []), newFile];
+        console.log('Updated files array:', updatedFiles);
+        return {
+          ...prev,
+          files: updatedFiles
+        };
+      });
+
+      // Immediately save the updated files to Firestore
+      if (editingTask && selectedCustomer) {
+        const planRef = doc(db, 'plans', selectedCustomer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const plan = planDoc.data() as Plan;
+          const updatedSections = plan.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(task => 
+              task.id === editingTask.id 
+                ? { 
+                    ...task,
+                    files: [...(task.files || []), newFile]
+                  } 
+                : task
+            )
+          }));
+
+          await updateDoc(planRef, {
+            sections: updatedSections,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Update local state to reflect the changes
+          setPlans(prevPlans => {
+            if (!prevPlans) return null;
+            return {
+              ...prevPlans,
+              sections: prevPlans.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.map(task =>
+                  task.id === editingTask.id
+                    ? { ...task, files: [...(task.files || []), newFile] }
+                    : task
+                )
+              }))
+            };
+          });
+
+          message.success('File uploaded and saved successfully');
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      message.error('Failed to upload file');
+      return false;
     }
   };
 
@@ -920,7 +1051,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       {getPaginatedTasks(tasks, sectionTitle).map((task) => (
                         <TaskCard 
                           key={task.id} 
@@ -1003,317 +1134,248 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
 
       {editModalVisible && (
         <Dialog open={editModalVisible} onOpenChange={(open) => !open && setEditModalVisible(false)}>
-          <DialogContent className="sm:max-w-[625px]">
+          <DialogContent className="sm:max-w-[900px]">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl font-semibold">
                 Edit Task: {editingTask?.task}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-sm text-muted-foreground">
                 Make changes to the task here. Click save when you're done.
               </DialogDescription>
             </DialogHeader>
             {editingTask && (
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="progress" className="text-right">
-                    Progress
-                  </Label>
-                  <Select
-                    value={editingTask.progress}
-                    onValueChange={(value: "To Do" | "Doing" | "Done") => {
-                      setEditingTask(prev => prev ? { ...prev, progress: value } : null)
-                    }}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select progress" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="To Do">To Do</SelectItem>
-                      <SelectItem value="Doing">Doing</SelectItem>
-                      <SelectItem value="Done">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="dueDate" className="text-right">
-                    Due Date
-                  </Label>
-                  <div className="col-span-3">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {editingTask.dueDate ? format(new Date(editingTask.dueDate), 'PPP') : 
-                            <span className="text-muted-foreground">Pick a date</span>
-                          }
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={editingTask.dueDate ? new Date(editingTask.dueDate) : undefined}
-                          onSelect={(date) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              dueDate: date ? format(date, 'yyyy-MM-dd') : null
-                            } : null)
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="completedDate" className="text-right">
-                    Completed Date
-                  </Label>
-                  <div className="col-span-3">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {editingTask.completedDate ? format(new Date(editingTask.completedDate), 'PPP') : 
-                            <span className="text-muted-foreground">Pick a date</span>
-                          }
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={editingTask.completedDate ? new Date(editingTask.completedDate) : undefined}
-                          onSelect={(date) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              completedDate: date ? format(date, 'yyyy-MM-dd') : null
-                            } : null)
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="isActive" className="text-right">
-                    Active
-                  </Label>
-                  <div className="col-span-3">
-                    <Switch
-                      id="isActive"
-                      checked={editingTask.isActive}
-                      onCheckedChange={(checked) => {
-                        setEditingTask(prev => prev ? { ...prev, isActive: checked } : null)
+              <div className="grid grid-cols-2 gap-12">
+                {/* Left Column - Main Task Details */}
+                <div className="space-y-4 border-r pr-6">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="progress" className="text-sm text-right">
+                      Progress
+                    </Label>
+                    <Select
+                      value={editingTask.progress}
+                      onValueChange={(value: "To Do" | "Doing" | "Done") => {
+                        setEditingTask(prev => prev ? { ...prev, progress: value } : null)
                       }}
-                    />
+                    >
+                      <SelectTrigger className="col-span-3 text-sm">
+                        <SelectValue placeholder="Select progress" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="To Do">To Do</SelectItem>
+                        <SelectItem value="Doing">Doing</SelectItem>
+                        <SelectItem value="Done">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
 
-                {editingTask.frequency !== 'One Time' && (
-                  <>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="current" className="text-right">
-                        Current
-                      </Label>
-                      <Input
-                        id="current"
-                        type="number"
-                        min={0}
-                        value={editingTask.current || 0}
-                        onChange={(e) => {
-                          setEditingTask(prev => prev ? {
-                            ...prev,
-                            current: parseInt(e.target.value) || 0
-                          } : null)
-                        }}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="goal" className="text-right">
-                        Goal
-                      </Label>
-                      <Input
-                        id="goal"
-                        type="number"
-                        min={0}
-                        value={editingTask.goal || 0}
-                        onChange={(e) => {
-                          setEditingTask(prev => prev ? {
-                            ...prev,
-                            goal: parseInt(e.target.value) || 0
-                          } : null)
-                        }}
-                        className="col-span-3"
-                      />
-                    </div>
-                  </>
-                )}
-
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="notes" className="text-right pt-2">
-                    Notes
-                  </Label>
-                  <Textarea
-                    id="notes"
-                    value={editingTask.notes || ''}
-                    onChange={(e) => {
-                      setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null)
-                    }}
-                    className="col-span-3"
-                    rows={4}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="assignedTeamMembers" className="text-right">
-                    Team Members
-                  </Label>
-                  <div className="col-span-3">
-                    {teamMembers
-                      .filter(admin => admin.canBeAssignedToTasks)
-                      .map(admin => (
-                        <div key={admin.email} className="flex items-center space-x-2 mb-2">
-                          <Checkbox
-                            id={admin.email}
-                            checked={editingTask.assignedTeamMembers?.includes(admin.email)}
-                            onCheckedChange={(checked) => {
-                              setEditingTask(prev => {
-                                if (!prev) return null;
-                                const newMembers = checked 
-                                  ? [...(prev.assignedTeamMembers || []), admin.email]
-                                  : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
-                                return { ...prev, assignedTeamMembers: newMembers };
-                              });
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dueDate" className="text-right">
+                      Due Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask.dueDate ? format(new Date(editingTask.dueDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask.dueDate ? new Date(editingTask.dueDate) : undefined}
+                            onSelect={(date) => {
+                              setEditingTask(prev => prev ? {
+                                ...prev,
+                                dueDate: date ? format(date, 'yyyy-MM-dd') : null
+                              } : null)
                             }}
                           />
-                          <Label htmlFor={admin.email} className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={admin.avatarUrl} />
-                              <AvatarFallback>{admin.name?.[0]}</AvatarFallback>
-                            </Avatar>
-                            <span>{admin.name || admin.email}</span>
-                          </Label>
-                        </div>
-                      ))}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">
-                    Subtasks
-                  </Label>
-                  <div className="col-span-3 space-y-2">
-                    {editingTask.subtasks?.map((subtask) => (
-                      <div key={subtask.id} className="flex items-center space-x-2 bg-secondary/20 p-2 rounded">
-                        <Checkbox
-                          checked={subtask.isCompleted}
-                          onCheckedChange={(checked) => {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              return {
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="completedDate" className="text-right">
+                      Completed Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask.completedDate ? format(new Date(editingTask.completedDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask.completedDate ? new Date(editingTask.completedDate) : undefined}
+                            onSelect={(date) => {
+                              setEditingTask(prev => prev ? {
                                 ...prev,
-                                subtasks: prev.subtasks?.map(st =>
-                                  st.id === subtask.id
-                                    ? { ...st, isCompleted: !!checked }
-                                    : st
-                                )
-                              };
-                            });
-                          }}
-                        />
-                        <span className={subtask.isCompleted ? 'line-through' : ''}>
-                          {subtask.text}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              return {
-                                ...prev,
-                                subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
-                              };
-                            });
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        value={newSubTask}
-                        onChange={(e) => setNewSubTask(e.target.value)}
-                        placeholder="Add new subtask"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newSubTask.trim()) {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              const newSubtask = {
-                                id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                                text: newSubTask.trim(),
-                                isCompleted: false,
-                                completedDate: null,
-                                createdAt: new Date().toISOString(),
-                                createdBy: 'user'
-                              };
-                              return {
-                                ...prev,
-                                subtasks: [...(prev.subtasks || []), newSubtask]
-                              };
-                            });
-                            setNewSubTask('');
-                          }
+                                completedDate: date ? format(date, 'yyyy-MM-dd') : null
+                              } : null)
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="isActive" className="text-right">
+                      Active
+                    </Label>
+                    <div className="col-span-3">
+                      <Switch
+                        id="isActive"
+                        checked={editingTask.isActive}
+                        onCheckedChange={(checked) => {
+                          setEditingTask(prev => prev ? { ...prev, isActive: checked } : null)
                         }}
                       />
-                      <Button
-                        onClick={() => {
-                          if (!newSubTask.trim()) return;
-                          setEditingTask(prev => {
-                            if (!prev) return null;
-                            const newSubtask = {
-                              id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                              text: newSubTask.trim(),
-                              isCompleted: false,
-                              completedDate: null,
-                              createdAt: new Date().toISOString(),
-                              createdBy: 'user'
-                            };
-                            return {
+                    </div>
+                  </div>
+
+                  {editingTask.frequency !== 'One Time' && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="current" className="text-right">
+                          Current
+                        </Label>
+                        <Input
+                          id="current"
+                          type="number"
+                          min={0}
+                          value={editingTask.current || 0}
+                          onChange={(e) => {
+                            setEditingTask(prev => prev ? {
                               ...prev,
-                              subtasks: [...(prev.subtasks || []), newSubtask]
-                            };
-                          });
-                          setNewSubTask('');
-                        }}
-                      >
-                        Add
-                      </Button>
+                              current: parseInt(e.target.value) || 0
+                            } : null)
+                          }}
+                          className="col-span-3"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="goal" className="text-right">
+                          Goal
+                        </Label>
+                        <Input
+                          id="goal"
+                          type="number"
+                          min={0}
+                          value={editingTask.goal || 0}
+                          onChange={(e) => {
+                            setEditingTask(prev => prev ? {
+                              ...prev,
+                              goal: parseInt(e.target.value) || 0
+                            } : null)
+                          }}
+                          className="col-span-3"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="notes" className="text-right pt-2">
+                      Notes
+                    </Label>
+                    <Textarea
+                      id="notes"
+                      value={editingTask.notes || ''}
+                      onChange={(e) => {
+                        setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null)
+                      }}
+                      className="col-span-3"
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="assignedTeamMembers" className="text-right">
+                      Team Members
+                    </Label>
+                    <div className="col-span-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {teamMembers
+                          .filter(admin => admin.canBeAssignedToTasks)
+                          .map(admin => (
+                            <div key={admin.email} className="flex items-center gap-2 bg-secondary/10 rounded-md p-1.5">
+                              <Checkbox
+                                id={admin.email}
+                                checked={editingTask.assignedTeamMembers?.includes(admin.email)}
+                                onCheckedChange={(checked) => {
+                                  setEditingTask(prev => {
+                                    if (!prev) return null;
+                                    const newMembers = checked 
+                                      ? [...(prev.assignedTeamMembers || []), admin.email]
+                                      : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
+                                    return { ...prev, assignedTeamMembers: newMembers };
+                                  });
+                                }}
+                              />
+                              <Label htmlFor={admin.email} className="flex items-center gap-1.5 text-sm">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage src={admin.avatarUrl} />
+                                  <AvatarFallback>{admin.name?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{admin.name || admin.email}</span>
+                              </Label>
+                            </div>
+                          ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">
-                    Attachments
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      type="file"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          // Handle file upload here
-                          // You'll need to implement the file upload logic
-                          // and update the task's files array
-                        }
-                      }}
-                    />
+                {/* Right Column - Subtasks and Files */}
+                <div className="space-y-6">
+                  {/* Subtasks Section */}
+                  <div>
+                    <Label className="text-sm font-semibold">Subtasks</Label>
                     <div className="mt-2 space-y-2">
-                      {editingTask.files?.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between bg-secondary/20 p-2 rounded">
-                          <span>{file.name}</span>
+                      {editingTask.subtasks?.map((subtask) => (
+                        <div key={subtask.id} className="flex items-center justify-between bg-secondary/20 p-2 rounded">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={subtask.isCompleted}
+                              onCheckedChange={(checked) => {
+                                setEditingTask(prev => {
+                                  if (!prev) return null;
+                                  return {
+                                    ...prev,
+                                    subtasks: prev.subtasks?.map(st =>
+                                      st.id === subtask.id
+                                        ? { 
+                                            ...st, 
+                                            isCompleted: !!checked,
+                                            completedDate: checked ? new Date().toISOString() : null,
+                                            completedBy: checked ? user?.email || 'unknown' : null
+                                          }
+                                        : st
+                                    )
+                                  };
+                                });
+                              }}
+                            />
+                            <div className="flex flex-col">
+                              <span className={`text-sm ${subtask.isCompleted ? 'line-through' : ''}`}>
+                                {subtask.text}
+                              </span>
+                              <div className="flex flex-col text-xs text-muted-foreground">
+                                <span>Added by {teamMembers.find(m => m.email === subtask.createdBy)?.name || subtask.createdBy} on {subtask.createdAt ? format(new Date(subtask.createdAt), 'MMM dd, yyyy') : 'Unknown date'}</span>
+                                {subtask.isCompleted && subtask.completedDate && (
+                                  <span>Completed by {teamMembers.find(m => m.email === subtask.completedBy)?.name || subtask.completedBy} on {subtask.completedDate ? format(new Date(subtask.completedDate), 'MMM dd, yyyy') : 'Unknown date'}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1322,7 +1384,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                                 if (!prev) return null;
                                 return {
                                   ...prev,
-                                  files: prev.files?.filter((_, i) => i !== index)
+                                  subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
                                 };
                               });
                             }}
@@ -1331,16 +1393,137 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           </Button>
                         </div>
                       ))}
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          value={newSubTask}
+                          onChange={(e) => setNewSubTask(e.target.value)}
+                          placeholder="Add new subtask"
+                          className="text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newSubTask.trim()) {
+                              setEditingTask(prev => {
+                                if (!prev) return null;
+                                const newSubtask = {
+                                  id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                  text: newSubTask.trim(),
+                                  isCompleted: false,
+                                  completedDate: null,
+                                  completedBy: null,
+                                  createdAt: new Date().toISOString(),
+                                  createdBy: user?.email || 'unknown'
+                                };
+                                return {
+                                  ...prev,
+                                  subtasks: [...(prev.subtasks || []), newSubtask]
+                                };
+                              });
+                              setNewSubTask('');
+                            }
+                          }}
+                        />
+                        <Button
+                          className="text-sm"
+                          onClick={() => {
+                            if (!newSubTask.trim()) return;
+                            setEditingTask(prev => {
+                              if (!prev) return null;
+                              const newSubtask = {
+                                id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                text: newSubTask.trim(),
+                                isCompleted: false,
+                                completedDate: null,
+                                completedBy: null,
+                                createdAt: new Date().toISOString(),
+                                createdBy: user?.email || 'unknown'
+                              };
+                              return {
+                                ...prev,
+                                subtasks: [...(prev.subtasks || []), newSubtask]
+                              };
+                            });
+                            setNewSubTask('');
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Files Section */}
+                  <div>
+                    <Label className="text-sm font-semibold">Attachments</Label>
+                    <div className="mt-2">
+                      <Input
+                        type="file"
+                        className="text-sm"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            await handleFileUpload(file);
+                          }
+                        }}
+                      />
+                      <div className="mt-4">
+                        {editingTask.files && editingTask.files.length > 0 ? (
+                          <div className="space-y-2">
+                            {editingTask.files.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between bg-secondary/20 p-3 rounded">
+                                <div className="flex items-center gap-3">
+                                  <a 
+                                    href={file.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-2"
+                                  >
+                                    <Paperclip className="h-4 w-4" />
+                                    {file.name}
+                                  </a>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({(file.size / 1024).toFixed(1)} KB)
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-muted-foreground">
+                                    Uploaded on {format(new Date(file.uploadedAt), 'MMM dd, yyyy')}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingTask(prev => {
+                                        if (!prev) return null;
+                                        const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
+                                        console.log('Files after removal:', updatedFiles);
+                                        return {
+                                          ...prev,
+                                          files: updatedFiles
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground text-center py-4">
+                            No files attached
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditModalVisible(false)}>
+              <Button variant="outline" className="text-sm" onClick={() => setEditModalVisible(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => {
+              <Button className="text-sm" onClick={() => {
                 if (!editingTask) return;
                 handleEditSave({
                   progress: editingTask.progress,
