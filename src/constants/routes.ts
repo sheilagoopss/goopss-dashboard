@@ -3,6 +3,7 @@ export const ROUTES = {
     DESIGN_HUB: "/admin/design-hub",
     PLAN: "/admin/plan",
     PLAN_SIMPLE_VIEW: "/admin/plan-simple-view",
+    PLAN_NEW: "/admin/plan/new",
     CUSTOMER_MANAGEMENT: "/admin/customers",
     CUSTOMER_FORM: "/admin/customer-form",
     LISTINGS: "/admin/listings",
