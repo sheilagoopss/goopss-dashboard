@@ -1,3 +1,5 @@
+"use client";
+
 import { Divider, Form, Button, Input } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";

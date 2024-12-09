@@ -1,4 +1,4 @@
-import { ListingImage } from "types/Listing";
+import { ListingImage } from "@/types/Listing";
 
 export const STATUS_COLORS: Record<ListingImage["status"], string> = {
   approved: "green",
