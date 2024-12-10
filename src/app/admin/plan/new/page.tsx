@@ -1,16 +1,14 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { PlanSection, PlanTask, Plan } from '@/types/Plan'
 import { ICustomer, IAdmin } from '@/types/Customer'
 import { message } from 'antd'
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, setDoc } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import { useAuth } from '@/contexts/AuthContext'
-import FirebaseHelper from '@/helpers/FirebaseHelper'
 import { 
   Search, AlertCircle, RefreshCw, Calendar, Clock, 
-  CheckCircle2, Pencil, Info, Target, Paperclip, Plus, X 
+  CheckCircle2, Pencil, Target, Paperclip, X 
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -177,7 +175,6 @@ const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
 function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: Props) {
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('All')
-  const [search, setSearch] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [teamMemberFilter, setTeamMemberFilter] = useState('all')
   const [teamMembers, setTeamMembers] = useState<IAdmin[]>([])
@@ -195,7 +192,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const { user } = useAuth()
   const [currentPage, setCurrentPage] = useState<{ [section: string]: number }>({})
   const ITEMS_PER_PAGE = 12
-  const [selectedView, setSelectedView] = useState<'list' | 'calendar'>('list')
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
   const [newTask, setNewTask] = useState<PlanTask | null>(null)
@@ -454,7 +450,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       })
     }
 
-    setFilteredSections(sections)
   }, [selectedCustomer, plans, allPlans, customers, teamMemberFilter, searchQuery, progressFilter, showActiveOnly])
 
   // Reset pagination when filters change
@@ -847,22 +842,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   }, [customers, selectedCustomer])
 
   // Get all tasks for all customers
-  const getAllTasks = () => {
-    const allTasks: { customer: ICustomer; section: string; task: PlanTask }[] = []
-    
-    Object.entries(allPlans).forEach(([customerId, plan]) => {
-      const customer = customers.find(c => c.id === customerId)
-      if (!customer) return
-
-      plan.sections.forEach(section => {
-        section.tasks.forEach(task => {
-          allTasks.push({ customer, section: section.title, task })
-        })
-      })
-    })
-
-    return allTasks
-  }
 
   // Update localCustomers when props change
   useEffect(() => {
@@ -903,7 +882,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     }
 
     fetchCustomers()
-  }, [])
+  }, [customers.length, localCustomers.length])
 
   // Add debug log
   useEffect(() => {
@@ -1095,7 +1074,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   size="icon"
                   onClick={() => {
                     setProgressFilter('All');
-                    setSearch('');
                     setShowActiveOnly(false);
                     setTeamMemberFilter('all');
                     setDueDateFilter('all');
