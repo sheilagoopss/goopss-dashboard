@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { PlanTask, PlanSection } from "@/types/Plan"
-import { IAdmin } from "@/types/Customer"
+import { ICustomer, IAdmin } from "@/types/Customer"
 import {
   add,
   eachDayOfInterval,
@@ -25,12 +25,21 @@ import {
   startOfToday,
   startOfWeek,
 } from "date-fns"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface TaskCalendarProps {
-  taskGroups: { title: string; tasks: PlanTask[] }[]
+  taskGroups: { 
+    title: string; 
+    tasks: (PlanTask & { customer?: ICustomer })[] 
+  }[]
   users: IAdmin[]
   onUpdateTask: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>
-  onEdit: (task: PlanTask) => void
+  onEdit: (task: PlanTask & { customer?: ICustomer }) => void
 }
 
 export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCalendarProps) {
@@ -74,9 +83,9 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     setSelectedDay(firstDayNextWeek)
   }
 
-  const allTasks = taskGroups.flatMap(group => group.tasks)
+  const allTasks: (PlanTask & { customer?: ICustomer })[] = taskGroups.flatMap(group => group.tasks)
 
-  const tasksForDate = (date: Date) => {
+  const tasksForDate = (date: Date): (PlanTask & { customer?: ICustomer })[] => {
     return allTasks.filter(task => {
       if (!task.dueDate) return false
       const taskDate = new Date(task.dueDate)
@@ -84,7 +93,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     })
   }
 
-  const handleTaskClick = (e: React.MouseEvent, task: PlanTask) => {
+  const handleTaskClick = (e: React.MouseEvent, task: PlanTask & { customer?: ICustomer }) => {
     e.stopPropagation() // Prevent day selection when clicking on a task
     onEdit(task)
   }
@@ -99,6 +108,12 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     'col-start-6',
     'col-start-7',
   ]
+
+  const getTeamMemberNames = (memberEmails: string[]) => {
+    return memberEmails
+      .map(email => users.find(user => user.email === email)?.name || email)
+      .join(', ');
+  };
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
@@ -210,18 +225,34 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
                 <ScrollArea className="h-[80px] mt-2">
                   <div className="space-y-1 pr-3">
                     {dayTasks.map((task) => (
-                      <button
-                        key={task.id}
-                        onClick={(e) => handleTaskClick(e, task)}
-                        className={cn(
-                          'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
-                          task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-                          task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-                          task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
-                        )}
-                      >
-                        {task.task}
-                      </button>
+                      <TooltipProvider key={task.id} delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={(e) => handleTaskClick(e, task)}
+                              className={cn(
+                                'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
+                                task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+                                task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
+                              )}
+                            >
+                              {task.task}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[300px]">
+                            <div className="space-y-1">
+                              <p className="font-medium">{task.customer?.store_name}</p>
+                              <p className="text-sm">{task.task}</p>
+                              {task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Team: {getTeamMemberNames(task.assignedTeamMembers)}
+                                </p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                   </div>
                 </ScrollArea>
