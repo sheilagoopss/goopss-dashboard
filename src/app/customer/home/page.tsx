@@ -170,7 +170,7 @@ const CustomerHomePage: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
-                  href="/listings"
+                  href={ROUTES.CUSTOMER.LISTINGS}
                   style={{
                     background: "#000",
                     borderRadius: 24,
@@ -233,7 +233,7 @@ const CustomerHomePage: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
-                  href="/design-hub"
+                  href={ROUTES.CUSTOMER.DESIGN_HUB}
                   style={{
                     background: "#000",
                     borderRadius: 24,
@@ -296,7 +296,7 @@ const CustomerHomePage: React.FC = () => {
                 <Button
                   type="primary"
                   size="large"
-                  href="/social"
+                  href={ROUTES.CUSTOMER.SOCIAL}
                   style={{
                     background: "#000",
                     borderRadius: 24,
