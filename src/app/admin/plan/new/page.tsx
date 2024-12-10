@@ -615,37 +615,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       return;
     }
 
-    // Only validate customer selection for new tasks
-    if (!editingTask.id && !selectedCustomer && !editingCustomer) {
-      message.error('Please select a customer');
-      return;
-    }
-
-    const targetCustomer = selectedCustomer || editingCustomer;
-    if (!editingTask.id && !targetCustomer) {
-      message.error('Please select a customer');
-      return;
-    }
-
     try {
       setIsLoading(true);
-      let customerId: string;
-      
-      // For existing tasks in all customers view, get customer ID from the task data
-      if (editingTask.id && !selectedCustomer) {
-        const taskWithCustomer = editingTask as PlanTask & { customer?: ICustomer };
-        if (!taskWithCustomer.customer?.id) {
-          message.error('Cannot find customer for this task');
-          return;
-        }
-        customerId = taskWithCustomer.customer.id;
-      } else {
-        // For new tasks or when in single customer view
-        if (!targetCustomer) {
-          message.error('Please select a customer');
-          return;
-        }
-        customerId = targetCustomer.id;
+      // Get the customer ID either from selected customer or from the task
+      const taskWithCustomer = editingTask as PlanTask & { customer?: ICustomer };
+      const customerId = selectedCustomer?.id || taskWithCustomer.customer?.id;
+      if (!customerId) {
+        message.error('Cannot find customer');
+        return;
       }
 
       const planRef = doc(db, 'plans', customerId);
@@ -655,34 +632,21 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         throw new Error('Plan not found');
       }
 
-      // Create updated task object with all fields
+      // Only update the fields that were changed
       const updatedTask = {
         ...editingTask,
         ...updates,
-        notes: editingTask.notes || '',
-        assignedTeamMembers: editingTask.assignedTeamMembers || [],
-        subtasks: editingTask.subtasks || [],
-        files: editingTask.files || [],
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || 'unknown'
       };
 
-      console.log('Updating task:', updatedTask);
-
       const plan = planDoc.data() as Plan;
-      
-      // Update the task in its section
-      const updatedSections = plan.sections.map(section => {
-        if (section.title === editingTask.section) {
-          return {
-            ...section,
-            tasks: section.tasks.map(task => 
-              task.id === editingTask.id ? updatedTask : task
-            )
-          };
-        }
-        return section;
-      });
+      const updatedSections = plan.sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(task => 
+          task.id === editingTask.id ? updatedTask : task
+        )
+      }));
 
       // Save to Firestore
       await updateDoc(planRef, {
@@ -690,54 +654,23 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         updatedAt: new Date().toISOString()
       });
 
-      // Update local state based on whether we're in single or all customers view
+      // Update local state
       if (selectedCustomer) {
         setPlans(prevPlans => {
           if (!prevPlans) return null;
-          
           return {
             ...prevPlans,
-            sections: prevPlans.sections.map(section => {
-              if (section.title === editingTask.section) {
-                return {
-                  ...section,
-                  tasks: section.tasks.map(task =>
-                    task.id === editingTask.id ? updatedTask : task
-                  )
-                };
-              }
-              return section;
-            })
+            sections: updatedSections
           };
         });
       } else {
-        // Get the customer ID we determined earlier
-        if (!customerId) {
-          console.error('No customer ID available for local state update');
-          return;
-        }
-        
-        setAllPlans(prev => {
-          const currentPlan = prev[customerId] || { sections: [] };
-          
-          return {
-            ...prev,
-            [customerId]: {
-              ...currentPlan,
-              sections: currentPlan.sections.map(section => {
-                if (section.title === editingTask.section) {
-                  return {
-                    ...section,
-                    tasks: section.tasks.map(task =>
-                      task.id === editingTask.id ? updatedTask : task
-                    )
-                  };
-                }
-                return section;
-              })
-            }
-          };
-        });
+        setAllPlans(prev => ({
+          ...prev,
+          [customerId]: {
+            ...prev[customerId],
+            sections: updatedSections
+          }
+        }));
       }
 
       setEditModalVisible(false);
@@ -963,9 +896,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             <SelectContent>
               <SelectItem value="all">All Customers</SelectItem>
               {localCustomers && localCustomers.length > 0 && localCustomers
-                .filter(customer => customer.customer_type === 'Paid' && customer.isActive)
+                .filter(customer => 
+                  customer.customer_type === 'Paid' && 
+                  customer.isActive
+                )
+                .sort((a, b) => a.store_name.localeCompare(b.store_name)) // Sort alphabetically
                 .map((customer) => (
-                  <SelectItem key={customer.id} value={customer.id}>
+                  <SelectItem 
+                    key={customer.id} 
+                    value={customer.id}
+                    textValue={`${customer.store_name} ${customer.store_owner_name}`} // Add textValue prop for searching
+                  >
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
                         <AvatarImage src={customer.logo} alt={customer.store_name} />
