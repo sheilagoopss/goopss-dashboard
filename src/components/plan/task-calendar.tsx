@@ -13,6 +13,7 @@ import {
   add,
   eachDayOfInterval,
   endOfMonth,
+  endOfWeek,
   format,
   getDay,
   isEqual,
@@ -22,6 +23,7 @@ import {
   parse,
   startOfMonth,
   startOfToday,
+  startOfWeek,
 } from "date-fns"
 
 interface TaskCalendarProps {
@@ -35,12 +37,21 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
+  const [view, setView] = useState<'month' | 'week'>('month')
   
   const firstDayCurrentMonth = parse(currentMonth, 'MMM-yyyy', new Date())
   
   const days = eachDayOfInterval({
     start: startOfMonth(firstDayCurrentMonth),
     end: endOfMonth(firstDayCurrentMonth),
+  })
+
+  const currentWeekStart = startOfWeek(selectedDay)
+  const currentWeekEnd = endOfWeek(selectedDay)
+  
+  const weekDays = eachDayOfInterval({
+    start: currentWeekStart,
+    end: currentWeekEnd,
   })
 
   function previousMonth() {
@@ -51,6 +62,16 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
   function nextMonth() {
     const firstDayNextMonth = add(firstDayCurrentMonth, { months: 1 })
     setCurrentMonth(format(firstDayNextMonth, 'MMM-yyyy'))
+  }
+
+  function previousWeek() {
+    const firstDayNextWeek = add(currentWeekStart, { weeks: -1 })
+    setSelectedDay(firstDayNextWeek)
+  }
+
+  function nextWeek() {
+    const firstDayNextWeek = add(currentWeekStart, { weeks: 1 })
+    setSelectedDay(firstDayNextWeek)
   }
 
   const allTasks = taskGroups.flatMap(group => group.tasks)
@@ -83,13 +104,32 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     <div className="w-full max-w-7xl mx-auto px-4">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-3xl font-bold tracking-tight">
-          {format(firstDayCurrentMonth, 'MMMM yyyy')}
+          {view === 'month' 
+            ? format(firstDayCurrentMonth, 'MMMM yyyy')
+            : `Week of ${format(currentWeekStart, 'MMM d, yyyy')}`
+          }
         </h2>
         <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border p-1 mr-4">
+            <Button
+              variant={view === 'month' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('month')}
+            >
+              Month
+            </Button>
+            <Button
+              variant={view === 'week' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('week')}
+            >
+              Week
+            </Button>
+          </div>
           <Button
             variant="outline"
             size="icon"
-            onClick={previousMonth}
+            onClick={view === 'month' ? previousMonth : previousWeek}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -126,7 +166,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
           <Button
             variant="outline"
             size="icon"
-            onClick={nextMonth}
+            onClick={view === 'month' ? nextMonth : nextWeek}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -142,15 +182,16 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
         <div className="text-muted-foreground font-medium">Sat</div>
       </div>
       <div className="grid grid-cols-7 mt-2 text-sm gap-px bg-muted rounded-lg overflow-hidden">
-        {days.map((day, dayIdx) => {
+        {(view === 'month' ? days : weekDays).map((day, dayIdx) => {
           const dayTasks = tasksForDate(day)
           return (
             <div
               key={day.toString()}
               className={cn(
                 'relative bg-background min-h-[120px] p-2',
-                dayIdx === 0 && colStartClasses[getDay(day)],
-                !isSameMonth(day, firstDayCurrentMonth) && 'text-muted-foreground',
+                view === 'month' && dayIdx === 0 && colStartClasses[getDay(day)],
+                view === 'month' && !isSameMonth(day, firstDayCurrentMonth) && 'text-muted-foreground',
+                view === 'week' && 'min-h-[200px]',
                 'hover:bg-muted/50 cursor-pointer'
               )}
               onClick={() => setSelectedDay(day)}

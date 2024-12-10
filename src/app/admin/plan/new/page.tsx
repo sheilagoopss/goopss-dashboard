@@ -1539,7 +1539,34 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 return Object.entries(sections).map(([sectionTitle, { tasks }]) => (
                   <div key={sectionTitle} className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-medium">{sectionTitle}</h2>
+                      <div className="flex items-center gap-4">
+                        <h2 className="text-2xl font-medium">{sectionTitle}</h2>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const sectionTasks = getPaginatedTasks(tasks, sectionTitle);
+                            if (sectionTasks.every(task => selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id))) {
+                              // If all tasks are selected, deselect them
+                              setSelectedRows(prev => prev.filter(row => 
+                                !sectionTasks.some(task => task.id === row.id && row.customer?.id === row.customer?.id)
+                              ));
+                            } else {
+                              // If not all tasks are selected, select all
+                              const newTasks = sectionTasks.filter(task => 
+                                !selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id)
+                              );
+                              setSelectedRows([...selectedRows, ...newTasks]);
+                            }
+                          }}
+                        >
+                          {getPaginatedTasks(tasks, sectionTitle).every(
+                            task => selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id)
+                          ) 
+                            ? "Deselect All" 
+                            : "Select All"}
+                        </Button>
+                      </div>
                       <div className="flex items-center gap-2">
                         {getTotalPages(tasks) > 1 && (
                           <div className="flex items-center gap-2">
@@ -1570,7 +1597,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       {getPaginatedTasks(tasks, sectionTitle).map((task) => (
                         <div 
                           key={task.id}
-                          className="relative group"
+                          className="relative cursor-pointer group"
                         >
                           {/* Add checkbox in the corner */}
                           <div 
@@ -1579,10 +1606,8 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                               e.stopPropagation(); // Prevent card click from triggering
                               const isSelected = isTaskSelected(task);
                               if (!isSelected) {
-                                // Only add this specific task
                                 setSelectedRows(prev => [...prev, task]);
                               } else {
-                                // Only remove this specific task
                                 setSelectedRows(prev => prev.filter(r => 
                                   !(r.id === task.id && r.customer?.id === task.customer?.id)
                                 ));
@@ -1600,11 +1625,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                             <div className="absolute inset-0 bg-primary/20 z-10 rounded-lg" />
                           )}
                           
-                          <TaskCard 
-                            task={task} 
-                            teamMembers={teamMembers}
-                            onEdit={handleEditTask} 
-                          />
+                          {/* Wrap the TaskCard in a div to handle its click separately */}
+                          <div onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditTask(task);
+                          }}>
+                            <TaskCard 
+                              task={task} 
+                              teamMembers={teamMembers}
+                              onEdit={handleEditTask} 
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1684,7 +1715,11 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingTask ? `Edit Task: ${editingTask.task}` : 'Create New Task'}
+                {editingTask ? (
+                  editingTask.section === 'Other Tasks' ? 
+                    `Edit Task: ${editingTask.task}` : 
+                    editingTask.task // Just show the task name without "Edit Task:" prefix for default tasks
+                ) : 'Create New Task'}
                 {editingCustomer && (
                   <div className="flex items-center gap-2 mt-2">
                     <Avatar className="h-6 w-6">
@@ -1702,24 +1737,27 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               <div className="grid grid-cols-2 gap-12">
                 {/* Left Column - Main Task Details */}
                 <div className="space-y-4 border-r pr-6">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="task" className="text-sm text-right">
-                      Task Name
-                    </Label>
-                    <Input
-                      id="task"
-                      value={editingTask?.task || newTask?.task || ''}
-                      onChange={(e) => {
-                        if (editingTask) {
-                          setEditingTask(prev => prev ? { ...prev, task: e.target.value } : null);
-                        } else {
-                          setNewTask(prev => prev ? { ...prev, task: e.target.value } : null);
-                        }
-                      }}
-                      className="col-span-3"
-                    />
-                  </div>
-
+                  {/* Only show task name field for custom tasks or new tasks */}
+                  {(!editingTask || editingTask.section === 'Other Tasks') && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="task" className="text-sm text-right">
+                        Task Name
+                      </Label>
+                      <Input
+                        id="task"
+                        value={editingTask?.task || newTask?.task || ''}
+                        onChange={(e) => {
+                          if (editingTask) {
+                            setEditingTask(prev => prev ? { ...prev, task: e.target.value } : null);
+                          } else {
+                            setNewTask(prev => prev ? { ...prev, task: e.target.value } : null);
+                          }
+                        }}
+                        className="col-span-3"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="progress" className="text-sm text-right">
                       Progress
@@ -1906,7 +1944,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     <div className="col-span-3">
                       <Switch
                         id="isActive"
-                        checked={editingTask?.isActive || newTask?.isActive || true}
+                        checked={editingTask?.isActive ?? newTask?.isActive ?? true}
                         onCheckedChange={(checked) => {
                           if (editingTask) {
                             setEditingTask(prev => prev ? { ...prev, isActive: checked } : null);
