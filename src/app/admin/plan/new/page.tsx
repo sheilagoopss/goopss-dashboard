@@ -71,10 +71,6 @@ interface TaskCardProps {
 }
 
 const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
-  const assignedMembers = teamMembers.filter(member => 
-    task.assignedTeamMembers?.includes(member.email)
-  )
-
   const getCardColor = (progress: string) => {
     switch (progress) {
       case 'To Do':
@@ -138,6 +134,7 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
           <Calendar className="h-3 w-3" />
           <span>Due {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
         </div>
+        {/* Rest of your existing card content */}
         {progress && (
           <div className="flex items-center gap-2 text-xs text-white/80 mb-0.5">
             <Target className="h-3 w-3" />
@@ -1309,6 +1306,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   // Add this function to handle bulk edits
   const handleBulkEdit = async (values: any) => {
     try {
+      // Check if any values were actually changed
+      const hasChanges = Object.keys(values).length > 0;
+      
+      if (!hasChanges) {
+        message.info('No changes were made');
+        setBulkEditModalVisible(false);
+        setSelectedRows([]);
+        bulkEditForm.resetFields();
+        return;
+      }
+
       setIsLoading(true);
       console.log('Bulk editing with values:', values);
       
@@ -1336,11 +1344,17 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   ...t,
                   ...(values.progress && { progress: values.progress }),
                   ...(values.dueDate && { dueDate }),
+                  ...(values.completedDate && { 
+                    completedDate: values.completedDate.format('YYYY-MM-DD') 
+                  }),
+                  ...(values.frequency && { frequency: values.frequency }),
                   ...(values.isActive !== undefined && { isActive: values.isActive }),
                   ...(values.notes && { notes: values.notes }),
-                  ...(values.current !== undefined && { current: values.current }),
-                  ...(values.goal !== undefined && { goal: values.goal }),
-                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
+                  ...(values.current !== undefined && { current: parseInt(values.current) }),
+                  ...(values.goal !== undefined && { goal: parseInt(values.goal) }),
+                  ...(values.assignedTeamMembers?.length > 0 && { 
+                    assignedTeamMembers: values.assignedTeamMembers 
+                  }),
                   updatedAt: new Date().toISOString(),
                   updatedBy: user?.email || 'unknown'
                 };
@@ -1573,50 +1587,82 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       </div>
                     </div>
                     <div className="grid grid-cols-4 gap-4">
-                      {getPaginatedTasks(tasks, sectionTitle).map((task) => (
-                        <div 
-                          key={task.id}
-                          className="relative cursor-pointer group"
-                        >
-                          {/* Add checkbox in the corner */}
+                      {getPaginatedTasks(tasks, sectionTitle).map((task) => {
+                        // Calculate assignedMembers here for each task
+                        const assignedMembers = teamMembers.filter(member => 
+                          task.assignedTeamMembers?.includes(member.email)
+                        );
+
+                        return (
                           <div 
-                            className="absolute top-2 right-2 z-20"
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent card click from triggering
-                              const isSelected = isTaskSelected(task);
-                              if (!isSelected) {
-                                setSelectedRows(prev => [...prev, task]);
-                              } else {
-                                setSelectedRows(prev => prev.filter(r => 
-                                  !(r.id === task.id && r.customer?.id === task.customer?.id)
-                                ));
-                              }
-                            }}
+                            key={task.id}
+                            className="relative cursor-pointer group"
                           >
-                            <Checkbox 
-                              checked={isTaskSelected(task)}
-                              className="bg-white/80 hover:bg-white"
-                            />
+                            {/* Add team member avatars next to checkbox */}
+                            <div 
+                              className="absolute top-2 right-2 z-20 flex items-center gap-2"
+                            >
+                              {/* Team member avatars */}
+                              {assignedMembers.length > 0 && (
+                                <div className="flex -space-x-3"> {/* Increased negative space for larger avatars */}
+                                  {assignedMembers.map((member: IAdmin, index: number) => (
+                                    <TooltipProvider key={member.email}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Avatar className="h-8 w-8 border-2 border-white/20"> {/* Increased size to match icon */}
+                                            <AvatarImage src={member.avatarUrl} />
+                                            <AvatarFallback>{member.name?.[0] || member.email[0]}</AvatarFallback>
+                                          </Avatar>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>{member.name || member.email}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {/* Checkbox */}
+                              <div 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const isSelected = isTaskSelected(task);
+                                  if (!isSelected) {
+                                    setSelectedRows(prev => [...prev, task]);
+                                  } else {
+                                    setSelectedRows(prev => prev.filter(r => 
+                                      !(r.id === task.id && r.customer?.id === task.customer?.id)
+                                    ));
+                                  }
+                                }}
+                              >
+                                <Checkbox 
+                                  checked={isTaskSelected(task)}
+                                  className="bg-white/80 hover:bg-white"
+                                />
+                              </div>
+                            </div>
+                            
+                            {/* Highlight overlay when selected */}
+                            {isTaskSelected(task) && (
+                              <div className="absolute inset-0 bg-primary/20 z-10 rounded-lg" />
+                            )}
+                            
+                            {/* Remove the team member avatars from the card content */}
+                            <div onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTask(task);
+                            }}>
+                              <TaskCard 
+                                task={task} 
+                                teamMembers={teamMembers}
+                                onEdit={handleEditTask} 
+                              />
+                            </div>
                           </div>
-                          
-                          {/* Highlight overlay when selected */}
-                          {isTaskSelected(task) && (
-                            <div className="absolute inset-0 bg-primary/20 z-10 rounded-lg" />
-                          )}
-                          
-                          {/* Wrap the TaskCard in a div to handle its click separately */}
-                          <div onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditTask(task);
-                          }}>
-                            <TaskCard 
-                              task={task} 
-                              teamMembers={teamMembers}
-                              onEdit={handleEditTask} 
-                            />
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))
@@ -2308,6 +2354,12 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               ...(bulkEditForm.getFieldValue('dueDate') && { 
                 dueDate: bulkEditForm.getFieldValue('dueDate') 
               }),
+              ...(bulkEditForm.getFieldValue('completedDate') && { 
+                completedDate: bulkEditForm.getFieldValue('completedDate') 
+              }),
+              ...(bulkEditForm.getFieldValue('frequency') && { 
+                frequency: bulkEditForm.getFieldValue('frequency') 
+              }),
               ...(bulkEditForm.getFieldValue('isActive') !== undefined && { 
                 isActive: bulkEditForm.getFieldValue('isActive') 
               }),
@@ -2370,6 +2422,47 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="completedDate" className="text-right">Completed Date</Label>
+                <div className="col-span-3">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <span className="text-muted-foreground">Pick a date</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        onSelect={(date) => {
+                          if (date) {
+                            bulkEditForm.setFieldValue('completedDate', dayjs(date));
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="frequency" className="text-right">Frequency</Label>
+                <Select
+                  name="frequency"
+                  onValueChange={(value) => bulkEditForm.setFieldValue('frequency', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="One Time">One Time</SelectItem>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="As Needed">As Needed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="isActive" className="text-right">Status</Label>
                 <Select
                   name="isActive"
@@ -2385,27 +2478,36 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 </Select>
               </div>
 
-              <div className="grid grid-cols-4 items-center gap-4">
+              <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="assignedTeamMembers" className="text-right">Team Members</Label>
-                <Select
-                  name="assignedTeamMembers"
-                  onValueChange={(value) => {
-                    // Convert single value to array for team members
-                    const values = Array.isArray(value) ? value : [value];
-                    bulkEditForm.setFieldValue('assignedTeamMembers', values);
-                  }}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select team members" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teamMembers.map((member) => (
-                      <SelectItem key={member.email} value={member.email}>
-                        {member.name || member.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="col-span-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {teamMembers
+                      .filter(admin => admin.canBeAssignedToTasks)
+                      .map(member => (
+                        <div key={member.email} className="flex items-center gap-2 bg-secondary/10 rounded-md p-1.5">
+                          <Checkbox
+                            id={member.email}
+                            checked={bulkEditForm.getFieldValue('assignedTeamMembers')?.includes(member.email)}
+                            onCheckedChange={(checked) => {
+                              const currentMembers = bulkEditForm.getFieldValue('assignedTeamMembers') || [];
+                              const newMembers = checked
+                                ? [...currentMembers, member.email]
+                                : currentMembers.filter((email: string) => email !== member.email);
+                              bulkEditForm.setFieldValue('assignedTeamMembers', newMembers);
+                            }}
+                          />
+                          <Label htmlFor={member.email} className="flex items-center gap-1.5 text-sm">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={member.avatarUrl} />
+                              <AvatarFallback>{member.name?.[0]}</AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">{member.name || member.email}</span>
+                          </Label>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-4 items-start gap-4">
