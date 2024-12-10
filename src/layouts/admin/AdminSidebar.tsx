@@ -161,6 +161,13 @@ const AdminSidebar = () => {
                   router.push(ROUTES.ADMIN.LISTINGS_DUPLICATE);
                 },
               },
+              {
+                key: ROUTES.ADMIN.LISTINGS_NEW,
+                label: "New Listing",
+                onClick: () => {
+                  router.push(ROUTES.ADMIN.LISTINGS_NEW);
+                },
+              },
             ],
           },
           {

@@ -8,6 +8,7 @@ export const ROUTES = {
     CUSTOMER_FORM: "/admin/customer-form",
     LISTINGS: "/admin/listings",
     LISTINGS_DUPLICATE: "/admin/listings/duplicate",
+    LISTINGS_NEW: "/admin/listings/new",
     SOCIAL: "/admin/social",
     SOCIAL_INSIGHTS: "/admin/social-insights",
     PINTEREST: "/admin/pinterest",
