@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { PlanSection, PlanTask, Plan } from '@/types/Plan'
 import { ICustomer, IAdmin } from '@/types/Customer'
 import { message } from 'antd'
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, setDoc } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { useAuth } from '@/contexts/AuthContext'
 import FirebaseHelper from '@/helpers/FirebaseHelper'
@@ -49,6 +49,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import dayjs from 'dayjs'
+import { PlanTaskRule } from '@/types/PlanTasks'
 
 interface TaskFile {
   name: string;
@@ -175,6 +177,18 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
   )
 }
 
+const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
+    return null;
+  } else {
+    return dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
+  }
+};
+
 function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: Props) {
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('All')
@@ -194,9 +208,187 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [selectedView, setSelectedView] = useState<'list' | 'calendar'>('list')
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
+  const [newTask, setNewTask] = useState<PlanTask | null>(null)
   const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(null)
   const [newSubTask, setNewSubTask] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([])
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
+
+  const createPlanForCustomer = async (customer: ICustomer) => {
+    try {
+      console.log('Creating plan for customer:', customer);
+      console.log('Customer package type:', customer.package_type);
+
+      const packageTypes: { [key: string]: string } = {
+        'Accelerator - Basic': 'acceleratorBasic',
+        'Accelerator - Standard': 'acceleratorStandard',
+        'Accelerator - Pro': 'acceleratorPro',
+        'Extended Maintenance': 'extendedMaintenance',
+        'Regular Maintenance': 'regularMaintenance',
+        'Social': 'social',
+        'Default': 'default',
+        'Free': 'default'
+      };
+
+      const packageId = packageTypes[customer.package_type] || 'default';
+      console.log('Looking for rules in document:', packageId);
+
+      // Get the package-specific rules
+      const rulesRef = doc(db, 'planTaskRules', packageId);
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (!rulesDoc.exists()) {
+        message.error('No rules found for this package');
+        return;
+      }
+
+      const rules = rulesDoc.data();
+
+      // Create the plan with these rules
+      const planRef = doc(db, 'plans', customer.id);
+      await setDoc(planRef, {
+        sections: rules.sections.map((sectionTitle: string) => ({
+          title: sectionTitle,
+          tasks: rules.tasks
+            .filter((task: PlanTaskRule) => task.section === sectionTitle)
+            .map((task: PlanTaskRule) => ({
+              ...task,
+              progress: 'To Do',
+              completedDate: null,
+              current: task.defaultCurrent || 0,
+              goal: task.defaultGoal || 0,
+              dueDate: calculateDueDate(customer, task),
+              updatedAt: new Date().toISOString(),
+              updatedBy: user?.email || ''
+            }))
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || ''
+      });
+
+      message.success('Plan created successfully');
+      
+      // Reload the plans after creating
+      if (selectedCustomer) {
+        loadPlan();
+      } else {
+        loadAllPlans();
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      message.error('Failed to create plan');
+    }
+  };
+
+  const loadAllPlans = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Starting to load all plans...');
+
+      // Get only active paid customers first
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(
+        query(customersRef, 
+          where('customer_type', '==', 'Paid'),
+          where('isActive', '==', true)
+        )
+      );
+      console.log('Found active paid customers:', customersSnapshot.size);
+
+      // Load plans in batches of 10
+      const BATCH_SIZE = 10;
+      const plansData: { [customerId: string]: { sections: PlanSection[] } } = {};
+      
+      for (let i = 0; i < customersSnapshot.docs.length; i += BATCH_SIZE) {
+        const batch = customersSnapshot.docs.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(customerDoc => 
+          getDoc(doc(db, 'plans', customerDoc.id))
+        );
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        batchResults.forEach((planDoc, index) => {
+          if (planDoc.exists()) {
+            plansData[batch[index].id] = planDoc.data() as { sections: PlanSection[] };
+          }
+        });
+      }
+
+      setAllPlans(plansData);
+      setPlans(null); // Clear single plan when viewing all
+      console.log('Loaded all plans:', Object.keys(plansData).length);
+
+    } catch (error) {
+      console.error('Error loading all plans:', error);
+      message.error('Failed to load plans');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadPlan = async () => {
+    if (!selectedCustomer) return;
+    try {
+      setIsLoading(true);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        // Create new plan if one doesn't exist
+        await createPlanForCustomer(selectedCustomer);
+        return;
+      }
+
+      const planData = planDoc.data() as Plan;
+      console.log('Loaded plan data:', planData);
+      
+      // Clear all plans when in single customer view
+      setAllPlans({});
+      
+      // Ensure files array exists for each task
+      const processedPlan = {
+        ...planData,
+        sections: planData.sections.map(section => ({
+          ...section,
+          tasks: section.tasks.map(task => ({
+            ...task,
+            files: task.files || []
+          }))
+        }))
+      };
+      setPlans(processedPlan);
+    } catch (error) {
+      console.error('Error loading plan:', error);
+      message.error('Failed to load plan');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCustomerSelect = async (value: string) => {
+    if (value === 'all') {
+      setSelectedCustomer(null);
+      setPlans(null); // Clear single plan view
+      loadAllPlans();
+    } else {
+      const customer = customers.find(c => c.id === value);
+      if (customer) {
+        setSelectedCustomer(customer);
+        setAllPlans({}); // Clear all plans when selecting single customer
+        const planRef = doc(db, 'plans', customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (!planDoc.exists()) {
+          // Create new plan if one doesn't exist
+          await createPlanForCustomer(customer);
+        }
+        loadPlan();
+      }
+    }
+    setIsOpen(false);
+  };
 
   // Update filtered sections whenever filters or data change
   useEffect(() => {
@@ -231,7 +423,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     } else {
       Object.entries(allPlans).forEach(([customerId, plan]) => {
         const customer = customers.find(c => c.id === customerId)
-        if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+        if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return
 
         plan.sections.forEach(section => {
           const filteredTasks = section.tasks
@@ -259,14 +451,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             sections[section.title].tasks.push(...filteredTasks.map(task => ({
               ...task,
               customer
-            })));
+            })))
 
             if (!sections[section.title].customers.find(c => c.id === customer.id)) {
               sections[section.title].customers.push(customer)
             }
           }
-        });
-      });
+        })
+      })
     }
 
     setFilteredSections(sections)
@@ -297,6 +489,11 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
 
     console.log('Full task data:', fullTask);
 
+    // Set editingCustomer based on the task's customer
+    if (task.customer) {
+      setEditingCustomer(task.customer);
+    }
+
     setEditingTask({
       ...fullTask,
       files: fullTask.files || []
@@ -304,8 +501,8 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     setEditModalVisible(true);
   }
 
-  const handleEditSave = async (updates: Partial<PlanTask>) => {
-    if (!editingTask || (!selectedCustomer && !editingCustomer)) {
+  const handleCreateTask = async (newTask: Partial<PlanTask>) => {
+    if (!selectedCustomer && !editingCustomer) {
       message.error('Please select a customer');
       return;
     }
@@ -325,48 +522,50 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         throw new Error('Plan not found');
       }
 
-      // Include files in the updates
-      const updatedTask = {
-        ...editingTask,  // Use the full editingTask to ensure we have all properties
-        ...updates,
-        files: editingTask.files || [],  // Ensure files array is included
+      // Create a new task with all required fields
+      const taskId = doc(collection(db, 'temp')).id; // Generate Firebase ID
+      
+      if (!newTask.task || !newTask.section) {
+        throw new Error('Task name and section are required');
+      }
+
+      const createdTask: PlanTask = {
+        id: taskId,
+        task: newTask.task,
+        section: newTask.section,
+        progress: newTask.progress || 'To Do',
+        frequency: newTask.frequency || 'One Time',
+        current: newTask.current || 0,
+        goal: newTask.goal || 0,
+        dueDate: newTask.dueDate || null,
+        completedDate: newTask.completedDate || null,
+        isActive: true,
+        notes: newTask.notes || '',
+        assignedTeamMembers: newTask.assignedTeamMembers || [],
+        subtasks: newTask.subtasks || [],
+        files: newTask.files || [],
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || 'unknown',
         updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || 'unknown',
-        section: 'Other Tasks'  // Ensure section is always "Other Tasks"
+        updatedBy: user?.email || 'unknown'
       };
 
-      console.log('Saving task with updates:', updatedTask);
+      console.log('Creating new task:', createdTask);
 
       const plan = planDoc.data() as Plan;
       
-      // Check if "Other Tasks" section exists, if not create it
-      let updatedSections = plan.sections;
-      if (!plan.sections.find(s => s.title === 'Other Tasks')) {
-        updatedSections = [...plan.sections, { title: 'Other Tasks', tasks: [] }];
-      }
-
-      // Update the sections with the new task
-      updatedSections = updatedSections.map(section => {
-        if (section.title === 'Other Tasks') {
-          // For new tasks, add to the section
-          if (!section.tasks.find(t => t.id === updatedTask.id)) {
-            return {
-              ...section,
-              tasks: [...section.tasks, updatedTask]
-            };
-          }
-          // For existing tasks, update the task
+      // Add the new task to the specified section
+      const updatedSections = plan.sections.map(section => {
+        if (section.title === newTask.section) {
           return {
             ...section,
-            tasks: section.tasks.map(task => 
-              task.id === editingTask.id ? updatedTask : task
-            )
+            tasks: [...section.tasks, createdTask]
           };
         }
         return section;
       });
 
-      // Save to Firestore with all task data including files
+      // Save to Firestore
       await updateDoc(planRef, {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
@@ -377,24 +576,143 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         setPlans(prevPlans => {
           if (!prevPlans) return null;
           
-          // Ensure "Other Tasks" section exists in local state
-          let sections = prevPlans.sections;
-          if (!sections.find(s => s.title === 'Other Tasks')) {
-            sections = [...sections, { title: 'Other Tasks', tasks: [] }];
-          }
-
           return {
             ...prevPlans,
-            sections: sections.map(section => {
-              if (section.title === 'Other Tasks') {
-                // For new tasks, add to the section
-                if (!section.tasks.find(t => t.id === updatedTask.id)) {
+            sections: prevPlans.sections.map(section => {
+              if (section.title === newTask.section) {
+                return {
+                  ...section,
+                  tasks: [...section.tasks, createdTask]
+                };
+              }
+              return section;
+            })
+          };
+        });
+      } else {
+        setAllPlans(prev => {
+          const currentPlan = prev[targetCustomer.id] || { sections: [] };
+          
+          return {
+            ...prev,
+            [targetCustomer.id]: {
+              ...currentPlan,
+              sections: currentPlan.sections.map(section => {
+                if (section.title === newTask.section) {
                   return {
                     ...section,
-                    tasks: [...section.tasks, updatedTask]
+                    tasks: [...section.tasks, createdTask]
                   };
                 }
-                // For existing tasks, update the task
+                return section;
+              })
+            }
+          };
+        });
+      }
+
+      setEditModalVisible(false);
+      setEditingTask(null);
+      setEditingCustomer(null);
+      message.success('Task created successfully');
+    } catch (error) {
+      console.error('Error creating task:', error);
+      message.error('Failed to create task');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditSave = async (updates: Partial<PlanTask>) => {
+    if (!editingTask) {
+      message.error('No task selected');
+      return;
+    }
+
+    // Only validate customer selection for new tasks
+    if (!editingTask.id && !selectedCustomer && !editingCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
+
+    const targetCustomer = selectedCustomer || editingCustomer;
+    if (!editingTask.id && !targetCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      let customerId: string;
+      
+      // For existing tasks in all customers view, get customer ID from the task data
+      if (editingTask.id && !selectedCustomer) {
+        const taskWithCustomer = editingTask as PlanTask & { customer?: ICustomer };
+        if (!taskWithCustomer.customer?.id) {
+          message.error('Cannot find customer for this task');
+          return;
+        }
+        customerId = taskWithCustomer.customer.id;
+      } else {
+        // For new tasks or when in single customer view
+        if (!targetCustomer) {
+          message.error('Please select a customer');
+          return;
+        }
+        customerId = targetCustomer.id;
+      }
+
+      const planRef = doc(db, 'plans', customerId);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        throw new Error('Plan not found');
+      }
+
+      // Create updated task object with all fields
+      const updatedTask = {
+        ...editingTask,
+        ...updates,
+        notes: editingTask.notes || '',
+        assignedTeamMembers: editingTask.assignedTeamMembers || [],
+        subtasks: editingTask.subtasks || [],
+        files: editingTask.files || [],
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || 'unknown'
+      };
+
+      console.log('Updating task:', updatedTask);
+
+      const plan = planDoc.data() as Plan;
+      
+      // Update the task in its section
+      const updatedSections = plan.sections.map(section => {
+        if (section.title === editingTask.section) {
+          return {
+            ...section,
+            tasks: section.tasks.map(task => 
+              task.id === editingTask.id ? updatedTask : task
+            )
+          };
+        }
+        return section;
+      });
+
+      // Save to Firestore
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state based on whether we're in single or all customers view
+      if (selectedCustomer) {
+        setPlans(prevPlans => {
+          if (!prevPlans) return null;
+          
+          return {
+            ...prevPlans,
+            sections: prevPlans.sections.map(section => {
+              if (section.title === editingTask.section) {
                 return {
                   ...section,
                   tasks: section.tasks.map(task =>
@@ -407,27 +725,21 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           };
         });
       } else {
+        // Get the customer ID we determined earlier
+        if (!customerId) {
+          console.error('No customer ID available for local state update');
+          return;
+        }
+        
         setAllPlans(prev => {
-          const currentPlan = prev[targetCustomer.id] || { sections: [] };
+          const currentPlan = prev[customerId] || { sections: [] };
           
-          // Ensure "Other Tasks" section exists
-          let sections = currentPlan.sections;
-          if (!sections.find(s => s.title === 'Other Tasks')) {
-            sections = [...sections, { title: 'Other Tasks', tasks: [] }];
-          }
-
           return {
             ...prev,
-            [targetCustomer.id]: {
+            [customerId]: {
               ...currentPlan,
-              sections: sections.map(section => {
-                if (section.title === 'Other Tasks') {
-                  if (!section.tasks.find(t => t.id === updatedTask.id)) {
-                    return {
-                      ...section,
-                      tasks: [...section.tasks, updatedTask]
-                    };
-                  }
+              sections: currentPlan.sections.map(section => {
+                if (section.title === editingTask.section) {
                   return {
                     ...section,
                     tasks: section.tasks.map(task =>
@@ -445,10 +757,10 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       setEditModalVisible(false);
       setEditingTask(null);
       setEditingCustomer(null);
-      message.success(updates.task ? 'Task updated successfully' : 'Task created successfully');
+      message.success('Task updated successfully');
     } catch (error) {
-      console.error('Error saving task:', error);
-      message.error('Failed to save task');
+      console.error('Error updating task:', error);
+      message.error('Failed to update task');
     } finally {
       setIsLoading(false);
     }
@@ -619,8 +931,34 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         task.progress === progressFilter)
     const matchesActive = !showActiveOnly || task.isActive
     
-    return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+    let matchesDueDate = true;
+    if (dueDateFilter === 'overdue') {
+      matchesDueDate = isOverdue(task);
+    } else if (dueDateFilter === 'upcoming') {
+      matchesDueDate = isUpcoming(task);
+    }
+    
+    return matchesTeamMember && matchesSearch && matchesProgress && matchesActive && matchesDueDate;
   }
+
+  // Add helper functions for date filtering
+  const isOverdue = (task: PlanTask) => {
+    if (!task.dueDate) return false;
+    if (task.progress === 'Done') return false; // Exclude completed tasks
+    return new Date(task.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
+  };
+
+  const isUpcoming = (task: PlanTask) => {
+    if (!task.dueDate) return false;
+    if (task.progress === 'Done') return false; // Exclude completed tasks
+    const today = new Date(new Date().setHours(0, 0, 0, 0));
+    const dueDate = new Date(task.dueDate);
+    const sevenDaysFromNow = new Date(today);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    return dueDate >= today && dueDate <= sevenDaysFromNow;
+  };
+
+  const isCompleted = (task: PlanTask) => task.progress === 'Done';
 
   const FiltersSection = () => {
     const [inputValue, setInputValue] = useState(searchQuery)
@@ -637,23 +975,9 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             open={isOpen}
             onOpenChange={setIsOpen}
             value={selectedCustomer?.id || 'all'} 
-            onValueChange={(value: string) => {
-              console.log('Selected value:', value); // Debug
-              if (value === 'all') {
-                setSelectedCustomer(null);
-                loadAllPlans(); // Make sure to load all plans when "All Customers" is selected
-              } else {
-                const customer = localCustomers.find(c => c.id === value);
-                console.log('Found customer:', customer); // Debug
-                if (customer) {
-                  setSelectedCustomer(customer);
-                  loadPlan(); // This will load the specific customer's plan
-                }
-              }
-              setIsOpen(false);
-            }}
+            onValueChange={handleCustomerSelect}
           >
-            <SelectTrigger className="w-[320px] bg-white">
+            <SelectTrigger className="w-[250px] bg-white">
               <SelectValue placeholder="Select customer">
                 {selectedCustomer ? (
                   <div className="flex items-center gap-2">
@@ -661,7 +985,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       <AvatarImage src={selectedCustomer.logo} alt={selectedCustomer.store_name} />
                       <AvatarFallback>{selectedCustomer.store_name[0]}</AvatarFallback>
                     </Avatar>
-                    <span>{selectedCustomer.store_name} - {selectedCustomer.store_owner_name}</span>
+                    <span className="truncate">{selectedCustomer.store_name} - {selectedCustomer.store_owner_name}</span>
                   </div>
                 ) : 'All Customers'}
               </SelectValue>
@@ -684,18 +1008,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             </SelectContent>
           </Select>
 
-          <Select value={progressFilter} onValueChange={(value: any) => setProgressFilter(value)}>
-            <SelectTrigger className="w-[180px] bg-white">
-              <SelectValue placeholder="Filter by progress" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Progress</SelectItem>
-              <SelectItem value="To Do and Doing">To Do & Doing</SelectItem>
-              <SelectItem value="Done">Done</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative w-[300px]">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search tasks... (Press Enter to search)" 
@@ -726,6 +1039,28 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               </Button>
             )}
           </div>
+
+          <Select value={progressFilter} onValueChange={(value: any) => setProgressFilter(value)}>
+            <SelectTrigger className="w-[180px] bg-white">
+              <SelectValue placeholder="Filter by progress" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Progress</SelectItem>
+              <SelectItem value="To Do and Doing">To Do & Doing</SelectItem>
+              <SelectItem value="Done">Done</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={dueDateFilter} onValueChange={(value: 'all' | 'overdue' | 'upcoming') => setDueDateFilter(value)}>
+            <SelectTrigger className="w-[180px] bg-white">
+              <SelectValue placeholder="Filter by due date" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="upcoming">Due This Week</SelectItem>
+            </SelectContent>
+          </Select>
 
           <div className="flex items-center gap-2">
             <Switch
@@ -781,6 +1116,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     setSearch('');
                     setShowActiveOnly(false);
                     setTeamMemberFilter('all');
+                    setDueDateFilter('all');
                   }}
                   className="ml-2"
                   aria-label="Reset filters"
@@ -893,77 +1229,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     fetchTeamMembers();
   }, []);
 
-  const loadAllPlans = async () => {
-    try {
-      setIsLoading(true);
-      console.log('Loading all plans...');
-      
-      const plansData: { [customerId: string]: { sections: PlanSection[] } } = {};
-      
-      // Load plans in batches of 10
-      const BATCH_SIZE = 10;
-      for (let i = 0; i < customers.length; i += BATCH_SIZE) {
-        const batch = customers.slice(i, i + BATCH_SIZE);
-        const batchPromises = batch.map(customer => 
-          getDoc(doc(db, 'plans', customer.id))
-        );
-        
-        const batchResults = await Promise.all(batchPromises);
-        
-        batchResults.forEach((planDoc, index) => {
-          if (planDoc.exists()) {
-            plansData[batch[index].id] = planDoc.data() as { sections: PlanSection[] };
-          }
-        });
-      }
-      
-      console.log('Loaded all plans:', plansData);
-      setAllPlans(plansData);
-      setPlans(null); // Clear single plan when viewing all
-    } catch (error) {
-      console.error('Error loading all plans:', error);
-      message.error('Failed to load plans');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadPlan = async () => {
-    if (!selectedCustomer) return;
-    try {
-      setIsLoading(true);
-      const planRef = doc(db, 'plans', selectedCustomer.id);
-      const planDoc = await getDoc(planRef);
-      
-      console.log('Loading plan for customer:', selectedCustomer.id);
-      
-      if (planDoc.exists()) {
-        const planData = planDoc.data() as Plan;
-        console.log('Loaded plan data:', planData);
-        // Ensure files array exists for each task
-        const processedPlan = {
-          ...planData,
-          sections: planData.sections.map(section => ({
-            ...section,
-            tasks: section.tasks.map(task => ({
-              ...task,
-              files: task.files || []
-            }))
-          }))
-        };
-        setPlans(processedPlan);
-      } else {
-        setPlans({ sections: [] });
-      }
-    } catch (error) {
-      console.error('Error loading plan:', error);
-      message.error('Failed to load plan');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Update the file upload handler to immediately save file metadata to Firestore
   const handleFileUpload = async (file: File) => {
     try {
       const storage = getStorage();
@@ -1086,8 +1351,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         <h1 className="text-2xl font-bold">Task Management</h1>
         <Button 
           onClick={() => {
-            setEditingTask({
-              id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            const today = new Date();
+            const date = today.getDate().toString().padStart(2, '0');
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3 digits
+            const newTaskId = `task-${date}${month}${random}`;
+            
+            setNewTask({
+              id: newTaskId,
               task: '',
               section: 'Other Tasks',
               progress: 'To Do',
@@ -1106,7 +1377,8 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               updatedAt: new Date().toISOString(),
               updatedBy: user?.email || 'unknown'
             });
-            setEditingCustomer(selectedCustomer);
+            setEditingTask(null);
+            setEditingCustomer(null);
             setEditModalVisible(true);
           }}
           className="flex items-center gap-2"
@@ -1286,61 +1558,41 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
 
       {editModalVisible && (
         <Dialog open={editModalVisible} onOpenChange={(open) => !open && setEditModalVisible(false)}>
-          <DialogContent className="sm:max-w-[900px]">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-xl font-semibold">
-                {editingTask?.task ? `Edit Task: ${editingTask.task}` : 'Create New Task'}
+              <DialogTitle>
+                {editingTask ? `Edit Task: ${editingTask.task}` : 'Create New Task'}
+                {editingCustomer && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={editingCustomer.logo} alt={editingCustomer.store_name} />
+                      <AvatarFallback>{editingCustomer.store_name[0]}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {editingCustomer.store_name}
+                    </span>
+                  </div>
+                )}
               </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
-                {editingTask?.task ? 'Make changes to the task here.' : 'Create a new task here.'} Click save when you're done.
-              </DialogDescription>
             </DialogHeader>
-            {editingTask && (
+            {(editingTask || newTask) && (
               <div className="grid grid-cols-2 gap-12">
                 {/* Left Column - Main Task Details */}
                 <div className="space-y-4 border-r pr-6">
-                  {!selectedCustomer && (
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="customer" className="text-sm text-right">
-                        Customer
-                      </Label>
-                      <Select
-                        value={editingCustomer?.id || ''}
-                        onValueChange={(value) => {
-                          const customer = customers.find(c => c.id === value);
-                          setEditingCustomer(customer || null);
-                        }}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customers
-                            .filter(c => c.customer_type === 'Paid' && c.isActive)
-                            .map((customer) => (
-                              <SelectItem key={customer.id} value={customer.id}>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarImage src={customer.logo} alt={customer.store_name} />
-                                    <AvatarFallback>{customer.store_name[0]}</AvatarFallback>
-                                  </Avatar>
-                                  <span>{customer.store_name} - {customer.store_owner_name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="task" className="text-sm text-right">
                       Task Name
                     </Label>
                     <Input
                       id="task"
-                      value={editingTask.task}
-                      onChange={(e) => setEditingTask(prev => prev ? { ...prev, task: e.target.value } : null)}
+                      value={editingTask?.task || newTask?.task || ''}
+                      onChange={(e) => {
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, task: e.target.value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, task: e.target.value } : null);
+                        }
+                      }}
                       className="col-span-3"
                     />
                   </div>
@@ -1350,9 +1602,13 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       Progress
                     </Label>
                     <Select
-                      value={editingTask.progress}
+                      value={editingTask?.progress || newTask?.progress || 'To Do'}
                       onValueChange={(value: "To Do" | "Doing" | "Done") => {
-                        setEditingTask(prev => prev ? { ...prev, progress: value } : null)
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, progress: value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, progress: value } : null);
+                        }
                       }}
                     >
                       <SelectTrigger className="col-span-3 text-sm">
@@ -1367,13 +1623,91 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   </div>
 
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dueDate" className="text-sm text-right">
+                      Due Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask?.dueDate ? format(new Date(editingTask.dueDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask?.dueDate ? new Date(editingTask.dueDate) : undefined}
+                            onSelect={(date) => {
+                              if (editingTask) {
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  dueDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              } else {
+                                setNewTask(prev => prev ? {
+                                  ...prev,
+                                  dueDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="completedDate" className="text-sm text-right">
+                      Completed Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask?.completedDate ? format(new Date(editingTask.completedDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask?.completedDate ? new Date(editingTask.completedDate) : undefined}
+                            onSelect={(date) => {
+                              if (editingTask) {
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  completedDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              } else {
+                                setNewTask(prev => prev ? {
+                                  ...prev,
+                                  completedDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="frequency" className="text-sm text-right">
                       Frequency
                     </Label>
                     <Select
-                      value={editingTask.frequency}
+                      value={editingTask?.frequency || newTask?.frequency || 'One Time'}
                       onValueChange={(value: "One Time" | "Monthly" | "As Needed") => {
-                        setEditingTask(prev => prev ? { ...prev, frequency: value } : null)
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, frequency: value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, frequency: value } : null);
+                        }
                       }}
                     >
                       <SelectTrigger className="col-span-3 text-sm">
@@ -1387,7 +1721,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     </Select>
                   </div>
 
-                  {editingTask.frequency !== 'One Time' && (
+                  {editingTask?.frequency !== 'One Time' && (
                     <>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="current" className="text-sm text-right">
@@ -1397,12 +1731,19 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           id="current"
                           type="number"
                           min={0}
-                          value={editingTask.current || 0}
+                          value={editingTask?.current || newTask?.current || 0}
                           onChange={(e) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              current: parseInt(e.target.value) || 0
-                            } : null)
+                            if (editingTask) {
+                              setEditingTask(prev => prev ? {
+                                ...prev,
+                                current: parseInt(e.target.value) || 0
+                              } : null);
+                            } else {
+                              setNewTask(prev => prev ? {
+                                ...prev,
+                                current: parseInt(e.target.value) || 0
+                              } : null);
+                            }
                           }}
                           className="col-span-3"
                         />
@@ -1415,12 +1756,19 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           id="goal"
                           type="number"
                           min={0}
-                          value={editingTask.goal || 0}
+                          value={editingTask?.goal || newTask?.goal || 0}
                           onChange={(e) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              goal: parseInt(e.target.value) || 0
-                            } : null)
+                            if (editingTask) {
+                              setEditingTask(prev => prev ? {
+                                ...prev,
+                                goal: parseInt(e.target.value) || 0
+                              } : null);
+                            } else {
+                              setNewTask(prev => prev ? {
+                                ...prev,
+                                goal: parseInt(e.target.value) || 0
+                              } : null);
+                            }
                           }}
                           className="col-span-3"
                         />
@@ -1435,9 +1783,13 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     <div className="col-span-3">
                       <Switch
                         id="isActive"
-                        checked={editingTask.isActive}
+                        checked={editingTask?.isActive || newTask?.isActive || true}
                         onCheckedChange={(checked) => {
-                          setEditingTask(prev => prev ? { ...prev, isActive: checked } : null)
+                          if (editingTask) {
+                            setEditingTask(prev => prev ? { ...prev, isActive: checked } : null);
+                          } else {
+                            setNewTask(prev => prev ? { ...prev, isActive: checked } : null);
+                          }
                         }}
                       />
                     </div>
@@ -1449,9 +1801,13 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     </Label>
                     <Textarea
                       id="notes"
-                      value={editingTask.notes || ''}
+                      value={editingTask?.notes || newTask?.notes || ''}
                       onChange={(e) => {
-                        setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null)
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, notes: e.target.value } : null);
+                        }
                       }}
                       className="col-span-3"
                       rows={4}
@@ -1470,15 +1826,25 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                             <div key={admin.email} className="flex items-center gap-2 bg-secondary/10 rounded-md p-1.5">
                               <Checkbox
                                 id={admin.email}
-                                checked={editingTask.assignedTeamMembers?.includes(admin.email)}
+                                checked={editingTask?.assignedTeamMembers?.includes(admin.email) || newTask?.assignedTeamMembers?.includes(admin.email) || false}
                                 onCheckedChange={(checked) => {
-                                  setEditingTask(prev => {
-                                    if (!prev) return null;
-                                    const newMembers = checked 
-                                      ? [...(prev.assignedTeamMembers || []), admin.email]
-                                      : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
-                                    return { ...prev, assignedTeamMembers: newMembers };
-                                  });
+                                  if (editingTask) {
+                                    setEditingTask(prev => {
+                                      if (!prev) return null;
+                                      const newMembers = checked 
+                                        ? [...(prev.assignedTeamMembers || []), admin.email]
+                                        : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
+                                      return { ...prev, assignedTeamMembers: newMembers };
+                                    });
+                                  } else {
+                                    setNewTask(prev => {
+                                      if (!prev) return null;
+                                      const newMembers = checked 
+                                        ? [...(prev.assignedTeamMembers || []), admin.email]
+                                        : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
+                                      return { ...prev, assignedTeamMembers: newMembers };
+                                    });
+                                  }
                                 }}
                               />
                               <Label htmlFor={admin.email} className="flex items-center gap-1.5 text-sm">
@@ -1501,28 +1867,47 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   <div>
                     <Label className="text-sm font-semibold">Subtasks</Label>
                     <div className="mt-2 space-y-2">
-                      {editingTask.subtasks?.map((subtask) => (
+                      {editingTask?.subtasks?.map((subtask) => (
                         <div key={subtask.id} className="flex items-center justify-between bg-secondary/20 p-2 rounded">
                           <div className="flex items-center space-x-2">
                             <Checkbox
                               checked={subtask.isCompleted}
                               onCheckedChange={(checked) => {
-                                setEditingTask(prev => {
-                                  if (!prev) return null;
-                                  return {
-                                    ...prev,
-                                    subtasks: prev.subtasks?.map(st =>
-                                      st.id === subtask.id
-                                        ? { 
-                                            ...st, 
-                                            isCompleted: !!checked,
-                                            completedDate: checked ? new Date().toISOString() : null,
-                                            completedBy: checked ? user?.email || 'unknown' : null
-                                          }
-                                        : st
-                                    )
-                                  };
-                                });
+                                if (editingTask) {
+                                  setEditingTask(prev => {
+                                    if (!prev) return null;
+                                    return {
+                                      ...prev,
+                                      subtasks: prev.subtasks?.map(st =>
+                                        st.id === subtask.id
+                                          ? { 
+                                              ...st, 
+                                              isCompleted: !!checked,
+                                              completedDate: checked ? new Date().toISOString() : null,
+                                              completedBy: checked ? user?.email || 'unknown' : null
+                                            }
+                                          : st
+                                      )
+                                    };
+                                  });
+                                } else {
+                                  setNewTask(prev => {
+                                    if (!prev) return null;
+                                    return {
+                                      ...prev,
+                                      subtasks: prev.subtasks?.map(st =>
+                                        st.id === subtask.id
+                                          ? { 
+                                              ...st, 
+                                              isCompleted: !!checked,
+                                              completedDate: checked ? new Date().toISOString() : null,
+                                              completedBy: checked ? user?.email || 'unknown' : null
+                                            }
+                                          : st
+                                      )
+                                    };
+                                  });
+                                }
                               }}
                             />
                             <div className="flex flex-col">
@@ -1541,13 +1926,23 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setEditingTask(prev => {
-                                if (!prev) return null;
-                                return {
-                                  ...prev,
-                                  subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
-                                };
-                              });
+                              if (editingTask) {
+                                setEditingTask(prev => {
+                                  if (!prev) return null;
+                                  return {
+                                    ...prev,
+                                    subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
+                                  };
+                                });
+                              } else {
+                                setNewTask(prev => {
+                                  if (!prev) return null;
+                                  return {
+                                    ...prev,
+                                    subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
+                                  };
+                                });
+                              }
                             }}
                           >
                             <X className="h-4 w-4" />
@@ -1562,6 +1957,50 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                           className="text-sm"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && newSubTask.trim()) {
+                              if (editingTask) {
+                                setEditingTask(prev => {
+                                  if (!prev) return null;
+                                  const newSubtask = {
+                                    id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    text: newSubTask.trim(),
+                                    isCompleted: false,
+                                    completedDate: null,
+                                    completedBy: null,
+                                    createdAt: new Date().toISOString(),
+                                    createdBy: user?.email || 'unknown'
+                                  };
+                                  return {
+                                    ...prev,
+                                    subtasks: [...(prev.subtasks || []), newSubtask]
+                                  };
+                                });
+                              } else {
+                                setNewTask(prev => {
+                                  if (!prev) return null;
+                                  const newSubtask = {
+                                    id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    text: newSubTask.trim(),
+                                    isCompleted: false,
+                                    completedDate: null,
+                                    completedBy: null,
+                                    createdAt: new Date().toISOString(),
+                                    createdBy: user?.email || 'unknown'
+                                  };
+                                  return {
+                                    ...prev,
+                                    subtasks: [...(prev.subtasks || []), newSubtask]
+                                  };
+                                });
+                              }
+                              setNewSubTask('');
+                            }
+                          }}
+                        />
+                        <Button
+                          className="text-sm"
+                          onClick={() => {
+                            if (!newSubTask.trim()) return;
+                            if (editingTask) {
                               setEditingTask(prev => {
                                 if (!prev) return null;
                                 const newSubtask = {
@@ -1578,30 +2017,24 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                                   subtasks: [...(prev.subtasks || []), newSubtask]
                                 };
                               });
-                              setNewSubTask('');
+                            } else {
+                              setNewTask(prev => {
+                                if (!prev) return null;
+                                const newSubtask = {
+                                  id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                  text: newSubTask.trim(),
+                                  isCompleted: false,
+                                  completedDate: null,
+                                  completedBy: null,
+                                  createdAt: new Date().toISOString(),
+                                  createdBy: user?.email || 'unknown'
+                                };
+                                return {
+                                  ...prev,
+                                  subtasks: [...(prev.subtasks || []), newSubtask]
+                                };
+                              });
                             }
-                          }}
-                        />
-                        <Button
-                          className="text-sm"
-                          onClick={() => {
-                            if (!newSubTask.trim()) return;
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              const newSubtask = {
-                                id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                                text: newSubTask.trim(),
-                                isCompleted: false,
-                                completedDate: null,
-                                completedBy: null,
-                                createdAt: new Date().toISOString(),
-                                createdBy: user?.email || 'unknown'
-                              };
-                              return {
-                                ...prev,
-                                subtasks: [...(prev.subtasks || []), newSubtask]
-                              };
-                            });
                             setNewSubTask('');
                           }}
                         >
@@ -1628,7 +2061,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         }}
                       />
                       <div className="mt-4">
-                        {editingTask.files && editingTask.files.length > 0 ? (
+                        {editingTask?.files && editingTask.files.length > 0 ? (
                           <div className="space-y-2">
                             {editingTask.files.map((file, index) => (
                               <div key={index} className="flex items-center justify-between bg-secondary/20 p-3 rounded">
@@ -1656,14 +2089,25 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    setEditingTask(prev => {
-                                      if (!prev) return null;
-                                      const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
-                                      return {
-                                        ...prev,
-                                        files: updatedFiles
-                                      };
-                                    });
+                                    if (editingTask) {
+                                      setEditingTask(prev => {
+                                        if (!prev) return null;
+                                        const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
+                                        return {
+                                          ...prev,
+                                          files: updatedFiles
+                                        };
+                                      });
+                                    } else {
+                                      setNewTask(prev => {
+                                        if (!prev) return null;
+                                        const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
+                                        return {
+                                          ...prev,
+                                          files: updatedFiles
+                                        };
+                                      });
+                                    }
                                   }}
                                   className="flex-shrink-0 ml-2"
                                 >
@@ -1684,27 +2128,22 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" className="text-sm" onClick={() => setEditModalVisible(false)}>
+              <Button variant="outline" className="text-sm" onClick={() => {
+                setEditModalVisible(false);
+                setNewTask(null);
+                setEditingTask(null);
+                setEditingCustomer(null);
+              }}>
                 Cancel
               </Button>
               <Button className="text-sm" onClick={() => {
-                if (!editingTask) return;
-                handleEditSave({
-                  task: editingTask.task,
-                  progress: editingTask.progress,
-                  frequency: editingTask.frequency,
-                  current: editingTask.current,
-                  goal: editingTask.goal,
-                  dueDate: editingTask.dueDate,
-                  completedDate: editingTask.completedDate,
-                  isActive: editingTask.isActive,
-                  notes: editingTask.notes || '',
-                  assignedTeamMembers: editingTask.assignedTeamMembers || [],
-                  subtasks: editingTask.subtasks || [],
-                  files: editingTask.files || []
-                });
+                if (editingTask) {
+                  handleEditSave(editingTask);
+                } else if (newTask) {
+                  handleCreateTask(newTask);
+                }
               }}>
-                Save Changes
+                {editingTask ? 'Save Changes' : 'Create Task'}
               </Button>
             </DialogFooter>
           </DialogContent>
