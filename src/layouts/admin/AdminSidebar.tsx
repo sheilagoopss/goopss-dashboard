@@ -74,22 +74,6 @@ const AdminSidebar = () => {
             label: "Plan",
             children: [
               {
-                key: ROUTES.ADMIN.PLAN,
-                icon: <PieChartOutlined />,
-                label: "Default View",
-                onClick: () => {
-                  router.push(ROUTES.ADMIN.PLAN);
-                },
-              },
-              {
-                key: ROUTES.ADMIN.PLAN_SIMPLE_VIEW,
-                icon: <TableOutlined />,
-                label: "Simple View",
-                onClick: () => {
-                  router.push(ROUTES.ADMIN.PLAN_SIMPLE_VIEW);
-                },
-              },
-              {
                 key: ROUTES.ADMIN.PLAN_NEW,
                 icon: <AppstoreOutlined />,
                 label: "New Plan",

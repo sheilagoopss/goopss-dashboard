@@ -197,12 +197,10 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
 };
 
 function NewPlanView() {
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [progressFilter, setProgressFilter] = useState<
     "All" | "To Do and Doing" | "Done"
   >("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [teamMemberFilter, setTeamMemberFilter] = useState("all");
   const [teamMembers, setTeamMembers] = useState<IAdmin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [plans, setPlans] = useState<{ sections: PlanSection[] } | null>(null);
@@ -230,11 +228,6 @@ function NewPlanView() {
     if (customerData && plans) {
       plans.sections.forEach((section) => {
         const filteredTasks = section.tasks.filter((task) => {
-          const matchesTeamMember =
-            teamMemberFilter === "all"
-              ? true
-              : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
-
           const matchesSearch = task.task
             .toLowerCase()
             .includes(searchQuery.toLowerCase());
@@ -243,10 +236,9 @@ function NewPlanView() {
             (progressFilter === "To Do and Doing"
               ? task.progress === "To Do" || task.progress === "Doing"
               : task.progress === progressFilter);
-          const matchesActive = !showActiveOnly || task.isActive;
+          const matchesActive = task.isActive;
 
           return (
-            matchesTeamMember &&
             matchesSearch &&
             matchesProgress &&
             matchesActive
@@ -274,11 +266,6 @@ function NewPlanView() {
 
         plan.sections.forEach((section) => {
           const filteredTasks = section.tasks.filter((task) => {
-            const matchesTeamMember =
-              teamMemberFilter === "all"
-                ? true
-                : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
-
             const matchesSearch = task.task
               .toLowerCase()
               .includes(searchQuery.toLowerCase());
@@ -287,10 +274,9 @@ function NewPlanView() {
               (progressFilter === "To Do and Doing"
                 ? task.progress === "To Do" || task.progress === "Doing"
                 : task.progress === progressFilter);
-            const matchesActive = !showActiveOnly || task.isActive;
+            const matchesActive = task.isActive;
 
             return (
-              matchesTeamMember &&
               matchesSearch &&
               matchesProgress &&
               matchesActive
@@ -324,10 +310,8 @@ function NewPlanView() {
     customerData,
     plans,
     allPlans,
-    teamMemberFilter,
     searchQuery,
     progressFilter,
-    showActiveOnly,
   ]);
 
   // Reset pagination when filters change
@@ -336,8 +320,6 @@ function NewPlanView() {
   }, [
     searchQuery,
     progressFilter,
-    teamMemberFilter,
-    showActiveOnly,
     customerData,
   ]);
 
@@ -468,11 +450,6 @@ function NewPlanView() {
 
   // Filters section with new UI
   const filterTasks = (task: PlanTask) => {
-    const matchesTeamMember =
-      teamMemberFilter === "all"
-        ? true
-        : Boolean(task.assignedTeamMembers?.includes(teamMemberFilter));
-
     const matchesSearch =
       searchQuery === "" ||
       task.task.toLowerCase().includes(searchQuery.toLowerCase());
@@ -481,10 +458,10 @@ function NewPlanView() {
       (progressFilter === "To Do and Doing"
         ? task.progress === "To Do" || task.progress === "Doing"
         : task.progress === progressFilter);
-    const matchesActive = !showActiveOnly || task.isActive;
+    const matchesActive = task.isActive;
 
     return (
-      matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+      matchesSearch && matchesProgress && matchesActive
     );
   };
 
@@ -526,51 +503,6 @@ function NewPlanView() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={showActiveOnly}
-              onCheckedChange={setShowActiveOnly}
-              id="active-only"
-            />
-            <Label htmlFor="active-only">Active Only</Label>
-          </div>
-
-          {teamMembers.length > 0 && (
-            <div className="flex items-center gap-2">
-              <UserAvatars
-                users={teamMembers.map((member) => ({
-                  id: member.email,
-                  email: member.email,
-                  name: member.name,
-                  avatarUrl: member.avatarUrl || "",
-                  role: "Admin",
-                  isAdmin: true,
-                }))}
-                selectedUsers={
-                  teamMemberFilter !== "all" ? [teamMemberFilter] : []
-                }
-                onUserClick={(userId: string) => {
-                  if (teamMemberFilter === userId) {
-                    setTeamMemberFilter("all");
-                  } else {
-                    setTeamMemberFilter(userId);
-                  }
-                }}
-              />
-              {teamMemberFilter !== "all" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTeamMemberFilter("all")}
-                  className="ml-2"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-              )}
-            </div>
-          )}
-
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -579,8 +511,6 @@ function NewPlanView() {
                   size="icon"
                   onClick={() => {
                     setProgressFilter("All");
-                    setShowActiveOnly(false);
-                    setTeamMemberFilter("all");
                   }}
                   className="ml-2"
                   aria-label="Reset filters"
@@ -717,9 +647,8 @@ function NewPlanView() {
           </TabsList>
           <TabsContent
             value="list"
-            key={`list-${teamMemberFilter}-${searchQuery}-${progressFilter}-${showActiveOnly}-${
-              customerData?.id || "all"
-            }`}
+            key={`list-${searchQuery}-${progressFilter}-${customerData?.id || "all"
+              }`}
           >
             <div className="space-y-12 mt-8">
               {(() => {
@@ -849,9 +778,8 @@ function NewPlanView() {
           </TabsContent>
           <TabsContent
             value="calendar"
-            key={`calendar-${teamMemberFilter}-${searchQuery}-${progressFilter}-${showActiveOnly}-${
-              customerData?.id || "all"
-            }`}
+            key={`calendar-${searchQuery}-${progressFilter}-${customerData?.id || "all"
+              }`}
             className="mt-6"
           >
             <TaskCalendar

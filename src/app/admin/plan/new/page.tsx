@@ -8,7 +8,7 @@ import { doc, getDoc, updateDoc, collection, getDocs, query, where, setDoc } fro
 import { db } from '@/firebase/config'
 import { 
   Search, AlertCircle, RefreshCw, Calendar, Clock, 
-  CheckCircle2, Pencil, Target, Paperclip, X 
+  CheckCircle2, Pencil, Target, Paperclip, X, Plus // Add Plus here
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -49,6 +49,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import dayjs from 'dayjs'
 import { PlanTaskRule } from '@/types/PlanTasks'
 import { Form } from 'antd'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface TaskFile {
   name: string;
