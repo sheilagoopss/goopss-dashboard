@@ -1,8 +1,9 @@
 "use client";
 
 import AdminSidebar from "@/layouts/admin/AdminSidebar";
-import { Layout } from "antd";
+import { Layout, Spin } from "antd";
 import ProtectedLayout from "@/layouts/ProtectedLayout";
+import { Suspense } from "react";
 
 const { Content } = Layout;
 
@@ -15,7 +16,15 @@ export default function AdminLayout({
     <ProtectedLayout>
       <Layout className="bg-white">
         <AdminSidebar />
-        <Content style={{ padding: "2ch" }}>{children}</Content>
+        <Suspense
+          fallback={
+            <div className="flex justify-center items-center h-screen w-full">
+              <Spin />
+            </div>
+          }
+        >
+          <Content style={{ padding: "2ch" }}>{children}</Content>
+        </Suspense>
       </Layout>
     </ProtectedLayout>
   );
