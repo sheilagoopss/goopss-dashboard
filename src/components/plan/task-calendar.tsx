@@ -8,12 +8,12 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { PlanTask, PlanSection } from "@/types/Plan"
-import { IAdmin } from "@/types/Customer"
-import { TaskDialog } from "./task-dialog"
+import { ICustomer, IAdmin } from "@/types/Customer"
 import {
   add,
   eachDayOfInterval,
   endOfMonth,
+  endOfWeek,
   format,
   getDay,
   isEqual,
@@ -23,26 +23,44 @@ import {
   parse,
   startOfMonth,
   startOfToday,
+  startOfWeek,
 } from "date-fns"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface TaskCalendarProps {
-  taskGroups: { title: string; tasks: PlanTask[] }[]
+  taskGroups: { 
+    title: string; 
+    tasks: (PlanTask & { customer?: ICustomer })[] 
+  }[]
   users: IAdmin[]
   onUpdateTask: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>
-  onEdit: (task: PlanTask) => void
+  onEdit: (task: PlanTask & { customer?: ICustomer }) => void
 }
 
 export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCalendarProps) {
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
-  const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
+  const [view, setView] = useState<'month' | 'week'>('month')
   
   const firstDayCurrentMonth = parse(currentMonth, 'MMM-yyyy', new Date())
   
   const days = eachDayOfInterval({
     start: startOfMonth(firstDayCurrentMonth),
     end: endOfMonth(firstDayCurrentMonth),
+  })
+
+  const currentWeekStart = startOfWeek(selectedDay)
+  const currentWeekEnd = endOfWeek(selectedDay)
+  
+  const weekDays = eachDayOfInterval({
+    start: currentWeekStart,
+    end: currentWeekEnd,
   })
 
   function previousMonth() {
@@ -55,9 +73,19 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     setCurrentMonth(format(firstDayNextMonth, 'MMM-yyyy'))
   }
 
-  const allTasks = taskGroups.flatMap(group => group.tasks)
+  function previousWeek() {
+    const firstDayNextWeek = add(currentWeekStart, { weeks: -1 })
+    setSelectedDay(firstDayNextWeek)
+  }
 
-  const tasksForDate = (date: Date) => {
+  function nextWeek() {
+    const firstDayNextWeek = add(currentWeekStart, { weeks: 1 })
+    setSelectedDay(firstDayNextWeek)
+  }
+
+  const allTasks: (PlanTask & { customer?: ICustomer })[] = taskGroups.flatMap(group => group.tasks)
+
+  const tasksForDate = (date: Date): (PlanTask & { customer?: ICustomer })[] => {
     return allTasks.filter(task => {
       if (!task.dueDate) return false
       const taskDate = new Date(task.dueDate)
@@ -65,7 +93,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     })
   }
 
-  const handleTaskClick = (e: React.MouseEvent, task: PlanTask) => {
+  const handleTaskClick = (e: React.MouseEvent, task: PlanTask & { customer?: ICustomer }) => {
     e.stopPropagation() // Prevent day selection when clicking on a task
     onEdit(task)
   }
@@ -81,17 +109,42 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
     'col-start-7',
   ]
 
+  const getTeamMemberNames = (memberEmails: string[]) => {
+    return memberEmails
+      .map(email => users.find(user => user.email === email)?.name || email)
+      .join(', ');
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-3xl font-bold tracking-tight">
-          {format(firstDayCurrentMonth, 'MMMM yyyy')}
+          {view === 'month' 
+            ? format(firstDayCurrentMonth, 'MMMM yyyy')
+            : `Week of ${format(currentWeekStart, 'MMM d, yyyy')}`
+          }
         </h2>
         <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border p-1 mr-4">
+            <Button
+              variant={view === 'month' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('month')}
+            >
+              Month
+            </Button>
+            <Button
+              variant={view === 'week' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setView('week')}
+            >
+              Week
+            </Button>
+          </div>
           <Button
             variant="outline"
             size="icon"
-            onClick={previousMonth}
+            onClick={view === 'month' ? previousMonth : previousWeek}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -128,7 +181,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
           <Button
             variant="outline"
             size="icon"
-            onClick={nextMonth}
+            onClick={view === 'month' ? nextMonth : nextWeek}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -144,15 +197,16 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
         <div className="text-muted-foreground font-medium">Sat</div>
       </div>
       <div className="grid grid-cols-7 mt-2 text-sm gap-px bg-muted rounded-lg overflow-hidden">
-        {days.map((day, dayIdx) => {
+        {(view === 'month' ? days : weekDays).map((day, dayIdx) => {
           const dayTasks = tasksForDate(day)
           return (
             <div
               key={day.toString()}
               className={cn(
                 'relative bg-background min-h-[120px] p-2',
-                dayIdx === 0 && colStartClasses[getDay(day)],
-                !isSameMonth(day, firstDayCurrentMonth) && 'text-muted-foreground',
+                view === 'month' && dayIdx === 0 && colStartClasses[getDay(day)],
+                view === 'month' && !isSameMonth(day, firstDayCurrentMonth) && 'text-muted-foreground',
+                view === 'week' && 'min-h-[200px]',
                 'hover:bg-muted/50 cursor-pointer'
               )}
               onClick={() => setSelectedDay(day)}
@@ -171,18 +225,34 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
                 <ScrollArea className="h-[80px] mt-2">
                   <div className="space-y-1 pr-3">
                     {dayTasks.map((task) => (
-                      <button
-                        key={task.id}
-                        onClick={(e) => handleTaskClick(e, task)}
-                        className={cn(
-                          'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
-                          task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-                          task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-                          task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
-                        )}
-                      >
-                        {task.task}
-                      </button>
+                      <TooltipProvider key={task.id} delayDuration={100}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={(e) => handleTaskClick(e, task)}
+                              className={cn(
+                                'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
+                                task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
+                                task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
+                              )}
+                            >
+                              {task.task}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[300px]">
+                            <div className="space-y-1">
+                              <p className="font-medium">{task.customer?.store_name}</p>
+                              <p className="text-sm">{task.task}</p>
+                              {task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Team: {getTeamMemberNames(task.assignedTeamMembers)}
+                                </p>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                   </div>
                 </ScrollArea>
@@ -191,23 +261,6 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
           )
         })}
       </div>
-
-      <TaskDialog
-        task={editingTask}
-        setTask={setEditingTask}
-        users={users}
-        handleSaveTask={() => {
-          if (editingTask) {
-            onUpdateTask(editingTask, {})
-            setEditingTask(null)
-          }
-        }}
-        isOpen={!!editingTask}
-        onOpenChange={(open) => {
-          if (!open) setEditingTask(null)
-        }}
-        isCreating={false}
-      />
     </div>
   )
 }

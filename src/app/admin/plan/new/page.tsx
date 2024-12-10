@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { PlanSection, PlanTask, Plan } from '@/types/Plan'
 import { ICustomer, IAdmin } from '@/types/Customer'
 import { message } from 'antd'
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, setDoc } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { 
   Search, AlertCircle, RefreshCw, Calendar, Clock, 
-  CheckCircle2, Pencil, Target, Paperclip, X 
+  CheckCircle2, Pencil, Target, Paperclip, X, Plus // Add Plus here
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -45,6 +45,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import dayjs from 'dayjs'
+import { PlanTaskRule } from '@/types/PlanTasks'
+import { Form } from 'antd'
+import { useAuth } from '@/contexts/AuthContext'
+
+interface TaskFile {
+  name: string;
+  url: string;
+  size: number;
+  uploadedAt: string;
+}
 
 interface Props {
   customers: ICustomer[];
@@ -55,7 +67,7 @@ interface Props {
 interface TaskCardProps {
   task: PlanTask & { customer?: ICustomer };
   teamMembers: IAdmin[];
-  onEdit: (task: PlanTask) => void;
+  onEdit: (task: PlanTask & { customer?: ICustomer }) => void;
 }
 
 const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
@@ -100,26 +112,14 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
 
   const progress = calculateProgress()
 
+  console.log('Task in card:', task);
+  console.log('Task files:', task.files);
+
   return (
     <Card 
       className={`relative overflow-hidden cursor-pointer transition-all duration-300 ${getCardColor(task.progress)} rounded-xl`}
       onClick={() => onEdit(task)}
     >
-      <div className="absolute top-2 right-2 flex items-center space-x-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="bg-white/20 hover:bg-white/30 text-white h-8 w-8"
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        {assignedMembers.map(member => (
-          <Avatar key={member.email} className="h-8 w-8 border-2 border-white/20">
-            <AvatarImage src={member.avatarUrl} alt={member.name} />
-            <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-          </Avatar>
-        ))}
-      </div>
       <div className="p-3 text-white" style={{ minHeight: '180px' }}>
         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
           {getStatusIcon(task.progress)}
@@ -161,6 +161,18 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
   )
 }
 
+const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
+  if (rule.frequency === 'Monthly' && rule.monthlyDueDate) {
+    return dayjs().date(rule.monthlyDueDate).format('YYYY-MM-DD');
+  } else if (rule.frequency === 'As Needed' || rule.daysAfterJoin === 0) {
+    return null;
+  } else {
+    return dayjs(customer.date_joined)
+      .add(rule.daysAfterJoin || 0, 'day')
+      .format('YYYY-MM-DD');
+  }
+};
+
 function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: Props) {
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [progressFilter, setProgressFilter] = useState<'All' | 'To Do and Doing' | 'Done'>('All')
@@ -172,11 +184,201 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [isOpen, setIsOpen] = useState(false)
   const [plans, setPlans] = useState<{ sections: PlanSection[] } | null>(null)
   const [allPlans, setAllPlans] = useState<{ [customerId: string]: { sections: PlanSection[] } }>({})
+  const [filteredSections, setFilteredSections] = useState<{ 
+    [key: string]: { 
+      tasks: (PlanTask & { customer?: ICustomer })[]; 
+      customers: ICustomer[] 
+    } 
+  }>({});
+  const { user } = useAuth()
   const [currentPage, setCurrentPage] = useState<{ [section: string]: number }>({})
   const ITEMS_PER_PAGE = 12
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [editingTask, setEditingTask] = useState<PlanTask | null>(null)
+  const [newTask, setNewTask] = useState<PlanTask | null>(null)
+  const [editingCustomer, setEditingCustomer] = useState<ICustomer | null>(null)
   const [newSubTask, setNewSubTask] = useState('')
+  const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([])
+  const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
+  const [selectedRows, setSelectedRows] = useState<(PlanTask & { customer?: ICustomer })[]>([]);
+  const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
+  const [bulkEditForm] = Form.useForm();
+
+  const createPlanForCustomer = async (customer: ICustomer) => {
+    try {
+      console.log('Creating plan for customer:', customer);
+      console.log('Customer package type:', customer.package_type);
+
+      const packageTypes: { [key: string]: string } = {
+        'Accelerator - Basic': 'acceleratorBasic',
+        'Accelerator - Standard': 'acceleratorStandard',
+        'Accelerator - Pro': 'acceleratorPro',
+        'Extended Maintenance': 'extendedMaintenance',
+        'Regular Maintenance': 'regularMaintenance',
+        'Social': 'social',
+        'Default': 'default',
+        'Free': 'default'
+      };
+
+      const packageId = packageTypes[customer.package_type] || 'default';
+      console.log('Looking for rules in document:', packageId);
+
+      // Get the package-specific rules
+      const rulesRef = doc(db, 'planTaskRules', packageId);
+      const rulesDoc = await getDoc(rulesRef);
+      
+      if (!rulesDoc.exists()) {
+        message.error('No rules found for this package');
+        return;
+      }
+
+      const rules = rulesDoc.data();
+
+      // Create the plan with these rules
+      const planRef = doc(db, 'plans', customer.id);
+      await setDoc(planRef, {
+        sections: rules.sections.map((sectionTitle: string) => ({
+          title: sectionTitle,
+          tasks: rules.tasks
+            .filter((task: PlanTaskRule) => task.section === sectionTitle)
+            .map((task: PlanTaskRule) => ({
+              ...task,
+              progress: 'To Do',
+              completedDate: null,
+              current: task.defaultCurrent || 0,
+              goal: task.defaultGoal || 0,
+              dueDate: calculateDueDate(customer, task),
+              updatedAt: new Date().toISOString(),
+              updatedBy: user?.email || ''
+            }))
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || ''
+      });
+
+      message.success('Plan created successfully');
+      
+      // Reload the plans after creating
+      if (selectedCustomer) {
+        loadPlan();
+      } else {
+        loadAllPlans();
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      message.error('Failed to create plan');
+    }
+  };
+
+  const loadAllPlans = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Starting to load all plans...');
+
+      // Get only active paid customers first
+      const customersRef = collection(db, 'customers');
+      const customersSnapshot = await getDocs(
+        query(customersRef, 
+          where('customer_type', '==', 'Paid'),
+          where('isActive', '==', true)
+        )
+      );
+      console.log('Found active paid customers:', customersSnapshot.size);
+
+      // Load plans in batches of 10
+      const BATCH_SIZE = 10;
+      const plansData: { [customerId: string]: { sections: PlanSection[] } } = {};
+      
+      for (let i = 0; i < customersSnapshot.docs.length; i += BATCH_SIZE) {
+        const batch = customersSnapshot.docs.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(customerDoc => 
+          getDoc(doc(db, 'plans', customerDoc.id))
+        );
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        batchResults.forEach((planDoc, index) => {
+          if (planDoc.exists()) {
+            plansData[batch[index].id] = planDoc.data() as { sections: PlanSection[] };
+          }
+        });
+      }
+
+      setAllPlans(plansData);
+      setPlans(null); // Clear single plan when viewing all
+      console.log('Loaded all plans:', Object.keys(plansData).length);
+
+    } catch (error) {
+      console.error('Error loading all plans:', error);
+      message.error('Failed to load plans');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadPlan = async () => {
+    if (!selectedCustomer) return;
+    try {
+      setIsLoading(true);
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        // Create new plan if one doesn't exist
+        await createPlanForCustomer(selectedCustomer);
+        return;
+      }
+
+      const planData = planDoc.data() as Plan;
+      console.log('Loaded plan data:', planData);
+      
+      // Clear all plans when in single customer view
+      setAllPlans({});
+      
+      // Ensure files array exists for each task
+      const processedPlan = {
+        ...planData,
+        sections: planData.sections.map(section => ({
+          ...section,
+          tasks: section.tasks.map(task => ({
+            ...task,
+            files: task.files || []
+          }))
+        }))
+      };
+      setPlans(processedPlan);
+    } catch (error) {
+      console.error('Error loading plan:', error);
+      message.error('Failed to load plan');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCustomerSelect = async (value: string) => {
+    if (value === 'all') {
+      setSelectedCustomer(null);
+      setPlans(null); // Clear single plan view
+      loadAllPlans();
+    } else {
+      const customer = customers.find(c => c.id === value);
+      if (customer) {
+        setSelectedCustomer(customer);
+        setAllPlans({}); // Clear all plans when selecting single customer
+        const planRef = doc(db, 'plans', customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (!planDoc.exists()) {
+          // Create new plan if one doesn't exist
+          await createPlanForCustomer(customer);
+        }
+        loadPlan();
+      }
+    }
+    setIsOpen(false);
+  };
 
   // Update filtered sections whenever filters or data change
   useEffect(() => {
@@ -211,7 +413,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     } else {
       Object.entries(allPlans).forEach(([customerId, plan]) => {
         const customer = customers.find(c => c.id === customerId)
-        if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+        if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return
 
         plan.sections.forEach(section => {
           const filteredTasks = section.tasks
@@ -239,14 +441,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             sections[section.title].tasks.push(...filteredTasks.map(task => ({
               ...task,
               customer
-            })));
+            })))
 
             if (!sections[section.title].customers.find(c => c.id === customer.id)) {
               sections[section.title].customers.push(customer)
             }
           }
-        });
-      });
+        })
+      })
     }
 
   }, [selectedCustomer, plans, allPlans, customers, teamMemberFilter, searchQuery, progressFilter, showActiveOnly])
@@ -256,79 +458,302 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     setCurrentPage({})
   }, [searchQuery, progressFilter, teamMemberFilter, showActiveOnly, selectedCustomer])
 
-  const handleEditTask = (task: PlanTask) => {
-    setEditingTask(task)
-    setEditModalVisible(true)
+  const handleEditTask = (task: PlanTask & { customer?: ICustomer }) => {
+    console.log('Opening task for editing:', task);
+    console.log('Task files:', task.files);
+
+    // Make sure we get the full task data including files
+    let fullTask = task;
+
+    if (selectedCustomer && plans) {
+      // Find the task in the current plans data
+      const taskInPlans = plans.sections
+        .find(s => s.title === task.section)
+        ?.tasks.find(t => t.id === task.id);
+      
+      if (taskInPlans) {
+        fullTask = taskInPlans;
+      }
+    }
+
+    console.log('Full task data:', fullTask);
+
+    // Set editingCustomer based on the task's customer
+    if (task.customer) {
+      setEditingCustomer(task.customer);
+    }
+
+    setEditingTask({
+      ...fullTask,
+      files: fullTask.files || []
+    });
+    setEditModalVisible(true);
   }
 
-  const handleEditSave = async (updates: Partial<PlanTask>) => {
-    if (!editingTask || !selectedCustomer) return
+  const handleCreateTask = async (newTask: Partial<PlanTask>) => {
+    if (!selectedCustomer && !editingCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
+
+    const targetCustomer = selectedCustomer || editingCustomer;
+    if (!targetCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
 
     try {
-      setIsLoading(true)
-      const planRef = doc(db, 'plans', selectedCustomer.id)
-      const planDoc = await getDoc(planRef)
+      setIsLoading(true);
+      const planRef = doc(db, 'plans', targetCustomer.id);
+      const planDoc = await getDoc(planRef);
       
       if (!planDoc.exists()) {
-        throw new Error('Plan not found')
+        throw new Error('Plan not found');
       }
 
-      const plan = planDoc.data() as Plan
-      const updatedSections = plan.sections.map(section => ({
-        ...section,
-        tasks: section.tasks.map(task => 
-          task.id === editingTask.id ? { ...task, ...updates } : task
-        )
-      }))
+      // Create a new task with all required fields
+      const taskId = doc(collection(db, 'temp')).id; // Generate Firebase ID
+      
+      if (!newTask.task || !newTask.section) {
+        throw new Error('Task name and section are required');
+      }
 
+      const createdTask: PlanTask = {
+        id: taskId,
+        task: newTask.task,
+        section: newTask.section,
+        progress: newTask.progress || 'To Do',
+        frequency: newTask.frequency || 'One Time',
+        current: newTask.current || 0,
+        goal: newTask.goal || 0,
+        dueDate: newTask.dueDate || null,
+        completedDate: newTask.completedDate || null,
+        isActive: true,
+        notes: newTask.notes || '',
+        assignedTeamMembers: newTask.assignedTeamMembers || [],
+        subtasks: newTask.subtasks || [],
+        files: newTask.files || [],
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || 'unknown',
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || 'unknown'
+      };
+
+      console.log('Creating new task:', createdTask);
+
+      const plan = planDoc.data() as Plan;
+      
+      // Add the new task to the specified section
+      const updatedSections = plan.sections.map(section => {
+        if (section.title === newTask.section) {
+          return {
+            ...section,
+            tasks: [...section.tasks, createdTask]
+          };
+        }
+        return section;
+      });
+
+      // Save to Firestore
       await updateDoc(planRef, {
         sections: updatedSections,
         updatedAt: new Date().toISOString()
-      })
+      });
 
-      // Update local state
-      setPlans(prevPlans => {
-        if (!prevPlans) return null
-        return {
-          ...prevPlans,
-          sections: prevPlans.sections.map(section => ({
-            ...section,
-            tasks: section.tasks.map(task =>
-              task.id === editingTask.id ? { ...task, ...updates } : task
-            )
-          }))
-        }
-      })
-
-      // If we're in "All Customers" view, also update allPlans
-      if (!selectedCustomer) {
-        setAllPlans(prevPlans => {
-          const newPlans = { ...prevPlans }
-          Object.keys(newPlans).forEach(customerId => {
-            newPlans[customerId] = {
-              ...newPlans[customerId],
-              sections: newPlans[customerId].sections.map(section => ({
-                ...section,
-                tasks: section.tasks.map(task =>
-                  task.id === editingTask.id ? { ...task, ...updates } : task
-                )
-              }))
+      // Update local state based on whether we're in single or all customers view
+      if (selectedCustomer) {
+        setPlans(prevPlans => {
+          if (!prevPlans) return null;
+          
+          return {
+            ...prevPlans,
+            sections: prevPlans.sections.map(section => {
+              if (section.title === newTask.section) {
+                return {
+                  ...section,
+                  tasks: [...section.tasks, createdTask]
+                };
+              }
+              return section;
+            })
+          };
+        });
+      } else {
+        setAllPlans(prev => {
+          const currentPlan = prev[targetCustomer.id] || { sections: [] };
+          
+          return {
+            ...prev,
+            [targetCustomer.id]: {
+              ...currentPlan,
+              sections: currentPlan.sections.map(section => {
+                if (section.title === newTask.section) {
+                  return {
+                    ...section,
+                    tasks: [...section.tasks, createdTask]
+                  };
+                }
+                return section;
+              })
             }
-          })
-          return newPlans
-        })
+          };
+        });
       }
 
-      setEditModalVisible(false)
-      setEditingTask(null)
-      message.success('Task updated successfully')
+      setEditModalVisible(false);
+      setEditingTask(null);
+      setEditingCustomer(null);
+      message.success('Task created successfully');
     } catch (error) {
-      console.error('Error updating task:', error)
-      message.error('Failed to update task')
+      console.error('Error creating task:', error);
+      message.error('Failed to create task');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleEditSave = async (updates: Partial<PlanTask>) => {
+    if (!editingTask) {
+      message.error('No task selected');
+      return;
+    }
+
+    // Only validate customer selection for new tasks
+    if (!editingTask.id && !selectedCustomer && !editingCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
+
+    const targetCustomer = selectedCustomer || editingCustomer;
+    if (!editingTask.id && !targetCustomer) {
+      message.error('Please select a customer');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      let customerId: string;
+      
+      // For existing tasks in all customers view, get customer ID from the task data
+      if (editingTask.id && !selectedCustomer) {
+        const taskWithCustomer = editingTask as PlanTask & { customer?: ICustomer };
+        if (!taskWithCustomer.customer?.id) {
+          message.error('Cannot find customer for this task');
+          return;
+        }
+        customerId = taskWithCustomer.customer.id;
+      } else {
+        // For new tasks or when in single customer view
+        if (!targetCustomer) {
+          message.error('Please select a customer');
+          return;
+        }
+        customerId = targetCustomer.id;
+      }
+
+      const planRef = doc(db, 'plans', customerId);
+      const planDoc = await getDoc(planRef);
+      
+      if (!planDoc.exists()) {
+        throw new Error('Plan not found');
+      }
+
+      // Create updated task object with all fields
+      const updatedTask = {
+        ...editingTask,
+        ...updates,
+        notes: editingTask.notes || '',
+        assignedTeamMembers: editingTask.assignedTeamMembers || [],
+        subtasks: editingTask.subtasks || [],
+        files: editingTask.files || [],
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || 'unknown'
+      };
+
+      console.log('Updating task:', updatedTask);
+
+      const plan = planDoc.data() as Plan;
+      
+      // Update the task in its section
+      const updatedSections = plan.sections.map(section => {
+        if (section.title === editingTask.section) {
+          return {
+            ...section,
+            tasks: section.tasks.map(task => 
+              task.id === editingTask.id ? updatedTask : task
+            )
+          };
+        }
+        return section;
+      });
+
+      // Save to Firestore
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state based on whether we're in single or all customers view
+      if (selectedCustomer) {
+        setPlans(prevPlans => {
+          if (!prevPlans) return null;
+          
+          return {
+            ...prevPlans,
+            sections: prevPlans.sections.map(section => {
+              if (section.title === editingTask.section) {
+                return {
+                  ...section,
+                  tasks: section.tasks.map(task =>
+                    task.id === editingTask.id ? updatedTask : task
+                  )
+                };
+              }
+              return section;
+            })
+          };
+        });
+      } else {
+        // Get the customer ID we determined earlier
+        if (!customerId) {
+          console.error('No customer ID available for local state update');
+          return;
+        }
+        
+        setAllPlans(prev => {
+          const currentPlan = prev[customerId] || { sections: [] };
+          
+          return {
+            ...prev,
+            [customerId]: {
+              ...currentPlan,
+              sections: currentPlan.sections.map(section => {
+                if (section.title === editingTask.section) {
+                  return {
+                    ...section,
+                    tasks: section.tasks.map(task =>
+                      task.id === editingTask.id ? updatedTask : task
+                    )
+                  };
+                }
+                return section;
+              })
+            }
+          };
+        });
+      }
+
+      setEditModalVisible(false);
+      setEditingTask(null);
+      setEditingCustomer(null);
+      message.success('Task updated successfully');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      message.error('Failed to update task');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleUpdateTask = async (task: PlanTask, updates: Partial<PlanTask>) => {
     if (!selectedCustomer) return;
@@ -479,11 +904,42 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         task.progress === progressFilter)
     const matchesActive = !showActiveOnly || task.isActive
     
-    return matchesTeamMember && matchesSearch && matchesProgress && matchesActive
+    let matchesDueDate = true;
+    if (dueDateFilter === 'overdue') {
+      matchesDueDate = isOverdue(task);
+    } else if (dueDateFilter === 'upcoming') {
+      matchesDueDate = isUpcoming(task);
+    }
+    
+    return matchesTeamMember && matchesSearch && matchesProgress && matchesActive && matchesDueDate;
   }
 
+  // Add helper functions for date filtering
+  const isOverdue = (task: PlanTask) => {
+    if (!task.dueDate) return false;
+    if (task.progress === 'Done') return false; // Exclude completed tasks
+    return new Date(task.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
+  };
+
+  const isUpcoming = (task: PlanTask) => {
+    if (!task.dueDate) return false;
+    if (task.progress === 'Done') return false; // Exclude completed tasks
+    const today = new Date(new Date().setHours(0, 0, 0, 0));
+    const dueDate = new Date(task.dueDate);
+    const sevenDaysFromNow = new Date(today);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    return dueDate >= today && dueDate <= sevenDaysFromNow;
+  };
+
+  const isCompleted = (task: PlanTask) => task.progress === 'Done';
+
   const FiltersSection = () => {
-    const [inputValue, setInputValue] = useState('')
+    const [inputValue, setInputValue] = useState(searchQuery)
+
+    // Keep input value in sync with searchQuery
+    useEffect(() => {
+      setInputValue(searchQuery)
+    }, [searchQuery])
 
     return (
       <div className="space-y-4">
@@ -492,23 +948,9 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             open={isOpen}
             onOpenChange={setIsOpen}
             value={selectedCustomer?.id || 'all'} 
-            onValueChange={(value: string) => {
-              console.log('Selected value:', value); // Debug
-              if (value === 'all') {
-                setSelectedCustomer(null);
-                loadAllPlans(); // Make sure to load all plans when "All Customers" is selected
-              } else {
-                const customer = localCustomers.find(c => c.id === value);
-                console.log('Found customer:', customer); // Debug
-                if (customer) {
-                  setSelectedCustomer(customer);
-                  loadPlan(); // This will load the specific customer's plan
-                }
-              }
-              setIsOpen(false);
-            }}
+            onValueChange={handleCustomerSelect}
           >
-            <SelectTrigger className="w-[320px] bg-white">
+            <SelectTrigger className="w-[250px] bg-white">
               <SelectValue placeholder="Select customer">
                 {selectedCustomer ? (
                   <div className="flex items-center gap-2">
@@ -516,7 +958,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                       <AvatarImage src={selectedCustomer.logo} alt={selectedCustomer.store_name} />
                       <AvatarFallback>{selectedCustomer.store_name[0]}</AvatarFallback>
                     </Avatar>
-                    <span>{selectedCustomer.store_name} - {selectedCustomer.store_owner_name}</span>
+                    <span className="truncate">{selectedCustomer.store_name} - {selectedCustomer.store_owner_name}</span>
                   </div>
                 ) : 'All Customers'}
               </SelectValue>
@@ -539,22 +981,11 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
             </SelectContent>
           </Select>
 
-          <Select value={progressFilter} onValueChange={(value: any) => setProgressFilter(value)}>
-            <SelectTrigger className="w-[180px] bg-white">
-              <SelectValue placeholder="Filter by progress" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All Progress</SelectItem>
-              <SelectItem value="To Do and Doing">To Do & Doing</SelectItem>
-              <SelectItem value="Done">Done</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative w-[300px]">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search tasks... (Press Enter to search)" 
-              className="pl-8 bg-white" 
+              className="pl-8 pr-10 bg-white" 
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -566,7 +997,43 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                 }
               }}
             />
+            {(inputValue || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1 h-7 w-7 p-0 hover:bg-muted"
+                onClick={() => {
+                  setInputValue('');
+                  setSearchQuery('');
+                }}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Clear search</span>
+              </Button>
+            )}
           </div>
+
+          <Select value={progressFilter} onValueChange={(value: any) => setProgressFilter(value)}>
+            <SelectTrigger className="w-[180px] bg-white">
+              <SelectValue placeholder="Filter by progress" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Progress</SelectItem>
+              <SelectItem value="To Do and Doing">To Do & Doing</SelectItem>
+              <SelectItem value="Done">Done</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={dueDateFilter} onValueChange={(value: 'all' | 'overdue' | 'upcoming') => setDueDateFilter(value)}>
+            <SelectTrigger className="w-[180px] bg-white">
+              <SelectValue placeholder="Filter by due date" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="upcoming">Due This Week</SelectItem>
+            </SelectContent>
+          </Select>
 
           <div className="flex items-center gap-2">
             <Switch
@@ -597,17 +1064,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   }
                 }}
               />
-              {teamMemberFilter !== 'all' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTeamMemberFilter('all')}
-                  className="ml-2"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-              )}
             </div>
           )}
 
@@ -621,6 +1077,7 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     setProgressFilter('All');
                     setShowActiveOnly(false);
                     setTeamMemberFilter('all');
+                    setDueDateFilter('all');
                   }}
                   className="ml-2"
                   aria-label="Reset filters"
@@ -670,31 +1127,28 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
         const planRef = doc(db, 'plans', selectedCustomer.id)
         const planDoc = await getDoc(planRef)
         
-        console.log('Fetching plan for customer:', selectedCustomer.id)
-        console.log('Plan exists:', planDoc.exists())
+        console.log('Loading plan for customer:', selectedCustomer.id)
         
         if (planDoc.exists()) {
-          const planData = planDoc.data()
-          console.log('Plan data:', planData)
-          setPlans(planData as { sections: PlanSection[] })
-        } else {
-          // If no plan exists, create a default plan structure
-          const defaultPlan = {
-            sections: [
-              {
-                title: 'General Tasks',
-                tasks: []
-              },
-              {
-                title: 'Other Tasks',
-                tasks: []
-              }
-            ]
+          const planData = planDoc.data() as Plan
+          console.log('Loaded plan data:', planData)
+          // Ensure files array exists for each task
+          const processedPlan = {
+            ...planData,
+            sections: planData.sections.map(section => ({
+              ...section,
+              tasks: section.tasks.map(task => ({
+                ...task,
+                files: task.files || []
+              }))
+            }))
           }
-          setPlans(defaultPlan)
+          setPlans(processedPlan)
+        } else {
+          setPlans({ sections: [] })
         }
       } catch (error) {
-        console.error('Error fetching plan:', error)
+        console.error('Error loading plan:', error)
         message.error('Failed to load plan')
       } finally {
         setIsLoading(false)
@@ -736,70 +1190,275 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     fetchTeamMembers();
   }, []);
 
-  const loadAllPlans = async () => {
+  const handleFileUpload = async (file: File) => {
     try {
-      setIsLoading(true);
-      console.log('Loading all plans...');
+      const storage = getStorage();
+      const storageRef = ref(storage, `tasks/${editingCustomer?.id || selectedCustomer?.id}/${Date.now()}_${file.name}`);
       
-      const plansData: { [customerId: string]: { sections: PlanSection[] } } = {};
+      if (file.size > 10 * 1024 * 1024) {
+        message.error('File size must be less than 10MB');
+        return false;
+      }
+
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
       
-      // Load plans in batches of 10
-      const BATCH_SIZE = 10;
-      for (let i = 0; i < customers.length; i += BATCH_SIZE) {
-        const batch = customers.slice(i, i + BATCH_SIZE);
-        const batchPromises = batch.map(customer => 
-          getDoc(doc(db, 'plans', customer.id))
-        );
-        
-        const batchResults = await Promise.all(batchPromises);
-        
-        batchResults.forEach((planDoc, index) => {
-          if (planDoc.exists()) {
-            plansData[batch[index].id] = planDoc.data() as { sections: PlanSection[] };
-          }
+      const newFile = {
+        name: file.name,
+        url,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      };
+
+      setEditingTask(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          files: [...(prev.files || []), newFile]
+        };
+      });
+
+      // Update local state
+      if (selectedCustomer) {
+        setPlans(prevPlans => {
+          if (!prevPlans) return null;
+          return {
+            ...prevPlans,
+            sections: prevPlans.sections.map(section => ({
+              ...section,
+              tasks: section.tasks.map(task => 
+                task.id === editingTask?.id 
+                  ? { ...task, files: [...(task.files || []), newFile] }
+                  : task
+              )
+            }))
+          };
         });
       }
-      
-      console.log('Loaded all plans:', plansData);
-      setAllPlans(plansData);
-      setPlans(null); // Clear single plan when viewing all
+
+      message.success('File uploaded successfully');
+      return false;
     } catch (error) {
-      console.error('Error loading all plans:', error);
-      message.error('Failed to load plans');
+      console.error('Error uploading file:', error);
+      message.error('Failed to upload file');
+      return false;
+    }
+  };
+
+  const handleFileDelete = async (fileIndex: number) => {
+    if (!editingTask || !selectedCustomer) return;
+
+    try {
+      const planRef = doc(db, 'plans', selectedCustomer.id);
+      const planDoc = await getDoc(planRef);
+      
+      if (planDoc.exists()) {
+        const plan = planDoc.data() as Plan;
+        const updatedSections = plan.sections.map(section => ({
+          ...section,
+          tasks: section.tasks.map(task => 
+            task.id === editingTask.id 
+              ? { 
+                  ...task,
+                  files: task.files?.filter((_, i) => i !== fileIndex) || []
+                } 
+              : task
+          )
+        }));
+
+        await updateDoc(planRef, {
+          sections: updatedSections,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Update local state
+        setEditingTask(prev => {
+          if (!prev) return null;
+          const updatedFiles = prev.files?.filter((_, i) => i !== fileIndex) || [];
+          console.log('Files after removal:', updatedFiles);
+          return {
+            ...prev,
+            files: updatedFiles
+          };
+        });
+
+        // Update plans state
+        setPlans(prevPlans => {
+          if (!prevPlans) return null;
+          return {
+            ...prevPlans,
+            sections: prevPlans.sections.map(section => ({
+              ...section,
+              tasks: section.tasks.map(task =>
+                task.id === editingTask.id
+                  ? { ...task, files: task.files?.filter((_, i) => i !== fileIndex) || [] }
+                  : task
+              )
+            }))
+          };
+        });
+
+        message.success('File removed successfully');
+      }
+    } catch (error) {
+      console.error('Error removing file:', error);
+      message.error('Failed to remove file');
+    }
+  };
+
+  // Add this function to handle bulk edits
+  const handleBulkEdit = async (values: any) => {
+    try {
+      setIsLoading(true);
+      console.log('Bulk editing with values:', values);
+      
+      for (const task of selectedRows) {
+        if (!task.customer) continue;
+        
+        const planRef = doc(db, 'plans', task.customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const plan = planDoc.data() as Plan;
+          const updatedSections = plan.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(t => {
+              if (t.id === task.id) {
+                // Calculate due date based on frequency
+                let dueDate = t.dueDate;
+                if (values.dueDate) {
+                  dueDate = t.frequency === 'Monthly' 
+                    ? calculateMonthlyDueDate(values.dueDate.date())
+                    : values.dueDate.format('YYYY-MM-DD');
+                }
+
+                const updatedTask = {
+                  ...t,
+                  ...(values.progress && { progress: values.progress }),
+                  ...(values.dueDate && { dueDate }),
+                  ...(values.isActive !== undefined && { isActive: values.isActive }),
+                  ...(values.notes && { notes: values.notes }),
+                  ...(values.current !== undefined && { current: values.current }),
+                  ...(values.goal !== undefined && { goal: values.goal }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || 'unknown'
+                };
+
+                console.log('Updating task:', t.id, 'with:', updatedTask);
+                return updatedTask;
+              }
+              return t;
+            })
+          }));
+          
+          console.log('Updating plan for customer:', task.customer.id);
+          await updateDoc(planRef, { 
+            sections: updatedSections,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      // Reload data
+      if (selectedCustomer) {
+        await loadPlan();
+      } else {
+        await loadAllPlans();
+      }
+
+      message.success(`Successfully updated ${selectedRows.length} tasks`);
+      setBulkEditModalVisible(false);
+      setSelectedRows([]);
+      bulkEditForm.resetFields();
+    } catch (error) {
+      console.error('Error in bulk edit:', error);
+      message.error('Failed to update tasks');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadPlan = async () => {
-    if (!selectedCustomer) return;
-    try {
-      setIsLoading(true);
-      const planRef = doc(db, 'plans', selectedCustomer.id);
-      const planDoc = await getDoc(planRef);
-      
-      if (planDoc.exists()) {
-        const planData = planDoc.data() as { sections: PlanSection[] };
-        setPlans(planData);
-        setAllPlans({}); // Clear all plans when viewing single customer
-      } else {
-        setPlans({ sections: [] }); // Set empty plan if none exists
-      }
-    } catch (error) {
-      console.error('Error loading plan:', error);
-      message.error('Failed to load plan');
-    } finally {
-      setIsLoading(false);
+  // Add this helper function
+  const calculateMonthlyDueDate = (monthlyDueDate: number) => {
+    const today = dayjs();
+    const dueDate = dayjs().date(monthlyDueDate);
+    
+    // If the due date for this month has passed, use next month
+    if (dueDate.isBefore(today)) {
+      return dueDate.add(1, 'month').format('YYYY-MM-DD');
     }
+    
+    return dueDate.format('YYYY-MM-DD');
   };
+
+  // Modify the selection check function
+  const isTaskSelected = (task: PlanTask & { customer?: ICustomer }) => {
+    return selectedRows.some(r => 
+      r.id === task.id && 
+      r.customer?.id === task.customer?.id
+    );
+  };
+
+  // Add this check for Monthly/As Needed tasks
+  const hasMonthlyOrAsNeededTasks = selectedRows.some(task => 
+    ['Monthly', 'As Needed'].includes(task.frequency)
+  );
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Task Management</h1>
+        <Button 
+          onClick={() => {
+            const today = new Date();
+            const date = today.getDate().toString().padStart(2, '0');
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3 digits
+            const newTaskId = `task-${date}${month}${random}`;
+            
+            setNewTask({
+              id: newTaskId,
+              task: '',
+              section: 'Other Tasks',
+              progress: 'To Do',
+              frequency: 'One Time',
+              isActive: true,
+              dueDate: null,
+              completedDate: null,
+              current: 0,
+              goal: 0,
+              notes: '',
+              assignedTeamMembers: [],
+              subtasks: [],
+              files: [],
+              createdAt: new Date().toISOString(),
+              createdBy: user?.email || 'unknown',
+              updatedAt: new Date().toISOString(),
+              updatedBy: user?.email || 'unknown'
+            });
+            setEditingTask(null);
+            setEditingCustomer(null);
+            setEditModalVisible(true);
+          }}
+          className="flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Custom Task
+        </Button>
       </div>
 
       <FiltersSection />
+
+      {selectedRows.length > 0 && (
+        <div className="flex items-center gap-2 mt-4 mb-4">
+          <Button
+            onClick={() => setBulkEditModalVisible(true)}
+          >
+            Bulk Edit ({selectedRows.length})
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center items-center min-h-[200px]">
@@ -817,11 +1476,11 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           >
             <div className="space-y-12 mt-8">
               {(() => {
-                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {};
+                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {}
                 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach(section => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    const filteredTasks = section.tasks.filter(filterTasks)
 
                     if (filteredTasks.length > 0) {
                       sections[section.title] = {
@@ -829,14 +1488,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         customers: [selectedCustomer]
                       }
                     }
-                  });
+                  })
                 } else {
                   Object.entries(allPlans).forEach(([customerId, plan]) => {
                     const customer = customers.find(c => c.id === customerId)
-                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return
 
                     plan.sections.forEach(section => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      const filteredTasks = section.tasks.filter(filterTasks)
 
                       if (filteredTasks.length > 0) {
                         if (!sections[section.title]) {
@@ -846,20 +1505,47 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         sections[section.title].tasks.push(...filteredTasks.map(task => ({
                           ...task,
                           customer
-                        })));
+                        })))
 
                         if (!sections[section.title].customers.find(c => c.id === customer.id)) {
                           sections[section.title].customers.push(customer)
                         }
                       }
-                    });
-                  });
+                    })
+                  })
                 }
 
                 return Object.entries(sections).map(([sectionTitle, { tasks }]) => (
                   <div key={sectionTitle} className="bg-white rounded-lg p-6 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-medium">{sectionTitle}</h2>
+                      <div className="flex items-center gap-4">
+                        <h2 className="text-2xl font-medium">{sectionTitle}</h2>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const sectionTasks = getPaginatedTasks(tasks, sectionTitle);
+                            if (sectionTasks.every(task => selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id))) {
+                              // If all tasks are selected, deselect them
+                              setSelectedRows(prev => prev.filter(row => 
+                                !sectionTasks.some(task => task.id === row.id && row.customer?.id === row.customer?.id)
+                              ));
+                            } else {
+                              // If not all tasks are selected, select all
+                              const newTasks = sectionTasks.filter(task => 
+                                !selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id)
+                              );
+                              setSelectedRows([...selectedRows, ...newTasks]);
+                            }
+                          }}
+                        >
+                          {getPaginatedTasks(tasks, sectionTitle).every(
+                            task => selectedRows.some(r => r.id === task.id && r.customer?.id === task.customer?.id)
+                          ) 
+                            ? "Deselect All" 
+                            : "Select All"}
+                        </Button>
+                      </div>
                       <div className="flex items-center gap-2">
                         {getTotalPages(tasks) > 1 && (
                           <div className="flex items-center gap-2">
@@ -886,18 +1572,54 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       {getPaginatedTasks(tasks, sectionTitle).map((task) => (
-                        <TaskCard 
-                          key={task.id} 
-                          task={task} 
-                          teamMembers={teamMembers}
-                          onEdit={handleEditTask} 
-                        />
+                        <div 
+                          key={task.id}
+                          className="relative cursor-pointer group"
+                        >
+                          {/* Add checkbox in the corner */}
+                          <div 
+                            className="absolute top-2 right-2 z-20"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent card click from triggering
+                              const isSelected = isTaskSelected(task);
+                              if (!isSelected) {
+                                setSelectedRows(prev => [...prev, task]);
+                              } else {
+                                setSelectedRows(prev => prev.filter(r => 
+                                  !(r.id === task.id && r.customer?.id === task.customer?.id)
+                                ));
+                              }
+                            }}
+                          >
+                            <Checkbox 
+                              checked={isTaskSelected(task)}
+                              className="bg-white/80 hover:bg-white"
+                            />
+                          </div>
+                          
+                          {/* Highlight overlay when selected */}
+                          {isTaskSelected(task) && (
+                            <div className="absolute inset-0 bg-primary/20 z-10 rounded-lg" />
+                          )}
+                          
+                          {/* Wrap the TaskCard in a div to handle its click separately */}
+                          <div onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditTask(task);
+                          }}>
+                            <TaskCard 
+                              task={task} 
+                              teamMembers={teamMembers}
+                              onEdit={handleEditTask} 
+                            />
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ));
+                ))
               })()}
             </div>
           </TabsContent>
@@ -908,11 +1630,11 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           >
             <TaskCalendar 
               taskGroups={(() => {
-                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {};
+                const sections: { [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } } = {}
                 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach(section => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    const filteredTasks = section.tasks.filter(filterTasks)
 
                     if (filteredTasks.length > 0) {
                       sections[section.title] = {
@@ -920,14 +1642,14 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         customers: [selectedCustomer]
                       }
                     }
-                  });
+                  })
                 } else {
                   Object.entries(allPlans).forEach(([customerId, plan]) => {
                     const customer = customers.find(c => c.id === customerId)
-                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return;
+                    if (!customer || !customer.isActive || customer.customer_type !== 'Paid') return
 
                     plan.sections.forEach(section => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      const filteredTasks = section.tasks.filter(filterTasks)
 
                       if (filteredTasks.length > 0) {
                         if (!sections[section.title]) {
@@ -937,20 +1659,20 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                         sections[section.title].tasks.push(...filteredTasks.map(task => ({
                           ...task,
                           customer
-                        })));
+                        })))
 
                         if (!sections[section.title].customers.find(c => c.id === customer.id)) {
                           sections[section.title].customers.push(customer)
                         }
                       }
-                    });
-                  });
+                    })
+                  })
                 }
 
                 return Object.entries(sections).map(([title, { tasks }]) => ({
                   title,
                   tasks
-                }));
+                }))
               })()}
               users={teamMembers.map(member => ({
                 id: member.email,
@@ -969,364 +1691,776 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
 
       {editModalVisible && (
         <Dialog open={editModalVisible} onOpenChange={(open) => !open && setEditModalVisible(false)}>
-          <DialogContent className="sm:max-w-[625px]">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                Edit Task: {editingTask?.task}
-              </DialogTitle>
-              <DialogDescription>
-                Make changes to the task here. Click save when you&apos;re done.
-              </DialogDescription>
-            </DialogHeader>
-            {editingTask && (
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="progress" className="text-right">
-                    Progress
-                  </Label>
-                  <Select
-                    value={editingTask.progress}
-                    onValueChange={(value: "To Do" | "Doing" | "Done") => {
-                      setEditingTask(prev => prev ? { ...prev, progress: value } : null)
-                    }}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select progress" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="To Do">To Do</SelectItem>
-                      <SelectItem value="Doing">Doing</SelectItem>
-                      <SelectItem value="Done">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="dueDate" className="text-right">
-                    Due Date
-                  </Label>
-                  <div className="col-span-3">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {editingTask.dueDate ? format(new Date(editingTask.dueDate), 'PPP') : 
-                            <span className="text-muted-foreground">Pick a date</span>
-                          }
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={editingTask.dueDate ? new Date(editingTask.dueDate) : undefined}
-                          onSelect={(date) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              dueDate: date ? format(date, 'yyyy-MM-dd') : null
-                            } : null)
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                {editingTask ? (
+                  editingTask.section === 'Other Tasks' ? 
+                    `Edit Task: ${editingTask.task}` : 
+                    editingTask.task // Just show the task name without "Edit Task:" prefix for default tasks
+                ) : 'Create New Task'}
+                {editingCustomer && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={editingCustomer.logo} alt={editingCustomer.store_name} />
+                      <AvatarFallback>{editingCustomer.store_name[0]}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {editingCustomer.store_name}
+                    </span>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="completedDate" className="text-right">
-                    Completed Date
-                  </Label>
-                  <div className="col-span-3">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          {editingTask.completedDate ? format(new Date(editingTask.completedDate), 'PPP') : 
-                            <span className="text-muted-foreground">Pick a date</span>
-                          }
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={editingTask.completedDate ? new Date(editingTask.completedDate) : undefined}
-                          onSelect={(date) => {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              completedDate: date ? format(date, 'yyyy-MM-dd') : null
-                            } : null)
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="isActive" className="text-right">
-                    Active
-                  </Label>
-                  <div className="col-span-3">
-                    <Switch
-                      id="isActive"
-                      checked={editingTask.isActive}
-                      onCheckedChange={(checked) => {
-                        setEditingTask(prev => prev ? { ...prev, isActive: checked } : null)
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {editingTask.frequency !== 'One Time' && (
-                  <>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="current" className="text-right">
-                        Current
-                      </Label>
-                      <Input
-                        id="current"
-                        type="number"
-                        min={0}
-                        value={editingTask.current || 0}
-                        onChange={(e) => {
-                          setEditingTask(prev => prev ? {
-                            ...prev,
-                            current: parseInt(e.target.value) || 0
-                          } : null)
-                        }}
-                        className="col-span-3"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="goal" className="text-right">
-                        Goal
-                      </Label>
-                      <Input
-                        id="goal"
-                        type="number"
-                        min={0}
-                        value={editingTask.goal || 0}
-                        onChange={(e) => {
-                          setEditingTask(prev => prev ? {
-                            ...prev,
-                            goal: parseInt(e.target.value) || 0
-                          } : null)
-                        }}
-                        className="col-span-3"
-                      />
-                    </div>
-                  </>
                 )}
-
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="notes" className="text-right pt-2">
-                    Notes
-                  </Label>
-                  <Textarea
-                    id="notes"
-                    value={editingTask.notes || ''}
-                    onChange={(e) => {
-                      setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null)
-                    }}
-                    className="col-span-3"
-                    rows={4}
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="assignedTeamMembers" className="text-right">
-                    Team Members
-                  </Label>
-                  <div className="col-span-3">
-                    {teamMembers
-                      .filter(admin => admin.canBeAssignedToTasks)
-                      .map(admin => (
-                        <div key={admin.email} className="flex items-center space-x-2 mb-2">
-                          <Checkbox
-                            id={admin.email}
-                            checked={editingTask.assignedTeamMembers?.includes(admin.email)}
-                            onCheckedChange={(checked) => {
-                              setEditingTask(prev => {
-                                if (!prev) return null;
-                                const newMembers = checked 
-                                  ? [...(prev.assignedTeamMembers || []), admin.email]
-                                  : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
-                                return { ...prev, assignedTeamMembers: newMembers };
-                              });
-                            }}
-                          />
-                          <Label htmlFor={admin.email} className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={admin.avatarUrl} />
-                              <AvatarFallback>{admin.name?.[0]}</AvatarFallback>
-                            </Avatar>
-                            <span>{admin.name || admin.email}</span>
-                          </Label>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">
-                    Subtasks
-                  </Label>
-                  <div className="col-span-3 space-y-2">
-                    {editingTask.subtasks?.map((subtask) => (
-                      <div key={subtask.id} className="flex items-center space-x-2 bg-secondary/20 p-2 rounded">
-                        <Checkbox
-                          checked={subtask.isCompleted}
-                          onCheckedChange={(checked) => {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              return {
-                                ...prev,
-                                subtasks: prev.subtasks?.map(st =>
-                                  st.id === subtask.id
-                                    ? { ...st, isCompleted: !!checked }
-                                    : st
-                                )
-                              };
-                            });
-                          }}
-                        />
-                        <span className={subtask.isCompleted ? 'line-through' : ''}>
-                          {subtask.text}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              return {
-                                ...prev,
-                                subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
-                              };
-                            });
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <div className="flex items-center space-x-2">
+              </DialogTitle>
+            </DialogHeader>
+            {(editingTask || newTask) && (
+              <div className="grid grid-cols-2 gap-12">
+                {/* Left Column - Main Task Details */}
+                <div className="space-y-4 border-r pr-6">
+                  {/* Only show task name field for custom tasks or new tasks */}
+                  {(!editingTask || editingTask.section === 'Other Tasks') && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="task" className="text-sm text-right">
+                        Task Name
+                      </Label>
                       <Input
-                        value={newSubTask}
-                        onChange={(e) => setNewSubTask(e.target.value)}
-                        placeholder="Add new subtask"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newSubTask.trim()) {
-                            setEditingTask(prev => {
-                              if (!prev) return null;
-                              const newSubtask = {
-                                id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                                text: newSubTask.trim(),
-                                isCompleted: false,
-                                completedDate: null,
-                                createdAt: new Date().toISOString(),
-                                createdBy: 'user'
-                              };
-                              return {
-                                ...prev,
-                                subtasks: [...(prev.subtasks || []), newSubtask]
-                              };
-                            });
-                            setNewSubTask('');
+                        id="task"
+                        value={editingTask?.task || newTask?.task || ''}
+                        onChange={(e) => {
+                          if (editingTask) {
+                            setEditingTask(prev => prev ? { ...prev, task: e.target.value } : null);
+                          } else {
+                            setNewTask(prev => prev ? { ...prev, task: e.target.value } : null);
                           }
                         }}
+                        className="col-span-3"
                       />
-                      <Button
-                        onClick={() => {
-                          if (!newSubTask.trim()) return;
-                          setEditingTask(prev => {
-                            if (!prev) return null;
-                            const newSubtask = {
-                              id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                              text: newSubTask.trim(),
-                              isCompleted: false,
-                              completedDate: null,
-                              createdAt: new Date().toISOString(),
-                              createdBy: 'user'
-                            };
-                            return {
-                              ...prev,
-                              subtasks: [...(prev.subtasks || []), newSubtask]
-                            };
-                          });
-                          setNewSubTask('');
-                        }}
-                      >
-                        Add
-                      </Button>
                     </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label className="text-right pt-2">
-                    Attachments
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      type="file"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          // Handle file upload here
-                          // You'll need to implement the file upload logic
-                          // and update the task's files array
+                  )}
+                  
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="progress" className="text-sm text-right">
+                      Progress
+                    </Label>
+                    <Select
+                      value={editingTask?.progress || newTask?.progress || 'To Do'}
+                      onValueChange={(value: "To Do" | "Doing" | "Done") => {
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, progress: value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, progress: value } : null);
                         }
                       }}
+                    >
+                      <SelectTrigger className="col-span-3 text-sm">
+                        <SelectValue placeholder="Select progress" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="To Do">To Do</SelectItem>
+                        <SelectItem value="Doing">Doing</SelectItem>
+                        <SelectItem value="Done">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dueDate" className="text-sm text-right">
+                      Due Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask?.dueDate ? format(new Date(editingTask.dueDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask?.dueDate ? new Date(editingTask.dueDate) : undefined}
+                            onSelect={(date) => {
+                              if (editingTask) {
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  dueDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              } else {
+                                setNewTask(prev => prev ? {
+                                  ...prev,
+                                  dueDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="completedDate" className="text-sm text-right">
+                      Completed Date
+                    </Label>
+                    <div className="col-span-3">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            {editingTask?.completedDate ? format(new Date(editingTask.completedDate), 'PPP') : 
+                              <span className="text-muted-foreground">Pick a date</span>
+                            }
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={editingTask?.completedDate ? new Date(editingTask.completedDate) : undefined}
+                            onSelect={(date) => {
+                              if (editingTask) {
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  completedDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              } else {
+                                setNewTask(prev => prev ? {
+                                  ...prev,
+                                  completedDate: date ? format(date, 'yyyy-MM-dd') : null
+                                } : null);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="frequency" className="text-sm text-right">
+                      Frequency
+                    </Label>
+                    <Select
+                      value={editingTask?.frequency || newTask?.frequency || 'One Time'}
+                      onValueChange={(value: "One Time" | "Monthly" | "As Needed") => {
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, frequency: value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, frequency: value } : null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="col-span-3 text-sm">
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="One Time">One Time</SelectItem>
+                        <SelectItem value="Monthly">Monthly</SelectItem>
+                        <SelectItem value="As Needed">As Needed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editingTask?.frequency !== 'One Time' && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="current" className="text-sm text-right">
+                          Current
+                        </Label>
+                        <Input
+                          id="current"
+                          type="number"
+                          min={0}
+                          value={editingTask?.current || newTask?.current || 0}
+                          onChange={(e) => {
+                            if (editingTask) {
+                              setEditingTask(prev => prev ? {
+                                ...prev,
+                                current: parseInt(e.target.value) || 0
+                              } : null);
+                            } else {
+                              setNewTask(prev => prev ? {
+                                ...prev,
+                                current: parseInt(e.target.value) || 0
+                              } : null);
+                            }
+                          }}
+                          className="col-span-3"
+                        />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="goal" className="text-sm text-right">
+                          Goal
+                        </Label>
+                        <Input
+                          id="goal"
+                          type="number"
+                          min={0}
+                          value={editingTask?.goal || newTask?.goal || 0}
+                          onChange={(e) => {
+                            if (editingTask) {
+                              setEditingTask(prev => prev ? {
+                                ...prev,
+                                goal: parseInt(e.target.value) || 0
+                              } : null);
+                            } else {
+                              setNewTask(prev => prev ? {
+                                ...prev,
+                                goal: parseInt(e.target.value) || 0
+                              } : null);
+                            }
+                          }}
+                          className="col-span-3"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="isActive" className="text-right">
+                      Active
+                    </Label>
+                    <div className="col-span-3">
+                      <Switch
+                        id="isActive"
+                        checked={editingTask?.isActive ?? newTask?.isActive ?? true}
+                        onCheckedChange={(checked) => {
+                          if (editingTask) {
+                            setEditingTask(prev => prev ? { ...prev, isActive: checked } : null);
+                          } else {
+                            setNewTask(prev => prev ? { ...prev, isActive: checked } : null);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="notes" className="text-right pt-2">
+                      Notes
+                    </Label>
+                    <Textarea
+                      id="notes"
+                      value={editingTask?.notes || newTask?.notes || ''}
+                      onChange={(e) => {
+                        if (editingTask) {
+                          setEditingTask(prev => prev ? { ...prev, notes: e.target.value } : null);
+                        } else {
+                          setNewTask(prev => prev ? { ...prev, notes: e.target.value } : null);
+                        }
+                      }}
+                      className="col-span-3"
+                      rows={4}
                     />
+                  </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="assignedTeamMembers" className="text-right">
+                      Team Members
+                    </Label>
+                    <div className="col-span-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {teamMembers
+                          .filter(admin => admin.canBeAssignedToTasks)
+                          .map(admin => (
+                            <div key={admin.email} className="flex items-center gap-2 bg-secondary/10 rounded-md p-1.5">
+                              <Checkbox
+                                id={admin.email}
+                                checked={editingTask?.assignedTeamMembers?.includes(admin.email) || newTask?.assignedTeamMembers?.includes(admin.email) || false}
+                                onCheckedChange={(checked) => {
+                                  if (editingTask) {
+                                    setEditingTask(prev => {
+                                      if (!prev) return null;
+                                      const newMembers = checked 
+                                        ? [...(prev.assignedTeamMembers || []), admin.email]
+                                        : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
+                                      return { ...prev, assignedTeamMembers: newMembers };
+                                    });
+                                  } else {
+                                    setNewTask(prev => {
+                                      if (!prev) return null;
+                                      const newMembers = checked 
+                                        ? [...(prev.assignedTeamMembers || []), admin.email]
+                                        : prev.assignedTeamMembers?.filter(email => email !== admin.email) || [];
+                                      return { ...prev, assignedTeamMembers: newMembers };
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label htmlFor={admin.email} className="flex items-center gap-1.5 text-sm">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage src={admin.avatarUrl} />
+                                  <AvatarFallback>{admin.name?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{admin.name || admin.email}</span>
+                              </Label>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Subtasks and Files */}
+                <div className="space-y-6">
+                  {/* Subtasks Section */}
+                  <div>
+                    <Label className="text-sm font-semibold">Subtasks</Label>
                     <div className="mt-2 space-y-2">
-                      {editingTask.files?.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between bg-secondary/20 p-2 rounded">
-                          <span>{file.name}</span>
+                      {editingTask?.subtasks?.map((subtask) => (
+                        <div key={subtask.id} className="flex items-center justify-between bg-secondary/20 p-2 rounded">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={subtask.isCompleted}
+                              onCheckedChange={(checked) => {
+                                if (editingTask) {
+                                  setEditingTask(prev => {
+                                    if (!prev) return null;
+                                    return {
+                                      ...prev,
+                                      subtasks: prev.subtasks?.map(st =>
+                                        st.id === subtask.id
+                                          ? { 
+                                              ...st, 
+                                              isCompleted: !!checked,
+                                              completedDate: checked ? new Date().toISOString() : null,
+                                              completedBy: checked ? user?.email || 'unknown' : null
+                                            }
+                                          : st
+                                      )
+                                    };
+                                  });
+                                } else {
+                                  setNewTask(prev => {
+                                    if (!prev) return null;
+                                    return {
+                                      ...prev,
+                                      subtasks: prev.subtasks?.map(st =>
+                                        st.id === subtask.id
+                                          ? { 
+                                              ...st, 
+                                              isCompleted: !!checked,
+                                              completedDate: checked ? new Date().toISOString() : null,
+                                              completedBy: checked ? user?.email || 'unknown' : null
+                                            }
+                                          : st
+                                      )
+                                    };
+                                  });
+                                }
+                              }}
+                            />
+                            <div className="flex flex-col">
+                              <span className={`text-sm ${subtask.isCompleted ? 'line-through' : ''}`}>
+                                {subtask.text}
+                              </span>
+                              <div className="flex flex-col text-xs text-muted-foreground">
+                                <span>Added by {teamMembers.find(m => m.email === subtask.createdBy)?.name || subtask.createdBy} on {subtask.createdAt ? format(new Date(subtask.createdAt), 'MMM dd, yyyy') : 'Unknown date'}</span>
+                                {subtask.isCompleted && subtask.completedDate && (
+                                  <span>Completed by {teamMembers.find(m => m.email === subtask.completedBy)?.name || subtask.completedBy} on {subtask.completedDate ? format(new Date(subtask.completedDate), 'MMM dd, yyyy') : 'Unknown date'}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setEditingTask(prev => {
-                                if (!prev) return null;
-                                return {
-                                  ...prev,
-                                  files: prev.files?.filter((_, i) => i !== index)
-                                };
-                              });
+                              if (editingTask) {
+                                setEditingTask(prev => {
+                                  if (!prev) return null;
+                                  return {
+                                    ...prev,
+                                    subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
+                                  };
+                                });
+                              } else {
+                                setNewTask(prev => {
+                                  if (!prev) return null;
+                                  return {
+                                    ...prev,
+                                    subtasks: prev.subtasks?.filter(st => st.id !== subtask.id)
+                                  };
+                                });
+                              }
                             }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
                       ))}
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          value={newSubTask}
+                          onChange={(e) => setNewSubTask(e.target.value)}
+                          placeholder="Add new subtask"
+                          className="text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newSubTask.trim()) {
+                              if (editingTask) {
+                                setEditingTask(prev => {
+                                  if (!prev) return null;
+                                  const newSubtask = {
+                                    id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    text: newSubTask.trim(),
+                                    isCompleted: false,
+                                    completedDate: null,
+                                    completedBy: null,
+                                    createdAt: new Date().toISOString(),
+                                    createdBy: user?.email || 'unknown'
+                                  };
+                                  return {
+                                    ...prev,
+                                    subtasks: [...(prev.subtasks || []), newSubtask]
+                                  };
+                                });
+                              } else {
+                                setNewTask(prev => {
+                                  if (!prev) return null;
+                                  const newSubtask = {
+                                    id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    text: newSubTask.trim(),
+                                    isCompleted: false,
+                                    completedDate: null,
+                                    completedBy: null,
+                                    createdAt: new Date().toISOString(),
+                                    createdBy: user?.email || 'unknown'
+                                  };
+                                  return {
+                                    ...prev,
+                                    subtasks: [...(prev.subtasks || []), newSubtask]
+                                  };
+                                });
+                              }
+                              setNewSubTask('');
+                            }
+                          }}
+                        />
+                        <Button
+                          className="text-sm"
+                          onClick={() => {
+                            if (!newSubTask.trim()) return;
+                            if (editingTask) {
+                              setEditingTask(prev => {
+                                if (!prev) return null;
+                                const newSubtask = {
+                                  id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                  text: newSubTask.trim(),
+                                  isCompleted: false,
+                                  completedDate: null,
+                                  completedBy: null,
+                                  createdAt: new Date().toISOString(),
+                                  createdBy: user?.email || 'unknown'
+                                };
+                                return {
+                                  ...prev,
+                                  subtasks: [...(prev.subtasks || []), newSubtask]
+                                };
+                              });
+                            } else {
+                              setNewTask(prev => {
+                                if (!prev) return null;
+                                const newSubtask = {
+                                  id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                  text: newSubTask.trim(),
+                                  isCompleted: false,
+                                  completedDate: null,
+                                  completedBy: null,
+                                  createdAt: new Date().toISOString(),
+                                  createdBy: user?.email || 'unknown'
+                                };
+                                return {
+                                  ...prev,
+                                  subtasks: [...(prev.subtasks || []), newSubtask]
+                                };
+                              });
+                            }
+                            setNewSubTask('');
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Files Section */}
+                  <div>
+                    <Label className="text-sm font-semibold">Attachments</Label>
+                    <div className="mt-2">
+                      <Input
+                        type="file"
+                        className="text-sm"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleFileUpload(file);
+                            // Clear the input
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      <div className="mt-4">
+                        {editingTask?.files && editingTask.files.length > 0 ? (
+                          <div className="space-y-2">
+                            {editingTask.files.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between bg-secondary/20 p-3 rounded">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="flex-shrink-0">
+                                    <Paperclip className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <a 
+                                      href={file.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline block truncate"
+                                    >
+                                      {file.name}
+                                    </a>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                      <span>{(file.size / 1024).toFixed(1)} KB</span>
+                                      <span>•</span>
+                                      <span>Uploaded {format(new Date(file.uploadedAt), 'MMM dd, yyyy')}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (editingTask) {
+                                      setEditingTask(prev => {
+                                        if (!prev) return null;
+                                        const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
+                                        return {
+                                          ...prev,
+                                          files: updatedFiles
+                                        };
+                                      });
+                                    } else {
+                                      setNewTask(prev => {
+                                        if (!prev) return null;
+                                        const updatedFiles = prev.files?.filter((_, i) => i !== index) || [];
+                                        return {
+                                          ...prev,
+                                          files: updatedFiles
+                                        };
+                                      });
+                                    }
+                                  }}
+                                  className="flex-shrink-0 ml-2"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground text-center py-4">
+                            No files attached
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditModalVisible(false)}>
+              <Button variant="outline" className="text-sm" onClick={() => {
+                setEditModalVisible(false);
+                setNewTask(null);
+                setEditingTask(null);
+                setEditingCustomer(null);
+              }}>
                 Cancel
               </Button>
-              <Button onClick={() => {
-                if (!editingTask) return;
-                handleEditSave({
-                  progress: editingTask.progress,
-                  dueDate: editingTask.dueDate,
-                  completedDate: editingTask.completedDate,
-                  isActive: editingTask.isActive,
-                  current: editingTask.current || 0,
-                  goal: editingTask.goal || 0,
-                  notes: editingTask.notes || '',
-                  assignedTeamMembers: editingTask.assignedTeamMembers || [],
-                  subtasks: editingTask.subtasks || [],
-                  files: editingTask.files || []
-                });
+              <Button className="text-sm" onClick={() => {
+                if (editingTask) {
+                  handleEditSave(editingTask);
+                } else if (newTask) {
+                  handleCreateTask(newTask);
+                }
               }}>
-                Save Changes
+                {editingTask ? 'Save Changes' : 'Create Task'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog 
+        open={bulkEditModalVisible} 
+        onOpenChange={(open) => !open && setBulkEditModalVisible(false)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedRows.length} Tasks</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            // Create an object with only the filled values
+            const values = {
+              ...(bulkEditForm.getFieldValue('progress') && { 
+                progress: bulkEditForm.getFieldValue('progress') 
+              }),
+              ...(bulkEditForm.getFieldValue('dueDate') && { 
+                dueDate: bulkEditForm.getFieldValue('dueDate') 
+              }),
+              ...(bulkEditForm.getFieldValue('isActive') !== undefined && { 
+                isActive: bulkEditForm.getFieldValue('isActive') 
+              }),
+              ...(bulkEditForm.getFieldValue('notes') && { 
+                notes: bulkEditForm.getFieldValue('notes') 
+              }),
+              ...(bulkEditForm.getFieldValue('current') !== undefined && { 
+                current: parseInt(bulkEditForm.getFieldValue('current')) 
+              }),
+              ...(bulkEditForm.getFieldValue('goal') !== undefined && { 
+                goal: parseInt(bulkEditForm.getFieldValue('goal')) 
+              }),
+              ...(bulkEditForm.getFieldValue('assignedTeamMembers') && { 
+                assignedTeamMembers: bulkEditForm.getFieldValue('assignedTeamMembers') 
+              })
+            };
+            
+            await handleBulkEdit(values);
+          }}>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="progress" className="text-right">Progress</Label>
+                <Select
+                  name="progress"
+                  onValueChange={(value) => bulkEditForm.setFieldValue('progress', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select progress" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="To Do">To Do</SelectItem>
+                    <SelectItem value="Doing">Doing</SelectItem>
+                    <SelectItem value="Done">Done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dueDate" className="text-right">Due Date</Label>
+                <div className="col-span-3">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <span>Pick a date</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        onSelect={(date) => {
+                          if (date) {
+                            bulkEditForm.setFieldValue('dueDate', dayjs(date));
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="isActive" className="text-right">Status</Label>
+                <Select
+                  name="isActive"
+                  onValueChange={(value) => bulkEditForm.setFieldValue('isActive', value === 'true')}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Active</SelectItem>
+                    <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="assignedTeamMembers" className="text-right">Team Members</Label>
+                <Select
+                  name="assignedTeamMembers"
+                  onValueChange={(value) => {
+                    // Convert single value to array for team members
+                    const values = Array.isArray(value) ? value : [value];
+                    bulkEditForm.setFieldValue('assignedTeamMembers', values);
+                  }}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select team members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member.email} value={member.email}>
+                        {member.name || member.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="notes" className="text-right">Notes</Label>
+                <Textarea
+                  name="notes"
+                  className="col-span-3"
+                  onChange={(e) => bulkEditForm.setFieldValue('notes', e.target.value)}
+                />
+              </div>
+
+              {/* Add Current/Goal fields for Monthly/As Needed tasks */}
+              {hasMonthlyOrAsNeededTasks && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Progress</Label>
+                  <div className="col-span-3 flex gap-4">
+                    <div className="flex-1">
+                      <Label htmlFor="current">Current</Label>
+                      <Input
+                        id="current"
+                        type="number"
+                        min={0}
+                        onChange={(e) => bulkEditForm.setFieldValue('current', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Label htmlFor="goal">Goal</Label>
+                      <Input
+                        id="goal"
+                        type="number"
+                        min={0}
+                        onChange={(e) => bulkEditForm.setFieldValue('goal', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Add info alert */}
+              <div className="bg-blue-50 text-blue-800 px-4 py-3 rounded-md text-sm">
+                <p>Only filled fields will be updated. Empty fields will be ignored.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setBulkEditModalVisible(false);
+                bulkEditForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
