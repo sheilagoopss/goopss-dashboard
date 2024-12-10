@@ -233,6 +233,27 @@ export const useSaveOptimizedEtsyListing = () => {
 
   return { saveOptimization, isSavingOptimization };
 };
+export const useDeleteOptimizedEtsyListing = () => {
+  const [isDeletingOptimization, setIsDeletingOptimization] = useState(false);
+
+  const deleteOptimization = useCallback(
+    async (id: string): Promise<boolean> => {
+      setIsDeletingOptimization(true);
+      try {
+        await FirebaseHelper.delete(COLLECTIONS.optimizedEtsyListings, id);
+        return true;
+      } catch (error) {
+        console.error("Error deleting optimization:", error);
+        return false;
+      } finally {
+        setIsDeletingOptimization(false);
+      }
+    },
+    [],
+  );
+
+  return { deleteOptimization, isDeletingOptimization };
+};
 export const useGetOptimizedEtsyListing = () => {
   const [isFetchingOptimization, setIsFetchingOptimization] = useState(false);
 

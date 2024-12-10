@@ -19,7 +19,7 @@ import {
 import Intercom from "@intercom/messenger-js-sdk";
 import dayjs from "dayjs";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ROUTES } from "@/constants/routes";
 import Image from "next/image";
 
@@ -30,6 +30,10 @@ const CustomerSidebar: React.FC = () => {
   const pathname = usePathname();
   const currentPath = pathname.split("/")[2] || "home";
   const router = useRouter();
+  const params = useSearchParams();
+  const viewAsCustomer = params.get("viewAsCustomer");
+  const selectedCustomerId = params.get("selectedCustomerId");
+  const query = viewAsCustomer ? `?viewAsCustomer=true&selectedCustomerId=${selectedCustomerId}` : "";
 
   const menuItems: MenuProps["items"] = [
     {
@@ -43,7 +47,7 @@ const CustomerSidebar: React.FC = () => {
             <div
               onClick={(e) => {
                 e.stopPropagation();
-                router.push(ROUTES.CUSTOMER.MY_INFO);
+                router.push(ROUTES.CUSTOMER.MY_INFO + query);
               }}
               style={{ cursor: "pointer", paddingLeft: "32px" }}
             >
@@ -53,7 +57,7 @@ const CustomerSidebar: React.FC = () => {
         },
       ],
       onTitleClick: () => {
-        router.push(ROUTES.CUSTOMER.HOME);
+        router.push(ROUTES.CUSTOMER.HOME + query);
       },
     },
     {
@@ -61,7 +65,7 @@ const CustomerSidebar: React.FC = () => {
       icon: <LayoutGrid className="h-6 w-6" />,
       label: "Design Hub",
       onClick: () => {
-        router.push(ROUTES.CUSTOMER.DESIGN_HUB);
+        router.push(ROUTES.CUSTOMER.DESIGN_HUB + query);
       },
     },
     {
@@ -69,7 +73,7 @@ const CustomerSidebar: React.FC = () => {
       icon: <ClipboardList className="h-6 w-6" />,
       label: "Plan",
       onClick: () => {
-        router.push(ROUTES.CUSTOMER.PLAN);
+        router.push(ROUTES.CUSTOMER.PLAN + query);
       },
     },
     {
@@ -77,7 +81,7 @@ const CustomerSidebar: React.FC = () => {
       icon: <FileText className="h-6 w-6" />,
       label: "Listings",
       onClick: () => {
-        router.push(ROUTES.CUSTOMER.LISTINGS);
+        router.push(ROUTES.CUSTOMER.LISTINGS + query);
       },
     },
     {
@@ -89,14 +93,14 @@ const CustomerSidebar: React.FC = () => {
           key: "social",
           label: "Social Calendar",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.SOCIAL);
+            router.push(ROUTES.CUSTOMER.SOCIAL + query);
           },
         },
         {
           key: "social-insights",
           label: "Social Media Insights",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.SOCIAL_INSIGHTS);
+            router.push(ROUTES.CUSTOMER.SOCIAL_INSIGHTS + query);
           },
         },
       ],
@@ -106,7 +110,7 @@ const CustomerSidebar: React.FC = () => {
       icon: <ChartBar className="h-6 w-6" />,
       label: "Store Analysis",
       onClick: () => {
-        router.push(ROUTES.CUSTOMER.STORE_ANALYSIS);
+        router.push(ROUTES.CUSTOMER.STORE_ANALYSIS + query);
       },
     },
     {
@@ -119,7 +123,7 @@ const CustomerSidebar: React.FC = () => {
           icon: <Tag className="h-6 w-6" />,
           label: "Tagify",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.TAGIFY);
+            router.push(ROUTES.CUSTOMER.TAGIFY + query);
           },
         },
         {
@@ -127,7 +131,7 @@ const CustomerSidebar: React.FC = () => {
           icon: <Calculator className="h-6 w-6" />,
           label: "ROAS Calculator",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.ROAS_CALCULATOR);
+            router.push(ROUTES.CUSTOMER.ROAS_CALCULATOR + query);
           },
         },
         {
@@ -135,7 +139,7 @@ const CustomerSidebar: React.FC = () => {
           icon: <FileEdit className="h-6 w-6" />,
           label: "Description Hero",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.DESCRIPTION_HERO);
+            router.push(ROUTES.CUSTOMER.DESCRIPTION_HERO + query);
           },
           extra: "Coming Soon",
         },
@@ -144,7 +148,7 @@ const CustomerSidebar: React.FC = () => {
           icon: <Sparkles className="h-6 w-6" />,
           label: "Ads Analysis",
           onClick: () => {
-            router.push(ROUTES.CUSTOMER.ADS_RECOMMENDATION);
+            router.push(ROUTES.CUSTOMER.ADS_RECOMMENDATION + query);
           },
           extra: "Coming Soon",
         },

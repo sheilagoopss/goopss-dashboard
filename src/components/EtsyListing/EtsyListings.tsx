@@ -7,7 +7,7 @@ import {
 } from "@/hooks/useEtsy";
 import { useEffect, useState, useCallback } from "react";
 import { IEtsyFetchedListing } from "@/types/Etsy";
-import EtsyListingOptimizationList from "@/components/EtsyListing/Optimization/EtsyListingOptimizationList";
+import EtsyListingOptimizationList from "@/components/etsyListing/Optimization/EtsyListingOptimizationList";
 
 interface EtsyListingsProps {
   customerId: string;
@@ -37,6 +37,10 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
           optimizationStatus: boolean;
         })[] = listings.map((listing) => ({
           ...listing,
+          id: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.id || "",
           isOptimized: optimizedListings.some(
             (optimizedListing) =>
               optimizedListing.listing_id === listing.listing_id,

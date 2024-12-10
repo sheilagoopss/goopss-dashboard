@@ -18,12 +18,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import DOMPurify from "dompurify";
-import { IEtsyFetchedListing, IEtsyListingImage } from "@/types/Etsy";
 import {
+  IEtsyFetchedListing,
+  IEtsyListingImage,
+  IEtsyListingUpdate,
+} from "@/types/Etsy";
+import {
+  useDeleteOptimizedEtsyListing,
   useEtsyListingImages,
   useSaveOptimizedEtsyListing,
+  useUpdateListing,
 } from "@/hooks/useEtsy";
 import { useOptimizeEtsyListing } from "@/hooks/useOptimizeEtsy";
+import { message } from "antd";
 
 interface EtsyListingOptimizationListProps {
   listings: (IEtsyFetchedListing & {
@@ -92,6 +99,9 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
   const { generateFeedback, isGenerating } = useOptimizeEtsyListing();
   const { saveOptimization, isSavingOptimization } =
     useSaveOptimizedEtsyListing();
+  const { updateListing, isUpdatingListing } = useUpdateListing();
+  const { deleteOptimization, isDeletingOptimization } =
+    useDeleteOptimizedEtsyListing();
 
   const toggleListingExpansion = (listingId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -172,9 +182,41 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
       }
       return listing;
     });
-    await saveOptimization(updatedListing);
-    setListings(updatedListings);
-    setShowOptimization(null);
+
+    const data: IEtsyListingUpdate = {
+      customerId: selectedCustomerId,
+      listingId: String(listingId),
+      title: editedTitle,
+      description: editedDescription,
+      tags: editedTags,
+    };
+    const updatedEtsy = await updateListing(data);
+    if (updatedEtsy) {
+      await saveOptimization(updatedListing);
+      setListings(updatedListings);
+      setShowOptimization(null);
+      message.success("Listing updated successfully");
+    }
+  };
+
+  const undoOptimizedListing = async (listing: IEtsyFetchedListing) => {
+    setListings(
+      listings.map((l) =>
+        l.listing_id === listing.listing_id ? { ...l, isOptimized: false } : l,
+      ),
+    );
+    const data: IEtsyListingUpdate = {
+      customerId: selectedCustomerId,
+      listingId: String(listing.listing_id),
+      title: listing.title,
+      description: listing.description,
+      tags: listing.tags,
+    };
+    const updatedEtsy = await updateListing(data);
+    if (updatedEtsy) {
+      setShowOptimization(null);
+      await deleteOptimization(listing.id);
+    }
   };
 
   const fetchListingImages = useCallback(
@@ -322,7 +364,9 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                               ) : (
                                 <Input
                                   value={editedTitle}
-                                  onChange={(e) => setEditedTitle(e.target.value)}
+                                  onChange={(e) =>
+                                    setEditedTitle(e.target.value)
+                                  }
                                   className="p-4 bg-white rounded-lg mb-2 text-base"
                                 />
                               )}
@@ -359,11 +403,11 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                                 <Textarea
                                   defaultValue={listing.optimizedDescription}
                                   value={editedDescription}
-                                onChange={(e) =>
-                                  setEditedDescription(e.target.value)
-                                }
-                                className="p-4 bg-white rounded-lg mb-2 text-base"
-                                rows={10}
+                                  onChange={(e) =>
+                                    setEditedDescription(e.target.value)
+                                  }
+                                  className="p-4 bg-white rounded-lg mb-2 text-base"
+                                  rows={10}
                                 />
                               )}
                               <Hint>more detailed</Hint>
@@ -444,14 +488,22 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex justify-center" style={{ display: listing.isOptimized ? "none" : "" }}>
+                        <div className="flex justify-center">
                           <AiButton
                             onClick={() =>
-                              saveOptimizedListing(listing.listing_id)
+                              listing.isOptimized
+                                ? undoOptimizedListing(listing)
+                                : saveOptimizedListing(listing.listing_id)
                             }
-                            isLoading={isSavingOptimization}
+                            isLoading={
+                              isSavingOptimization ||
+                              isUpdatingListing ||
+                              isDeletingOptimization
+                            }
                           >
-                            Save optimized listing
+                            {listing.isOptimized
+                              ? "Undo Optimized listing"
+                              : "Save optimized listing"}
                           </AiButton>
                         </div>
                       </div>

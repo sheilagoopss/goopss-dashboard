@@ -10,6 +10,7 @@ interface CustomersDropdownProps {
   selectedCustomer: ICustomer | null;
   setSelectedCustomer: (customer: ICustomer | null) => void;
   isAdmin: boolean;
+  hideExtras?: boolean;
 }
 
 const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
@@ -17,6 +18,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
   selectedCustomer,
   setSelectedCustomer,
   isAdmin,
+  hideExtras = false,
 }) => {
   const [showInactive, setShowInactive] = useState(false);
 
@@ -30,7 +32,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.set("viewAsCustomer", "true");
     newUrl.searchParams.set("selectedCustomerId", selectedCustomer?.id || "");
-    window.open(newUrl.toString(), "_blank");
+    window.open(newUrl.toString().replace("admin", "customer"), "_blank");
   };
 
   return (
@@ -75,7 +77,7 @@ const CustomersDropdown: React.FC<CustomersDropdownProps> = ({
           </Select.Option>
         ))}
       </Select>
-      {isAdmin && (
+      {!hideExtras && isAdmin && (
         <div style={{ display: "flex", flexDirection: "row", gap: "2ch" }}>
           <Tooltip title="Show inactive customers">
             <Switch
