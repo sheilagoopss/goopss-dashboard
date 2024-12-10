@@ -34,7 +34,6 @@ import { Label } from "@/components/ui/label"
 import { UserAvatars } from '@/components/plan/user-avatars'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { TaskCalendar } from '@/components/plan/task-calendar'
-import { Task } from '@/types/types'
 import { format } from "date-fns"
 import {
   Dialog,
@@ -51,6 +50,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import dayjs from 'dayjs'
 import { PlanTaskRule } from '@/types/PlanTasks'
+import { Form } from 'antd'
 
 interface TaskFile {
   name: string;
@@ -121,21 +121,6 @@ const TaskCard = ({ task, teamMembers, onEdit }: TaskCardProps) => {
       className={`relative overflow-hidden cursor-pointer transition-all duration-300 ${getCardColor(task.progress)} rounded-xl`}
       onClick={() => onEdit(task)}
     >
-      <div className="absolute top-2 right-2 flex items-center space-x-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="bg-white/20 hover:bg-white/30 text-white h-8 w-8"
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        {assignedMembers.map(member => (
-          <Avatar key={member.email} className="h-8 w-8 border-2 border-white/20">
-            <AvatarImage src={member.avatarUrl} alt={member.name} />
-            <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-          </Avatar>
-        ))}
-      </div>
       <div className="p-3 text-white" style={{ minHeight: '180px' }}>
         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
           {getStatusIcon(task.progress)}
@@ -201,7 +186,12 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [isOpen, setIsOpen] = useState(false)
   const [plans, setPlans] = useState<{ sections: PlanSection[] } | null>(null)
   const [allPlans, setAllPlans] = useState<{ [customerId: string]: { sections: PlanSection[] } }>({})
-  const [filteredSections, setFilteredSections] = useState<{ [key: string]: { tasks: (PlanTask & { customer?: ICustomer })[]; customers: ICustomer[] } }>({})
+  const [filteredSections, setFilteredSections] = useState<{ 
+    [key: string]: { 
+      tasks: (PlanTask & { customer?: ICustomer })[]; 
+      customers: ICustomer[] 
+    } 
+  }>({});
   const { user } = useAuth()
   const [currentPage, setCurrentPage] = useState<{ [section: string]: number }>({})
   const ITEMS_PER_PAGE = 12
@@ -214,6 +204,9 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
   const [uploadedFiles, setUploadedFiles] = useState<TaskFile[]>([])
   const [dueDateFilter, setDueDateFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
   const [isCreatingTask, setIsCreatingTask] = useState(false)
+  const [selectedRows, setSelectedRows] = useState<(PlanTask & { customer?: ICustomer })[]>([]);
+  const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
+  const [bulkEditForm] = Form.useForm();
 
   const createPlanForCustomer = async (customer: ICustomer) => {
     try {
@@ -1091,17 +1084,6 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                   }
                 }}
               />
-              {teamMemberFilter !== 'all' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTeamMemberFilter('all')}
-                  className="ml-2"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-              )}
             </div>
           )}
 
@@ -1345,6 +1327,105 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
     }
   };
 
+  // Add this function to handle bulk edits
+  const handleBulkEdit = async (values: any) => {
+    try {
+      setIsLoading(true);
+      console.log('Bulk editing with values:', values);
+      
+      for (const task of selectedRows) {
+        if (!task.customer) continue;
+        
+        const planRef = doc(db, 'plans', task.customer.id);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const plan = planDoc.data() as Plan;
+          const updatedSections = plan.sections.map(section => ({
+            ...section,
+            tasks: section.tasks.map(t => {
+              if (t.id === task.id) {
+                // Calculate due date based on frequency
+                let dueDate = t.dueDate;
+                if (values.dueDate) {
+                  dueDate = t.frequency === 'Monthly' 
+                    ? calculateMonthlyDueDate(values.dueDate.date())
+                    : values.dueDate.format('YYYY-MM-DD');
+                }
+
+                const updatedTask = {
+                  ...t,
+                  ...(values.progress && { progress: values.progress }),
+                  ...(values.dueDate && { dueDate }),
+                  ...(values.isActive !== undefined && { isActive: values.isActive }),
+                  ...(values.notes && { notes: values.notes }),
+                  ...(values.current !== undefined && { current: values.current }),
+                  ...(values.goal !== undefined && { goal: values.goal }),
+                  ...(values.assignedTeamMembers && { assignedTeamMembers: values.assignedTeamMembers }),
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user?.email || 'unknown'
+                };
+
+                console.log('Updating task:', t.id, 'with:', updatedTask);
+                return updatedTask;
+              }
+              return t;
+            })
+          }));
+          
+          console.log('Updating plan for customer:', task.customer.id);
+          await updateDoc(planRef, { 
+            sections: updatedSections,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      // Reload data
+      if (selectedCustomer) {
+        await loadPlan();
+      } else {
+        await loadAllPlans();
+      }
+
+      message.success(`Successfully updated ${selectedRows.length} tasks`);
+      setBulkEditModalVisible(false);
+      setSelectedRows([]);
+      bulkEditForm.resetFields();
+    } catch (error) {
+      console.error('Error in bulk edit:', error);
+      message.error('Failed to update tasks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add this helper function
+  const calculateMonthlyDueDate = (monthlyDueDate: number) => {
+    const today = dayjs();
+    const dueDate = dayjs().date(monthlyDueDate);
+    
+    // If the due date for this month has passed, use next month
+    if (dueDate.isBefore(today)) {
+      return dueDate.add(1, 'month').format('YYYY-MM-DD');
+    }
+    
+    return dueDate.format('YYYY-MM-DD');
+  };
+
+  // Modify the selection check function
+  const isTaskSelected = (task: PlanTask & { customer?: ICustomer }) => {
+    return selectedRows.some(r => 
+      r.id === task.id && 
+      r.customer?.id === task.customer?.id
+    );
+  };
+
+  // Add this check for Monthly/As Needed tasks
+  const hasMonthlyOrAsNeededTasks = selectedRows.some(task => 
+    ['Monthly', 'As Needed'].includes(task.frequency)
+  );
+
   return (
     <div className="w-full max-w-7xl mx-auto p-6">
       <div className="flex items-center justify-between mb-4">
@@ -1389,6 +1470,16 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
       </div>
 
       <FiltersSection />
+
+      {selectedRows.length > 0 && (
+        <div className="flex items-center gap-2 mt-4 mb-4">
+          <Button
+            onClick={() => setBulkEditModalVisible(true)}
+          >
+            Bulk Edit ({selectedRows.length})
+          </Button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center items-center min-h-[200px]">
@@ -1477,12 +1568,44 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
                     </div>
                     <div className="grid grid-cols-4 gap-4">
                       {getPaginatedTasks(tasks, sectionTitle).map((task) => (
-                        <TaskCard 
-                          key={task.id} 
-                          task={task} 
-                          teamMembers={teamMembers}
-                          onEdit={handleEditTask} 
-                        />
+                        <div 
+                          key={task.id}
+                          className="relative group"
+                        >
+                          {/* Add checkbox in the corner */}
+                          <div 
+                            className="absolute top-2 right-2 z-20"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent card click from triggering
+                              const isSelected = isTaskSelected(task);
+                              if (!isSelected) {
+                                // Only add this specific task
+                                setSelectedRows(prev => [...prev, task]);
+                              } else {
+                                // Only remove this specific task
+                                setSelectedRows(prev => prev.filter(r => 
+                                  !(r.id === task.id && r.customer?.id === task.customer?.id)
+                                ));
+                              }
+                            }}
+                          >
+                            <Checkbox 
+                              checked={isTaskSelected(task)}
+                              className="bg-white/80 hover:bg-white"
+                            />
+                          </div>
+                          
+                          {/* Highlight overlay when selected */}
+                          {isTaskSelected(task) && (
+                            <div className="absolute inset-0 bg-primary/20 z-10 rounded-lg" />
+                          )}
+                          
+                          <TaskCard 
+                            task={task} 
+                            teamMembers={teamMembers}
+                            onEdit={handleEditTask} 
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -2149,6 +2272,178 @@ function NewPlanView({ customers = [], selectedCustomer, setSelectedCustomer }: 
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog 
+        open={bulkEditModalVisible} 
+        onOpenChange={(open) => !open && setBulkEditModalVisible(false)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedRows.length} Tasks</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            // Create an object with only the filled values
+            const values = {
+              ...(bulkEditForm.getFieldValue('progress') && { 
+                progress: bulkEditForm.getFieldValue('progress') 
+              }),
+              ...(bulkEditForm.getFieldValue('dueDate') && { 
+                dueDate: bulkEditForm.getFieldValue('dueDate') 
+              }),
+              ...(bulkEditForm.getFieldValue('isActive') !== undefined && { 
+                isActive: bulkEditForm.getFieldValue('isActive') 
+              }),
+              ...(bulkEditForm.getFieldValue('notes') && { 
+                notes: bulkEditForm.getFieldValue('notes') 
+              }),
+              ...(bulkEditForm.getFieldValue('current') !== undefined && { 
+                current: parseInt(bulkEditForm.getFieldValue('current')) 
+              }),
+              ...(bulkEditForm.getFieldValue('goal') !== undefined && { 
+                goal: parseInt(bulkEditForm.getFieldValue('goal')) 
+              }),
+              ...(bulkEditForm.getFieldValue('assignedTeamMembers') && { 
+                assignedTeamMembers: bulkEditForm.getFieldValue('assignedTeamMembers') 
+              })
+            };
+            
+            await handleBulkEdit(values);
+          }}>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="progress" className="text-right">Progress</Label>
+                <Select
+                  name="progress"
+                  onValueChange={(value) => bulkEditForm.setFieldValue('progress', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select progress" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="To Do">To Do</SelectItem>
+                    <SelectItem value="Doing">Doing</SelectItem>
+                    <SelectItem value="Done">Done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dueDate" className="text-right">Due Date</Label>
+                <div className="col-span-3">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <span>Pick a date</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        onSelect={(date) => {
+                          if (date) {
+                            bulkEditForm.setFieldValue('dueDate', dayjs(date));
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="isActive" className="text-right">Status</Label>
+                <Select
+                  name="isActive"
+                  onValueChange={(value) => bulkEditForm.setFieldValue('isActive', value === 'true')}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Active</SelectItem>
+                    <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="assignedTeamMembers" className="text-right">Team Members</Label>
+                <Select
+                  name="assignedTeamMembers"
+                  onValueChange={(value) => {
+                    // Convert single value to array for team members
+                    const values = Array.isArray(value) ? value : [value];
+                    bulkEditForm.setFieldValue('assignedTeamMembers', values);
+                  }}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select team members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member.email} value={member.email}>
+                        {member.name || member.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="notes" className="text-right">Notes</Label>
+                <Textarea
+                  name="notes"
+                  className="col-span-3"
+                  onChange={(e) => bulkEditForm.setFieldValue('notes', e.target.value)}
+                />
+              </div>
+
+              {/* Add Current/Goal fields for Monthly/As Needed tasks */}
+              {hasMonthlyOrAsNeededTasks && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Progress</Label>
+                  <div className="col-span-3 flex gap-4">
+                    <div className="flex-1">
+                      <Label htmlFor="current">Current</Label>
+                      <Input
+                        id="current"
+                        type="number"
+                        min={0}
+                        onChange={(e) => bulkEditForm.setFieldValue('current', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Label htmlFor="goal">Goal</Label>
+                      <Input
+                        id="goal"
+                        type="number"
+                        min={0}
+                        onChange={(e) => bulkEditForm.setFieldValue('goal', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Add info alert */}
+              <div className="bg-blue-50 text-blue-800 px-4 py-3 rounded-md text-sm">
+                <p>Only filled fields will be updated. Empty fields will be ignored.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setBulkEditModalVisible(false);
+                bulkEditForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
