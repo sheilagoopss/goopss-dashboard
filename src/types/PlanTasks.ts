@@ -1,3 +1,5 @@
+export type PlanType =  'Other' | 'NewsLetters' | 'PinterestBanner' | 'HighSearch' | 'LowCompetition' | 'StoreBanner';
+export type PlanTaskFrequency = 'One Time' | 'Monthly' | 'As Needed';
 export interface SubTask {
   id: string;
   text: string;
@@ -13,7 +15,7 @@ export interface PlanTaskRule {
   task: string;
   section: string;
   order: number;
-  frequency: 'One Time' | 'Monthly' | 'As Needed';
+  frequency: PlanTaskFrequency;
   daysAfterJoin?: number | null;
   monthlyDueDate?: number | null;
   isActive: boolean;
@@ -31,4 +33,6 @@ export interface PlanTaskRules {
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
+  type: PlanType;
 } 
+
