@@ -70,6 +70,7 @@ export interface IEtsyListingImage {
 }
 
 export interface IEtsyFetchedListing {
+  id: string;
   listing_id: number;
   user_id: number;
   shop_id: number;

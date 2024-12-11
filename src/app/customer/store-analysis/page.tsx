@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Button, Col, Divider, Row, Spin } from "antd";
+import { Button, Card, Col, Divider, Form, Input, message, Row, Spin } from "antd";
 import { IStoreDetail } from "@/types/StoreDetail";
 import { useCustomerStoreAnalyticsFetch } from "@/hooks/useStoreAnalytics";
 import { ReloadOutlined } from "@ant-design/icons";
@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import { ScrapeDataKeys } from "@/components/storeAnalysis/ScrapeDataModal";
 import { SCRAPE_DATA } from "@/components/storeAnalysis/ScrapeDataModal";
+import { useCustomerUpdate } from "@/hooks/useCustomer";
 
 const StoreAnalysisCustomer: React.FC = () => {
   const { customerData } = useAuth();
@@ -19,6 +20,8 @@ const StoreAnalysisCustomer: React.FC = () => {
   const [storeAnalytics, setStoreAnalytics] = useState<
     IStoreDetail | undefined
   >(undefined);
+  const [form] = Form.useForm();
+  const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
 
   const refresh = useCallback(() => {
     if (!customerData?.customer_id) {
@@ -32,6 +35,20 @@ const StoreAnalysisCustomer: React.FC = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const onFinish = async () => {
+    form.validateFields().then(async (values) => {
+      const updated = await updateCustomer(customerData?.id || "", {
+        store_name: values.store_name,
+      });
+      if (updated) {
+        message.success("Store name updated successfully");
+        window.location.reload();
+      } else {
+        message.error("Failed to update store name");
+      }
+    });
+  };
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -52,7 +69,7 @@ const StoreAnalysisCustomer: React.FC = () => {
         </div>
       )}
 
-      {customerData && (
+      {customerData?.store_name && (
         <div
           style={{
             backgroundColor: "white",
@@ -93,7 +110,7 @@ const StoreAnalysisCustomer: React.FC = () => {
 
       {/* Add your store analysis content here */}
       <div>
-        {customerData && (
+        {customerData?.store_name && (
           <>
             <Row gutter={[16, 16]}>
               <Col span={24}>Store analysis for {customerData?.store_name}</Col>
@@ -156,6 +173,30 @@ const StoreAnalysisCustomer: React.FC = () => {
           </>
         )}
       </div>
+
+      {!customerData?.store_name && (
+        <Card>
+          <Form layout="vertical" onFinish={onFinish} form={form}>
+            <Form.Item
+              label="Store Name"
+              name="store_name"
+              rules={[
+                {
+                  required: true,
+                  message:
+                    "Store name must contain letters and numbers only, and cannot include spaces.",
+                  pattern: /^[a-zA-Z0-9]+$/,
+                },
+              ]}
+            >
+              <Input />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" loading={isUpdatingCustomer}>
+              Save
+            </Button>
+          </Form>
+        </Card>
+      )}
     </div>
   );
 };

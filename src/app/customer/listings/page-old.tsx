@@ -7,7 +7,7 @@ import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import DOMPurify from "dompurify";
 import { Segmented, Spin } from "antd";
-import EtsyListings from "@/components/EtsyListing/EtsyListings";
+import EtsyListings from "@/components/etsyListing/EtsyListings";
 import Image from "next/image";
 
 interface Listing {
