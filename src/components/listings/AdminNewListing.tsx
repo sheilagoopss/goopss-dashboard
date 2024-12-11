@@ -140,17 +140,6 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
           className="mt-0"
           items={[
             {
-              key: "create",
-              label: "Create New Listing",
-              children: (
-                <NewListingForm
-                  customerId={customerId}
-                  storeName={storeName}
-                  onSuccess={handleCreateSuccess}
-                />
-              ),
-            },
-            {
               key: "listings",
               label: "Listings",
               children: (
@@ -176,6 +165,17 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
                     }}
                   />
                 </div>
+              ),
+            },
+            {
+              key: "create",
+              label: "Create New Listing",
+              children: (
+                <NewListingForm
+                  customerId={customerId}
+                  storeName={storeName}
+                  onSuccess={handleCreateSuccess}
+                />
               ),
             },
           ]}

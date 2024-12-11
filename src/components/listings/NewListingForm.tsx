@@ -132,18 +132,18 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
             <Form form={form} layout="vertical">
               <Form.Item
                 name="productTitle"
-                label="Original Title"
+                label="Draft Title"
                 rules={[{ required: true, message: "Please enter the product title" }]}
               >
-                <Input.TextArea rows={3} placeholder="Enter product title" />
+                <Input.TextArea rows={3} placeholder="Enter draft title" />
               </Form.Item>
 
               <Form.Item
                 name="productDescription"
-                label="Original Description"
+                label="Product Details"
                 rules={[{ required: true, message: "Please enter the product description" }]}
               >
-                <Input.TextArea rows={6} placeholder="Enter product description" />
+                <Input.TextArea rows={6} placeholder="Enter product details" />
               </Form.Item>
             </Form>
           </Card>

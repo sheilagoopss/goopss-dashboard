@@ -163,7 +163,7 @@ const AdminSidebar = () => {
               },
               {
                 key: ROUTES.ADMIN.LISTINGS_NEW,
-                label: "New Listing",
+                label: "New Listings",
                 onClick: () => {
                   router.push(ROUTES.ADMIN.LISTINGS_NEW);
                 },
