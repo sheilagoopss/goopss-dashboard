@@ -37,6 +37,10 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
           optimizationStatus: boolean;
         })[] = listings.map((listing) => ({
           ...listing,
+          id: optimizedListings.find(
+            (optimizedListing) =>
+              optimizedListing.listing_id === listing.listing_id,
+          )?.id || "",
           isOptimized: optimizedListings.some(
             (optimizedListing) =>
               optimizedListing.listing_id === listing.listing_id,

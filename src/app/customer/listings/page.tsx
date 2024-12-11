@@ -9,9 +9,9 @@ const ListingPage = () => {
   return (
     <UserListingOptimization
       showEtsyListings={customerData?.isSuperCustomer}
-      showCreateListing={true}
-      showDuplicatedListings={true}
-      showOptimizedListings={true}
+      showCreateListing={customerData?.isSuperCustomer}
+      showDuplicatedListings={!customerData?.isSuperCustomer}
+      showOptimizedListings={!customerData?.isSuperCustomer}
     />
   );
 };

@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import {
   signInWithEmailAndPassword,
@@ -32,6 +33,7 @@ import dayjs from "dayjs";
 import { serverTimestamp, Timestamp } from "firebase/firestore";
 import { IUserActivity } from "@/types/UserActivityLog";
 import { useSubscribeCustomer } from "@/hooks/useKlaviyo";
+import { useSearchParams } from "next/navigation";
 
 interface AuthContextType {
   user: IAdmin | null | undefined;
@@ -71,6 +73,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState<ICustomer | null>(null);
   const { subscribeCustomer } = useSubscribeCustomer();
+  const params = useSearchParams();
+  const viewAsCustomer = params.get("viewAsCustomer");
+  const selectedCustomerId = params.get("selectedCustomerId");
 
   const AUTH_COOKIE_KEY: SupportedKeys = "Authorization";
 
@@ -83,58 +88,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     await FirebaseHelper.create("userActivity", userActivityData);
   };
 
-  const handleLoginUser = async (user: UserCredential) => {
-    const token = await user.user.getIdToken();
-    clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
+  const handleLoginUser = useCallback(
+    async (user: UserCredential) => {
+      const token = await user.user.getIdToken();
+      clientSetCookie({ key: AUTH_COOKIE_KEY, data: token });
 
-    const customers = await FirebaseHelper.find<ICustomer>("customers");
-    const customerDoc = customers.find((doc) => doc.email === user.user.email);
-
-    if (customerDoc) {
-      setCustomerData(customerDoc);
-      setIsAdmin(false);
-      await userActivityLog(customerDoc);
-    } else {
-      const admins = await FirebaseHelper.find<IAdmin>("admin");
-      const admin = admins.find(
-        (admin) =>
-          admin.email?.toLowerCase() === user.user.email?.toLowerCase(),
+      const customers = await FirebaseHelper.findWithFilter<ICustomer>(
+        "customers",
+        "email",
+        user.user.email || "",
       );
-
-      if (admin) {
-        const userData = {
-          ...admin,
-          isAdmin: true,
-        } as IAdmin;
-        setUser(userData);
-        setIsAdmin(true);
-        setCustomerData(null);
+      const customerDoc = customers.find(
+        (doc) => doc.email === user.user.email,
+      );
+      if (customerDoc) {
+        setCustomerData(customerDoc);
+        setIsAdmin(false);
+        await userActivityLog(customerDoc);
       } else {
-        const created = await FirebaseHelper.create("customers", {
-          id: user.user.uid,
-          customer_id: user.user.uid,
-          email: user.user.email || "",
-          contact_email: user.user.email || "",
-          date_joined: dayjs().toISOString(),
-          customer_type: "Free",
-          store_owner_name: user.user.displayName || "",
-          store_name: "",
-          logo: user.user.photoURL,
-        } as ICustomer);
-        const customer = await FirebaseHelper.findOne<ICustomer>(
-          "customers",
-          created.id,
+        const admins = await FirebaseHelper.find<IAdmin>("admin");
+        const admin = admins.find(
+          (admin) =>
+            admin.email?.toLowerCase() === user.user.email?.toLowerCase(),
         );
-        if (customer) {
-          await userActivityLog(customer);
-          await subscribeCustomer(customer.email, customer.store_owner_name);
-          setCustomerData(customer);
-          setIsAdmin(false);
+
+        if (admin) {
+          const userData = {
+            ...admin,
+            isAdmin: true,
+          } as IAdmin;
+          setUser(userData);
+          setIsAdmin(true);
+          setCustomerData(null);
+        } else {
+          const created = await FirebaseHelper.create("customers", {
+            customer_id: user.user.uid,
+            email: user.user.email || "",
+            contact_email: user.user.email || "",
+            date_joined: dayjs().toISOString(),
+            customer_type: "Free",
+            store_owner_name: user.user.displayName || "",
+            store_name: "",
+            logo: user.user.photoURL,
+          } as ICustomer);
+          const customer = await FirebaseHelper.findOne<ICustomer>(
+            "customers",
+            created.id,
+          );
+          if (customer) {
+            await userActivityLog(customer);
+            await subscribeCustomer(customer.email, customer.store_owner_name);
+            setCustomerData(customer);
+            setIsAdmin(false);
+          }
         }
       }
-    }
-    setLoading(false);
-  };
+      setLoading(false);
+    },
+    [subscribeCustomer],
+  );
 
   const logout = async () => {
     try {
@@ -207,7 +219,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const checkForTokenOnLoad = async () => {
+  const checkForTokenOnLoad = useCallback(async () => {
     const token = getClientCookie(AUTH_COOKIE_KEY);
     if (!token) {
       setUser(null);
@@ -235,12 +247,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       console.error("Failed to re-authenticate user: ", error);
       clearCookie(AUTH_COOKIE_KEY);
     }
-  };
+  }, [handleLoginUser]);
+
+  const handleViewAsCustomer = useCallback(async () => {
+    if (viewAsCustomer && selectedCustomerId) {
+      const customer = await FirebaseHelper.findOne<ICustomer>(
+        "customers",
+        selectedCustomerId,
+      );
+      if (customer) {
+        setIsAdmin(false);
+        setCustomerData({ ...customer, isViewing: Boolean(viewAsCustomer) });
+      }
+    }
+  }, [selectedCustomerId, viewAsCustomer]);
 
   useEffect(() => {
-    checkForTokenOnLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    checkForTokenOnLoad().then(() => {
+      handleViewAsCustomer();
+    });
+  }, [checkForTokenOnLoad, handleViewAsCustomer]);
 
   const toggleAdminMode = () => {
     setIsAdmin(!isAdmin);

@@ -7,10 +7,10 @@ import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import { List, Segmented, Spin, Tabs } from "antd";
 import EtsyListings from "@/components/EtsyListing/EtsyListings";
-import DuplicationCard from "./components/DuplicationCard";
+import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
-import OptimizationCard from "./components/OptimizationCard";
-import CreateEtsyProduct from "../EtsyListing/CreateEtsyProduct";
+import OptimizationCard from "@/components/listings/components/OptimizationCard";
+import CreateEtsyProduct from "@/components/EtsyListing/CreateEtsyProduct";
 
 interface UserListingOptimizationProps {
   showEtsyListings?: boolean;

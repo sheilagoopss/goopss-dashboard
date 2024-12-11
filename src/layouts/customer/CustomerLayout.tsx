@@ -1,8 +1,9 @@
 "use client";
 
-import { Layout, LayoutProps } from "antd";
+import { Layout, LayoutProps, Spin } from "antd";
 import ProtectedLayout from "@/layouts/ProtectedLayout";
 import CustomerSidebar from "./CustomerSidebar";
+import { Suspense } from "react";
 
 const { Content } = Layout;
 
@@ -18,7 +19,15 @@ export default function CustomerLayout({
     <ProtectedLayout>
       <Layout className="bg-white" {...props}>
         <CustomerSidebar />
-        <Content className="p-4 bg-white">{children}</Content>
+        <Suspense
+          fallback={
+            <div className="flex justify-center items-center h-screen w-full">
+              <Spin />
+            </div>
+          }
+        >
+          <Content className="p-4 bg-white">{children}</Content>
+        </Suspense>
       </Layout>
     </ProtectedLayout>
   );
