@@ -39,7 +39,7 @@ import Papa from "papaparse";
 import dayjs from "dayjs";
 import { useOptimizeListing } from "@/hooks/useOptimizeEtsy";
 import Image from "next/image";
-import Setting from "@/components/etsyListing/components/Setting";
+import Setting from "@/components/EtsyListing/components/Setting";
 const { Text } = Typography;
 const LISTINGS_PER_PAGE = 10;
 const MAX_TAGS = 13;

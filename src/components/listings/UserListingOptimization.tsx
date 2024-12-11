@@ -10,7 +10,7 @@ import EtsyListings from "@/components/etsyListing/EtsyListings";
 import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
 import OptimizationCard from "@/components/listings/components/OptimizationCard";
-import CreateEtsyProduct from "@/components/etsyListing/CreateEtsyProduct";
+import CreateEtsyProduct from "@/components/EtsyListing/CreateEtsyProduct";
 
 interface UserListingOptimizationProps {
   showEtsyListings?: boolean;
