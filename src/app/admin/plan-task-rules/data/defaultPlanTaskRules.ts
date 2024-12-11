@@ -36,4 +36,5 @@ export const defaultPlanTaskRules: PlanTaskRules = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   updatedBy: "system",
+  type: "Other",
 };
