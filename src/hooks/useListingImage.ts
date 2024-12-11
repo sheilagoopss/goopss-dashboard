@@ -238,12 +238,13 @@ export const useUploadRevision = (): UseUploadRevision => {
         batch.update(listingRef, { hasImage: true });
         await createTask({
           customerId: customerId,
-          taskName: `Added 1 image`,
+          taskName: `Added 1 image (Revision)`,
           teamMemberName: (user as IAdmin)?.name || user?.email || "",
           dateCompleted: serverTimestamp(),
           listingId: listing.id,
           isDone: true,
           category: "Design",
+          count: 1,
         });
         await batch.commit();
         return true;
@@ -380,6 +381,7 @@ export const useUploadListingImages = (): UseUploadListingImages => {
           listingId: listing.id,
           isDone: true,
           category: "Design",
+          count: newImages.length,
         });
 
         await batch.commit();

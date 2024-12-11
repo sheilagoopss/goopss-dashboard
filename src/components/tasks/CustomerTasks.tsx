@@ -1,6 +1,14 @@
 "use client";
 
-import { Card, DatePicker, Layout, List, Skeleton, Typography } from "antd";
+import {
+  Card,
+  DatePicker,
+  Divider,
+  Layout,
+  List,
+  Skeleton,
+  Typography,
+} from "antd";
 import CustomersDropdown from "@/components/common/CustomersDropdown";
 import { useCustomerFetchAll } from "@/hooks/useCustomer";
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +16,9 @@ import { ICustomer } from "@/types/Customer";
 import { useTaskFetchAll } from "@/hooks/useTask";
 import { ITask } from "@/types/Task";
 import dayjs from "dayjs";
+import { usePlan } from "@/hooks/usePlan";
+import { IPlanTask, PlanWithCustomer } from "@/types/Plan";
+import { PlanType } from "@/types/PlanTasks";
 
 const { Content, Header } = Layout;
 
@@ -18,7 +29,9 @@ const CustomerTasks = () => {
     null,
   );
   const [tasks, setTasks] = useState<{ category: string; count: number }[]>([]);
+  const [plans, setPlans] = useState<{ category: string; count: number }[]>([]);
   const { fetchAllTasks, isLoading: isLoadingTasks } = useTaskFetchAll();
+  const { fetchCustomerPlans, isLoading: isLoadingPlans } = usePlan();
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
 
   useEffect(() => {
@@ -59,13 +72,68 @@ const CustomerTasks = () => {
     [selectedCustomer, dateRange],
   );
 
+  const getPlanLabel = (plan: PlanType) => {
+    switch (plan) {
+      case "HighSearch":
+        return "New keyword research - High searches";
+      case "LowCompetition":
+        return "New keyword research - Low Competition";
+      case "NewsLetters":
+        return "Newsletters";
+      case "PinterestBanner":
+        return "Pinterest Banner";
+      case "StoreBanner":
+        return "Store Banner";
+      default:
+        return "Other";
+    }
+  };
+
+  const handlePlanGrouping = useCallback((plans: PlanWithCustomer) => {
+    const groupedPlans = plans.sections.reduce((acc, section) => {
+      section.tasks.forEach((task) => {
+        const taskType = task.type || "Other";
+        if (!acc[taskType]) {
+          acc[taskType] = [];
+        }
+        acc[taskType].push(task);
+      });
+      return acc;
+    }, {} as Record<string, IPlanTask[]>);
+
+    const groupedTasks: {
+      category: string;
+      count: number;
+    }[] = [];
+
+    Object.entries(groupedPlans).forEach(([category, count]) => {
+      if (category !== "undefined" && category !== "Other") {
+        groupedTasks.push({
+          category: getPlanLabel(category as PlanType),
+          count: count.length,
+        });
+      }
+    });
+
+    setPlans(groupedTasks);
+  }, []);
+
   useEffect(() => {
     if (selectedCustomer) {
       fetchAllTasks().then((tasks) => {
         handleDataTransform(tasks);
       });
+      fetchCustomerPlans(selectedCustomer.id).then((plans) => {
+        handlePlanGrouping(plans);
+      });
     }
-  }, [selectedCustomer, fetchAllTasks, handleDataTransform]);
+  }, [
+    selectedCustomer,
+    fetchAllTasks,
+    handleDataTransform,
+    fetchCustomerPlans,
+    handlePlanGrouping,
+  ]);
 
   return (
     <Layout style={{ backgroundColor: "white" }}>
@@ -105,20 +173,47 @@ const CustomerTasks = () => {
             style={{ marginTop: "1rem" }}
             title={`Customer ${selectedCustomer?.store_name} - Task Summary`}
           >
-            <List
-              loading={isLoadingTasks}
-              dataSource={tasks}
-              renderItem={(item) => (
-                <List.Item>
-                  <div className="flex justify-between items-center w-full">
-                    <Typography.Text strong>{item.category}</Typography.Text>
-                    <Typography.Text type="secondary">
-                      {item.count}
-                    </Typography.Text>
-                  </div>
-                </List.Item>
-              )}
-            />
+            {tasks.length > 0 && (
+              <>
+                <List
+                  loading={isLoadingTasks}
+                  dataSource={tasks}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <div className="flex justify-between items-center w-full">
+                        <Typography.Text strong>
+                          {item.category}
+                        </Typography.Text>
+                        <Typography.Text type="secondary">
+                          {item.count}
+                        </Typography.Text>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              </>
+            )}
+            <Divider />
+            {plans.length > 0 && (
+              <>
+                <List
+                  loading={isLoadingPlans}
+                  dataSource={plans}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <div className="flex justify-between items-center w-full">
+                        <Typography.Text strong>
+                          {item.category}
+                        </Typography.Text>
+                        <Typography.Text type="secondary">
+                          {item.count}
+                        </Typography.Text>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              </>
+            )}
           </Card>
         )}
       </Content>

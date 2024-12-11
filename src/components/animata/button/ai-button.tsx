@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 import { loadFull } from "tsparticles";
 import type { ISourceOptions } from "@tsparticles/engine";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { LoadingOutlined } from "@ant-design/icons";
 
 const options: ISourceOptions = {
   key: "star",
@@ -110,7 +111,11 @@ export default function AiButton({
       disabled={isLoading}
     >
       <div className="relative flex items-center justify-center gap-2 rounded-full bg-white bg-opacity-5 backdrop-blur-sm px-6 py-2.5">
-        <Star className="size-4 text-white" />
+        {isLoading ? (
+          <LoadingOutlined className="size-4 text-white animate-spin" />
+        ) : (
+          <Star className="size-4 text-white" />
+        )}
         <span className="font-medium text-white">{children}</span>
       </div>
       {!!particleState && (

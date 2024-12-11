@@ -7,6 +7,7 @@ import {
   IEtsyListingImage,
   IEtsyListingUpdate,
   IEtsyShippingProfile,
+  IOptimizedEtsyListing,
 } from "@/types/Etsy";
 import FirebaseHelper from "@/helpers/FirebaseHelper";
 import { COLLECTIONS } from "@/config/collections";
@@ -199,21 +200,8 @@ export const useSaveOptimizedEtsyListing = () => {
 
   const saveOptimization = useCallback(
     async (
-      data: IEtsyFetchedListing & {
-        optimizedTitle: string;
-        optimizedDescription: string;
-        optimizedTags: string[];
-        optimizationStatus: boolean;
-      },
-    ): Promise<
-      | (IEtsyFetchedListing & {
-          optimizedTitle: string;
-          optimizedDescription: string;
-          optimizedTags: string[];
-          optimizationStatus: boolean;
-        })
-      | null
-    > => {
+      data: IOptimizedEtsyListing,
+    ): Promise<IOptimizedEtsyListing | null> => {
       setIsSavingOptimization(true);
       try {
         const response = await FirebaseHelper.create(
@@ -240,6 +228,7 @@ export const useDeleteOptimizedEtsyListing = () => {
     async (id: string): Promise<boolean> => {
       setIsDeletingOptimization(true);
       try {
+        console.log({ id });
         await FirebaseHelper.delete(COLLECTIONS.optimizedEtsyListings, id);
         return true;
       } catch (error) {
@@ -285,23 +274,13 @@ export const useFetchOptimizedEtsyListings = () => {
     useState(false);
 
   const fetchOptimizedListing = useCallback(async (): Promise<
-    (IEtsyFetchedListing & {
-      optimizedTitle: string;
-      optimizedDescription: string;
-      optimizedTags: string[];
-      optimizationStatus: boolean;
-    })[]
+    IOptimizedEtsyListing[]
   > => {
     setIsFetchingOptimizedListings(true);
     try {
-      const response = await FirebaseHelper.find<
-        IEtsyFetchedListing & {
-          optimizedTitle: string;
-          optimizedDescription: string;
-          optimizedTags: string[];
-          optimizationStatus: boolean;
-        }
-      >(COLLECTIONS.optimizedEtsyListings);
+      const response = await FirebaseHelper.find<IOptimizedEtsyListing>(
+        COLLECTIONS.optimizedEtsyListings,
+      );
       return response;
     } catch (error) {
       console.error("Error fetching optimized listing:", error);

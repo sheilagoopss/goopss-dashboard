@@ -6,11 +6,11 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import { List, Segmented, Spin, Tabs } from "antd";
-import EtsyListings from "@/components/EtsyListing/EtsyListings";
+import EtsyListings from "@/components/etsyListing/EtsyListings";
 import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
 import OptimizationCard from "@/components/listings/components/OptimizationCard";
-import CreateEtsyProduct from "@/components/EtsyListing/CreateEtsyProduct";
+import CreateEtsyProduct from "@/components/etsyListing/CreateEtsyProduct";
 
 interface UserListingOptimizationProps {
   showEtsyListings?: boolean;
@@ -381,7 +381,7 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
               key: tab.id,
               children: tab.children,
             }))}
-            activeKey={activeTab}
+            activeKey={tabs[0].id}
             onChange={(key) => setActiveTab(key)}
             tabBarStyle={{ display: "none" }}
           />
