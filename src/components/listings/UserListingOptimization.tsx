@@ -11,7 +11,6 @@ import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
 import OptimizationCard from "@/components/listings/components/OptimizationCard";
 import CreateEtsyProduct from "@/components/etsyListing/CreateEtsyProduct";
-import { useSearchParams } from "next/navigation";
 
 type TabKey = "optimized" | "duplicated" | "etsy" | "create";
 
@@ -35,8 +34,6 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [duplicatedListings, setDuplicatedListings] = useState<Listing[]>([]);
-  const params = useSearchParams();
-  const code = params.get("code");
 
   const tabs = [
     ...(showOptimizedListings
@@ -278,11 +275,6 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
     setFilteredListings(filtered);
   }, [searchTerm, allListings]);
 
-  useEffect(() => {
-    if (code) {
-      setActiveTab("create");
-    }
-  }, [code]);
   return (
     <div>
       {/* Header Section */}
