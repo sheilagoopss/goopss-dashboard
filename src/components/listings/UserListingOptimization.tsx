@@ -11,6 +11,7 @@ import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
 import OptimizationCard from "@/components/listings/components/OptimizationCard";
 import CreateEtsyProduct from "@/components/etsyListing/CreateEtsyProduct";
+import { useSearchParams } from "next/navigation";
 
 type TabKey = "optimized" | "duplicated" | "etsy" | "create";
 
@@ -19,7 +20,6 @@ interface UserListingOptimizationProps {
   showDuplicatedListings?: boolean;
   showOptimizedListings?: boolean;
   showCreateListing?: boolean;
-  initialTab?: TabKey;
 }
 
 const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
@@ -27,15 +27,16 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
   showDuplicatedListings = false,
   showOptimizedListings = false,
   showCreateListing = false,
-  initialTab = "optimized",
 }) => {
   const { customerData } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabKey>("optimized");
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [duplicatedListings, setDuplicatedListings] = useState<Listing[]>([]);
+  const params = useSearchParams();
+  const code = params.get("code");
 
   const tabs = [
     ...(showOptimizedListings
@@ -277,7 +278,11 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
     setFilteredListings(filtered);
   }, [searchTerm, allListings]);
 
-  // Then in the return statement, add this before the table
+  useEffect(() => {
+    if (code) {
+      setActiveTab("create");
+    }
+  }, [code]);
   return (
     <div>
       {/* Header Section */}
