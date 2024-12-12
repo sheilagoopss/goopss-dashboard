@@ -7,7 +7,7 @@ import {
 } from "@/hooks/useEtsy";
 import { useEffect, useState, useCallback } from "react";
 import { IEtsyFetchedListing, IOptimizedEtsyListing } from "@/types/Etsy";
-import EtsyListingOptimizationList from "@/components/etsyListing/Optimization/EtsyListingOptimizationList";
+import EtsyListingOptimizationList from "@/components/EtsyListing/Optimization/EtsyListingOptimizationList";
 
 interface EtsyListingsProps {
   customerId: string;
