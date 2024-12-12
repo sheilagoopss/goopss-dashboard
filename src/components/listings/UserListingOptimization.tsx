@@ -6,17 +6,20 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import { List, Segmented, Spin, Tabs } from "antd";
-import EtsyListings from "@/components/EtsyListing/EtsyListings";
+import EtsyListings from "@/components/etsyListing/EtsyListings";
 import DuplicationCard from "@/components/listings/components/DuplicationCard";
 import { Listing, ListingImage } from "@/types/Listing";
 import OptimizationCard from "@/components/listings/components/OptimizationCard";
-import CreateEtsyProduct from "@/components/EtsyListing/CreateEtsyProduct";
+import CreateEtsyProduct from "@/components/etsyListing/CreateEtsyProduct";
+
+type TabKey = "optimized" | "duplicated" | "etsy" | "create";
 
 interface UserListingOptimizationProps {
   showEtsyListings?: boolean;
   showDuplicatedListings?: boolean;
   showOptimizedListings?: boolean;
   showCreateListing?: boolean;
+  initialTab?: TabKey;
 }
 
 const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
@@ -24,9 +27,10 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
   showDuplicatedListings = false,
   showOptimizedListings = false,
   showCreateListing = false,
+  initialTab = "optimized",
 }) => {
   const { customerData } = useAuth();
-  const [activeTab, setActiveTab] = useState("optimized");
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -295,7 +299,7 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
           </h1>
           <Segmented
             options={tabs.map((tab) => ({ label: tab.label, value: tab.id }))}
-            onChange={(value) => setActiveTab(value as string)}
+            onChange={(value) => setActiveTab(value as TabKey)}
             block
           />
           <div
@@ -382,7 +386,7 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
               children: tab.children,
             }))}
             activeKey={activeTab}
-            onChange={(key) => setActiveTab(key)}
+            onChange={(key) => setActiveTab(key as TabKey)}
             tabBarStyle={{ display: "none" }}
           />
         </div>

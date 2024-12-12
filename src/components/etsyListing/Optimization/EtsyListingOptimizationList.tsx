@@ -22,6 +22,7 @@ import {
   IEtsyFetchedListing,
   IEtsyListingImage,
   IEtsyListingUpdate,
+  IOptimizedEtsyListing,
 } from "@/types/Etsy";
 import {
   useDeleteOptimizedEtsyListing,
@@ -33,13 +34,9 @@ import { useOptimizeEtsyListing } from "@/hooks/useOptimizeEtsy";
 import { message } from "antd";
 
 interface EtsyListingOptimizationListProps {
-  listings: (IEtsyFetchedListing & {
-    optimizedTitle: string;
-    optimizedDescription: string;
-    optimizedTags: string[];
-    optimizationStatus: boolean;
-  })[];
+  listings: (IOptimizedEtsyListing | IEtsyFetchedListing)[];
   selectedCustomerId: string;
+  refetch: () => void;
 }
 
 function Hint({ children }: { children: React.ReactNode }) {
@@ -76,17 +73,12 @@ function Tag({
 const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
   listings: etsyListings,
   selectedCustomerId,
+  refetch,
 }) => {
   const { fetchEtsyListingImages, isFetchingEtsyListingImages } =
     useEtsyListingImages();
-  const [listings, setListings] = useState<
-    (IEtsyFetchedListing & {
-      optimizedTitle: string;
-      optimizedDescription: string;
-      optimizedTags: string[];
-      optimizationStatus: boolean;
-    })[]
-  >(etsyListings);
+  const [listings, setListings] =
+    useState<(IOptimizedEtsyListing | IEtsyFetchedListing)[]>(etsyListings);
   const [expandedListingId, setExpandedListingId] = useState<number | null>(
     null,
   );
@@ -148,26 +140,28 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
     ));
   };
 
+  const replaceNewlinesWithBr = (text: string) => {
+    return text.replace(/\n/g, "<br />");
+  };
+
   const removeTag = (index: number) => {
     setEditedTags(editedTags.filter((_, i) => i !== index));
   };
 
   const saveOptimizedListing = async (listingId: number) => {
-    const optimizedListing = listings.find((l) => l.listing_id === listingId);
+    const optimizedListing = listings.find(
+      (l) => l.listing_id === listingId,
+    ) as IEtsyFetchedListing;
 
     if (!optimizedListing) return;
 
-    const updatedListing: IEtsyFetchedListing & {
-      optimizedTitle: string;
-      optimizedDescription: string;
-      optimizedTags: string[];
-      optimizationStatus: boolean;
-    } = {
+    const updatedListing: IOptimizedEtsyListing = {
       ...optimizedListing,
       optimizedTitle: editedTitle,
       optimizedDescription: editedDescription,
       optimizedTags: editedTags,
       optimizationStatus: true,
+      isOptimized: true,
     };
 
     const updatedListings = listings.map((listing) => {
@@ -186,20 +180,21 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
     const data: IEtsyListingUpdate = {
       customerId: selectedCustomerId,
       listingId: String(listingId),
-      title: editedTitle,
-      description: editedDescription,
-      tags: editedTags,
+      title: updatedListing.optimizedTitle,
+      description: updatedListing.optimizedDescription,
+      tags: updatedListing.optimizedTags,
     };
     const updatedEtsy = await updateListing(data);
     if (updatedEtsy) {
       await saveOptimization(updatedListing);
       setListings(updatedListings);
       setShowOptimization(null);
+      refetch();
       message.success("Listing updated successfully");
     }
   };
 
-  const undoOptimizedListing = async (listing: IEtsyFetchedListing) => {
+  const undoOptimizedListing = async (listing: IOptimizedEtsyListing) => {
     setListings(
       listings.map((l) =>
         l.listing_id === listing.listing_id ? { ...l, isOptimized: false } : l,
@@ -215,7 +210,10 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
     const updatedEtsy = await updateListing(data);
     if (updatedEtsy) {
       setShowOptimization(null);
-      await deleteOptimization(listing.id);
+      refetch();
+      if (listing.id) {
+        await deleteOptimization(listing.id);
+      }
     }
   };
 
@@ -292,7 +290,7 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                     <h3 className="text-xl font-medium text-gray-900">
                       {listing.title}
                     </h3>
-                    {listing.isOptimized && (
+                    {(listing as IOptimizedEtsyListing).isOptimized && (
                       <Badge
                         variant="secondary"
                         className="bg-green-100 text-green-800"
@@ -337,7 +335,7 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                 >
                   <div className="px-8 py-6 space-y-8 border-t border-gray-100">
                     {showOptimization === listing.listing_id ||
-                    listing.isOptimized ? (
+                    (listing as IOptimizedEtsyListing).isOptimized ? (
                       <div className="space-y-8">
                         <div className="space-y-4">
                           <h3 className="text-xl font-semibold border-l-4 border-[#EA4335] pl-3">
@@ -349,7 +347,8 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                                 Original Title:
                               </div>
                               <div className="p-4 bg-[#F8F9FA] rounded-lg">
-                                {listing.title}
+                                {(listing as IOptimizedEtsyListing)
+                                  .originalTitle || listing.title}
                               </div>
                             </div>
                             <ArrowRight className="text-gray-400 mt-8" />
@@ -357,9 +356,13 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                               <div className="text-base text-gray-500 mb-2">
                                 Optimized Title:
                               </div>
-                              {listing.isOptimized ? (
+                              {(listing as IOptimizedEtsyListing)
+                                .isOptimized ? (
                                 <div className="p-4 bg-[#F8F9FA] rounded-lg">
-                                  {listing.optimizedTitle}
+                                  {
+                                    (listing as IOptimizedEtsyListing)
+                                      .optimizedTitle
+                                  }
                                 </div>
                               ) : (
                                 <Input
@@ -387,7 +390,9 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                                 Original Description:
                               </div>
                               <div className="p-4 bg-[#F8F9FA] rounded-lg whitespace-pre-wrap">
-                                {sanitizeHtml(listing.description)}
+                                {(listing as IOptimizedEtsyListing)
+                                  .originalDescription ||
+                                  sanitizeHtml(listing.description)}
                               </div>
                             </div>
                             <ArrowRight className="text-gray-400 mt-8" />
@@ -395,13 +400,22 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                               <div className="text-base text-gray-500 mb-2">
                                 Optimized Description:
                               </div>
-                              {listing.isOptimized ? (
+                              {(listing as IOptimizedEtsyListing)
+                                .isOptimized ? (
                                 <div className="p-4 bg-[#F8F9FA] rounded-lg">
-                                  {listing.optimizedDescription}
+                                  {sanitizeHtml(
+                                    replaceNewlinesWithBr(
+                                      (listing as IOptimizedEtsyListing)
+                                        .optimizedDescription,
+                                    ),
+                                  )}
                                 </div>
                               ) : (
                                 <Textarea
-                                  defaultValue={listing.optimizedDescription}
+                                  defaultValue={
+                                    (listing as IOptimizedEtsyListing)
+                                      .optimizedDescription
+                                  }
                                   value={editedDescription}
                                   onChange={(e) =>
                                     setEditedDescription(e.target.value)
@@ -426,9 +440,16 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                               </div>
                               <div className="p-4 bg-[#F8F9FA] rounded-lg">
                                 <div className="flex flex-wrap gap-1.5">
-                                  {listing.tags.map((tag) => (
+                                  {(
+                                    listing as IOptimizedEtsyListing
+                                  ).originalTags?.map((tag) => (
                                     <Tag key={tag}>{tag}</Tag>
                                   ))}
+                                  {(listing as IOptimizedEtsyListing)
+                                    .originalTags?.length === 0 &&
+                                    listing.tags.map((tag) => (
+                                      <Tag key={tag}>{tag}</Tag>
+                                    ))}
                                 </div>
                               </div>
                             </div>
@@ -447,14 +468,17 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                                       {tag}
                                     </Tag>
                                   ))}
-                                  {listing.optimizedTags.map((tag, index) => (
+                                  {(
+                                    listing as IOptimizedEtsyListing
+                                  ).optimizedTags.map((tag, index) => (
                                     <Tag key={index}>{tag}</Tag>
                                   ))}
                                 </div>
                                 <div
                                   className="flex items-center gap-2"
                                   style={
-                                    listing.isOptimized
+                                    (listing as IOptimizedEtsyListing)
+                                      .isOptimized
                                       ? { display: "none" }
                                       : {}
                                   }
@@ -491,8 +515,10 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                         <div className="flex justify-center">
                           <AiButton
                             onClick={() =>
-                              listing.isOptimized
-                                ? undoOptimizedListing(listing)
+                              (listing as IOptimizedEtsyListing).isOptimized
+                                ? undoOptimizedListing(
+                                    listing as IOptimizedEtsyListing,
+                                  )
                                 : saveOptimizedListing(listing.listing_id)
                             }
                             isLoading={
@@ -501,7 +527,7 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                               isDeletingOptimization
                             }
                           >
-                            {listing.isOptimized
+                            {(listing as IOptimizedEtsyListing).isOptimized
                               ? "Undo Optimized listing"
                               : "Save optimized listing"}
                           </AiButton>

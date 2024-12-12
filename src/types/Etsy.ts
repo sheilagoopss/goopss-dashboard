@@ -70,7 +70,6 @@ export interface IEtsyListingImage {
 }
 
 export interface IEtsyFetchedListing {
-  id: string;
   listing_id: number;
   user_id: number;
   shop_id: number;
@@ -134,8 +133,18 @@ export interface IEtsyFetchedListing {
   user: any | null;
   translations: any | null;
   inventory: any | null;
+}
 
+export interface IOptimizedEtsyListing extends IEtsyFetchedListing {
+  id?: string;
   isOptimized: boolean;
+  optimizedTitle: string;
+  optimizedDescription: string;
+  optimizedTags: string[];
+  originalTitle?: string;
+  originalDescription?: string;
+  originalTags?: string[];
+  optimizationStatus?: boolean;
 }
 
 export interface IEtsyListingEdit

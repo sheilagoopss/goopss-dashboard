@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/firebase/config";
-import { Plan, PlanSection, PlanTask } from "@/types/Plan";
+import { Plan, PlanSection, PlanTask, PlanWithCustomer } from "@/types/Plan";
 import { PlanTaskRules } from "@/types/PlanTasks";
 import { useAuth } from "@/contexts/AuthContext";
 import dayjs from "dayjs";
@@ -198,11 +198,26 @@ export const usePlan = () => {
     }
   }, []);
 
+  const fetchCustomerPlans = useCallback(async (customerId: string) => {
+    setIsLoading(true);
+    try {
+      const planRef = doc(db, "plans", customerId);
+      const planDoc = await getDoc(planRef);
+      return planDoc.data() as PlanWithCustomer;
+    } catch (error) {
+      console.error("Error fetching customer plans:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     isLoading,
     fetchPlan,
     updatePlan,
     updateTask,
     checkMonthlyProgress,
+    fetchCustomerPlans,
   };
 };

@@ -362,6 +362,7 @@ const AdminListings: React.FC<AdminListingsProps> = ({
         listingId: selectedListing.listingID,
         isDone: true,
         category: "Optimization",
+        count: 1,
       });
 
       // Update local states
