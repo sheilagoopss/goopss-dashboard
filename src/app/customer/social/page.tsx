@@ -56,6 +56,7 @@ import { usePinterestBoard } from "@/hooks/usePinterest";
 import { ISocialPost } from "@/types/Social";
 import FacebookButton from "@/components/common/FacebookButton";
 import PinterestButton from "@/components/common/PinterestButton";
+import InstagramButton from "@/components/common/InstagramButton";
 
 interface EtsyListing {
   id: string;
@@ -1188,6 +1189,23 @@ const Social: React.FC = () => {
       });
     }
   };
+  const handleDisconnectInstagram = async () => {
+    if (!selectedCustomer) return;
+    const updatedCustomer = await updateCustomer(selectedCustomer.id, {
+      instagram: {
+        is_connected: false,
+      },
+    });
+
+    if (updatedCustomer) {
+      setSelectedCustomer({
+        ...selectedCustomer,
+        instagram: {
+          is_connected: false,
+        },
+      });
+    }
+  };
 
   const handleEditPost = (post: ISocialPost) => {
     setEditablePost(post);
@@ -1265,6 +1283,48 @@ const Social: React.FC = () => {
             </Card>
           ) : (
             <FacebookButton email={selectedCustomer?.email || ""} />
+          )}
+          
+          {selectedCustomer?.instagram?.is_connected ? (
+            <Card style={{ width: "fit-content" }}>
+              <Row gutter={16} style={{ alignItems: "center" }}>
+                <Col>
+                  <InstagramFilled
+                    style={{ fontSize: "2rem", color: "#E4405F" }}
+                  />
+                </Col>
+                <Col>
+                  <Avatar
+                    src={selectedCustomer?.instagram?.profile_picture_url}
+                    size={64}
+                  />
+                </Col>
+                <Col>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <Typography.Text>
+                      {selectedCustomer?.instagram?.page_name}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {selectedCustomer?.instagram?.user_email}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col>
+                  <Popconfirm
+                    title="Are you sure you want to disconnect?"
+                    onConfirm={handleDisconnectInstagram}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button type="primary" danger loading={isUpdatingCustomer}>
+                      Disconnect
+                    </Button>
+                  </Popconfirm>
+                </Col>
+              </Row>
+            </Card>
+          ) : (
+            <InstagramButton email={selectedCustomer?.email || ""} />
           )}
 
           {(isAdmin || customerData?.isSuperCustomer) && (

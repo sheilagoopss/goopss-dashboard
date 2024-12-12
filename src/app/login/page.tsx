@@ -1,11 +1,18 @@
 "use client";
 
-import { Divider, Form, Button, Input } from "antd";
+import { Divider, Form, Button, Input, Card, Typography, Layout } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
-import { GoogleOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
-import router from "next/router";
+import {
+  GoogleOutlined,
+  LockOutlined,
+  MailOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Login() {
+  const router = useRouter();
   const { googleLoggingIn, googleLogin, loggingIn, login } = useAuth();
 
   const handleLogin = async (values: any) => {
@@ -27,8 +34,11 @@ export default function Login() {
   };
 
   return (
-    <div className="w-1/4 mx-auto pt-10">
-      <h1 className="text-center text-2xl font-bold mb-4">Login</h1>
+    <Layout className="flex flex-col items-center justify-center h-screen">
+      <Card className="w-1/3 mx-auto flex flex-col items-center justify-center">
+        <Typography.Title level={2} className="text-center">
+          Login
+        </Typography.Title>
       <Form
         name="login"
         initialValues={{ remember: true }}
@@ -69,18 +79,32 @@ export default function Login() {
           </Button>
         </Form.Item>
       </Form>
+      <div className="w-full flex justify-center">
+        <Link href="/forgot-password" type="secondary">
+          Forgot Password
+        </Link>
+      </div>
 
       <Divider>Or</Divider>
 
       <Button
         icon={<GoogleOutlined />}
         onClick={handleGoogleLogin}
-        style={{ width: "100%" }}
+        className="w-full mb-4"
         loading={googleLoggingIn}
         disabled={loggingIn}
       >
         Log in with Google
       </Button>
-    </div>
+      <Button
+        icon={<MailOutlined />}
+        onClick={() => router.push("/signup")}
+        className="w-full mb-4"
+        disabled={loggingIn}
+      >
+        Sign up with Email
+        </Button>
+      </Card>
+    </Layout>
   );
 }
