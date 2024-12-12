@@ -381,7 +381,7 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
               key: tab.id,
               children: tab.children,
             }))}
-            activeKey={tabs[0].id}
+            activeKey={activeTab}
             onChange={(key) => setActiveTab(key)}
             tabBarStyle={{ display: "none" }}
           />
