@@ -451,8 +451,7 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
                                   ).originalTags?.map((tag) => (
                                     <Tag key={tag}>{tag}</Tag>
                                   ))}
-                                  {(listing as IOptimizedEtsyListing)
-                                    .originalTags?.length === 0 &&
+                                  {!Array.isArray((listing as IOptimizedEtsyListing).originalTags) &&
                                     listing.tags.map((tag) => (
                                       <Tag key={tag}>{tag}</Tag>
                                     ))}
