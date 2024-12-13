@@ -28,7 +28,15 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
   showCreateListing = false,
 }) => {
   const { customerData } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("optimized");
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    showOptimizedListings
+      ? "optimized"
+      : showDuplicatedListings
+      ? "duplicated"
+      : showEtsyListings
+      ? "etsy"
+      : "create",
+  );
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
