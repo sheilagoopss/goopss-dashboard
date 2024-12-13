@@ -18,6 +18,8 @@ import {
   fetchSignInMethodsForEmail,
   linkWithCredential,
   EmailAuthProvider,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/firebase/config";
 import { IAdmin, ICustomer } from "@/types/Customer";
@@ -47,6 +49,8 @@ interface AuthContextType {
   loading: boolean;
   customerData: ICustomer | null;
   setCustomer: (customer: ICustomer | null) => void;
+  signup: (params: { email: string; password: string }) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -61,6 +65,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   customerData: null,
   setCustomer: () => {},
+  signup: async () => {},
+  forgotPassword: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
@@ -191,6 +197,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const signup = async ({
+    email,
+    password,
+  }: {
+    email: string;
+    password: string;
+  }) => {
+    try {
+      setLoading(true);
+      const resp = await createUserWithEmailAndPassword(auth, email, password);
+      await handleLoginUser(resp);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error signing up: ", error);
+      setLoading(false);
+      message.error({ content: "Invalid email or password" });
+    }
+  };
+
   const googleLogin = async () => {
     setGoogleLoggingIn(true);
     const provider = new GoogleAuthProvider();
@@ -262,6 +287,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [selectedCustomerId, viewAsCustomer]);
 
+  const forgotPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  };
+
   useEffect(() => {
     checkForTokenOnLoad().then(() => {
       handleViewAsCustomer();
@@ -290,6 +319,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         loading,
         customerData,
         setCustomer,
+        signup,
+        forgotPassword,
       }}
     >
       {children}
