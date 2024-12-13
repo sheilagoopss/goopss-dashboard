@@ -73,7 +73,9 @@ const EtsyListings: React.FC<EtsyListingsProps> = ({ customerId }) => {
   }, [fetchEtsyListings, customerId, fetchOptimizedListing]);
 
   useEffect(() => {
+    console.log("customerId", customerId);
     if (customerId) {
+      console.log("refetching");
       refetch();
     }
   }, [customerId, refetch]);

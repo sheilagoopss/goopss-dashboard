@@ -44,6 +44,7 @@ import PinterestButton from "@/components/common/PinterestButton";
 import dayjs from "dayjs";
 import {
   useFacebookSchedule,
+  useInstagramSchedule,
   useSocialDelete,
   useSocialUpdate,
 } from "@/hooks/useSocial";
@@ -709,6 +710,7 @@ const PostEditModal: React.FC<{
 const Social: React.FC = () => {
   const { isAdmin, customerData } = useAuth();
   const { schedulePosts } = useFacebookSchedule();
+  const { schedulePosts: scheduleInstagramPosts } = useInstagramSchedule();
   const { updatePost, isUpdating } = useSocialUpdate();
   const { deletePost } = useSocialDelete();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
@@ -988,6 +990,21 @@ const Social: React.FC = () => {
           }
           break;
         case "instagram":
+          {
+            const schedulePostPromises = savedPosts.map((post) =>
+              scheduleInstagramPosts({
+                customerId: selectedCustomer.id,
+                postId: post.id,
+              }),
+            );
+            const schedulePostResponses = await Promise.all(
+              schedulePostPromises,
+            );
+
+            if (schedulePostResponses.some((response) => !response?.data)) {
+              console.error("Error scheduling posts:", schedulePostResponses);
+            }
+          }
           break;
         default:
           break;
