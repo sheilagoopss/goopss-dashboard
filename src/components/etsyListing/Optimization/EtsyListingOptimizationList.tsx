@@ -121,6 +121,7 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
           .split(",")
           .map(tag => tag.trim())
           .filter(tag => tag.length <= 20)
+          .slice(0, 13)
       );
       setShowOptimization(listing.listing_id);
     }
