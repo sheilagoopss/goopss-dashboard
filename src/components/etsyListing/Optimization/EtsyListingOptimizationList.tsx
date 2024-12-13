@@ -116,7 +116,13 @@ const EtsyListingOptimizationList: FC<EtsyListingOptimizationListProps> = ({
     if (feedBacks?.data) {
       setEditedTitle(feedBacks.data.titleFeedback);
       setEditedDescription(feedBacks.data.descriptionFeedback);
-      setEditedTags(feedBacks.data.tagsFeedback.split(","));
+      setEditedTags(
+        feedBacks.data.tagsFeedback
+          .split(",")
+          .map(tag => tag.trim())
+          .filter(tag => tag.length <= 20)
+          .slice(0, 13)
+      );
       setShowOptimization(listing.listing_id);
     }
   };

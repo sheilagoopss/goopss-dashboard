@@ -1233,7 +1233,7 @@ const Social: React.FC = () => {
         )}
       </div>
 
-      {customerData && (
+      {customerData && customerData?.isSuperCustomer && (
         <div
           style={{
             display: "flex",
@@ -1284,7 +1284,7 @@ const Social: React.FC = () => {
           ) : (
             <FacebookButton email={selectedCustomer?.email || ""} />
           )}
-          
+
           {selectedCustomer?.instagram?.is_connected ? (
             <Card style={{ width: "fit-content" }}>
               <Row gutter={16} style={{ alignItems: "center" }}>
@@ -1327,54 +1327,46 @@ const Social: React.FC = () => {
             <InstagramButton email={selectedCustomer?.email || ""} />
           )}
 
-          {(isAdmin || customerData?.isSuperCustomer) && (
-            <>
-              {selectedCustomer?.pinterest?.is_connected ? (
-                <Card style={{ width: "fit-content" }}>
-                  <Row gutter={16} style={{ alignItems: "center" }}>
-                    <Col>
-                      <PinterestFilled
-                        style={{ fontSize: "2rem", color: "#E60023" }}
-                      />
-                    </Col>
-                    <Col>
-                      <Avatar
-                        src={selectedCustomer?.pinterest?.profile_picture_url}
-                        size={64}
-                      />
-                    </Col>
-                    <Col>
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <Typography.Text>
-                          {selectedCustomer?.pinterest?.page_name}
-                        </Typography.Text>
-                        <Typography.Text type="secondary">
-                          {selectedCustomer?.pinterest?.user_email}
-                        </Typography.Text>
-                      </div>
-                    </Col>
-                    <Col>
-                      <Popconfirm
-                        title="Are you sure you want to disconnect?"
-                        onConfirm={handleDisconnectPinterest}
-                        okText="Yes"
-                        cancelText="No"
-                      >
-                        <Button
-                          type="primary"
-                          danger
-                          loading={isUpdatingCustomer}
-                        >
-                          Disconnect
-                        </Button>
-                      </Popconfirm>
-                    </Col>
-                  </Row>
-                </Card>
-              ) : (
-                <PinterestButton email={selectedCustomer?.email || ""} />
-              )}
-            </>
+          {selectedCustomer?.pinterest?.is_connected ? (
+            <Card style={{ width: "fit-content" }}>
+              <Row gutter={16} style={{ alignItems: "center" }}>
+                <Col>
+                  <PinterestFilled
+                    style={{ fontSize: "2rem", color: "#E60023" }}
+                  />
+                </Col>
+                <Col>
+                  <Avatar
+                    src={selectedCustomer?.pinterest?.profile_picture_url}
+                    size={64}
+                  />
+                </Col>
+                <Col>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <Typography.Text>
+                      {selectedCustomer?.pinterest?.page_name}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {selectedCustomer?.pinterest?.user_email}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col>
+                  <Popconfirm
+                    title="Are you sure you want to disconnect?"
+                    onConfirm={handleDisconnectPinterest}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button type="primary" danger loading={isUpdatingCustomer}>
+                      Disconnect
+                    </Button>
+                  </Popconfirm>
+                </Col>
+              </Row>
+            </Card>
+          ) : (
+            <PinterestButton email={selectedCustomer?.email || ""} />
           )}
         </div>
       )}
