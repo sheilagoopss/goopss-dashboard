@@ -198,6 +198,15 @@ const PostCreationModal: React.FC<{
       return;
     }
 
+    // Check if selected date is at least 12 minutes in the future
+    const minScheduleTime = dayjs().add(12, 'minutes');
+    if (dayjs(scheduledDate).isBefore(minScheduleTime)) {
+      Modal.error({ 
+        content: "Schedule time must be at least 12 minutes from now."
+      });
+      return;
+    }
+
     const basePost = {
       scheduledDate, // This is already a Date object now
       dateCreated: new Date(),
@@ -293,6 +302,30 @@ const PostCreationModal: React.FC<{
     });
   }, [customerId, fetchBoards]);
 
+  const disabledDate = (current: dayjs.Dayjs) => {
+    // Can't select days before today
+    return current && current < dayjs().startOf('day');
+  };
+
+  const disabledTime = (current: dayjs.Dayjs) => {
+    if (current && dayjs(current).isSame(dayjs(), 'day')) {
+      const currentHour = dayjs().hour();
+      const currentMinute = dayjs().minute();
+      const minutesPlus12 = currentMinute + 12;
+
+      return {
+        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+        disabledMinutes: () => {
+          if (current.hour() === currentHour) {
+            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+          }
+          return [];
+        }
+      };
+    }
+    return {};
+  };
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
@@ -332,6 +365,9 @@ const PostCreationModal: React.FC<{
           showTime
           style={{ width: "100%" }}
           onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+          disabledDate={disabledDate}
+          disabledTime={disabledTime}
+          showNow={false}
         />
         <Radio.Group
           onChange={(e) => setPlatform(e.target.value)}
@@ -578,6 +614,15 @@ const PostEditModal: React.FC<{
       return;
     }
 
+    // Check if selected date is at least 12 minutes in the future
+    const minScheduleTime = dayjs().add(12, 'minutes');
+    if (dayjs(scheduledDate).isBefore(minScheduleTime)) {
+      Modal.error({ 
+        content: "Schedule time must be at least 12 minutes from now."
+      });
+      return;
+    }
+
     const basePost = {
       id: post.id,
       scheduledDate,
@@ -618,6 +663,30 @@ const PostEditModal: React.FC<{
     setFacebookContent("");
     setInstagramContent("");
     onCancel();
+  };
+
+  const disabledDate = (current: dayjs.Dayjs) => {
+    // Can't select days before today
+    return current && current < dayjs().startOf('day');
+  };
+
+  const disabledTime = (current: dayjs.Dayjs) => {
+    if (current && dayjs(current).isSame(dayjs(), 'day')) {
+      const currentHour = dayjs().hour();
+      const currentMinute = dayjs().minute();
+      const minutesPlus12 = currentMinute + 12;
+
+      return {
+        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+        disabledMinutes: () => {
+          if (current.hour() === currentHour) {
+            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+          }
+          return [];
+        }
+      };
+    }
+    return {};
   };
 
   return (
@@ -661,6 +730,9 @@ const PostEditModal: React.FC<{
           style={{ width: "100%" }}
           value={dayjs(scheduledDate)}
           onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+          disabledDate={disabledDate}
+          disabledTime={disabledTime}
+          showNow={false}
         />
 
         <Button onClick={handleGenerateContent} type="default">
