@@ -360,26 +360,19 @@ const PostCreationModal: React.FC<{
         ),
       ]}
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <DatePicker
-          showTime
-          style={{ width: "100%" }}
-          onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-          disabledDate={disabledDate}
-          disabledTime={disabledTime}
-          showNow={false}
-        />
+      <Space direction="vertical" style={{ width: "100%", marginTop: "32px" }} size="large">
         <Radio.Group
           onChange={(e) => setPlatform(e.target.value)}
           value={platform}
         >
-          <Radio value="facebook">Facebook</Radio>
+          <Radio value="facebook">Facebook Page</Radio>
           <Radio value="facebookGroup">Facebook Group</Radio>
           <Radio value="instagram">Instagram</Radio>
           <Radio value="both">Facebook Page & Instagram</Radio>
           <Divider />
           <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
+
         {platform !== "pinterest" && (
           <Button
             onClick={handleGenerateContent}
@@ -494,6 +487,19 @@ const PostCreationModal: React.FC<{
             </Form>
           </div>
         )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
+          <DatePicker
+            showTime
+            style={{ width: "300px" }}
+            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+            disabledDate={disabledDate}
+            disabledTime={disabledTime}
+            showNow={false}
+            placeholder="Select date and time"
+          />
+        </div>
       </Space>
     </Modal>
   );
@@ -725,16 +731,6 @@ const PostEditModal: React.FC<{
     >
       {post.platform === "facebook" ? <FacebookFilled /> : <InstagramFilled />}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <DatePicker
-          showTime
-          style={{ width: "100%" }}
-          value={dayjs(scheduledDate)}
-          onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-          disabledDate={disabledDate}
-          disabledTime={disabledTime}
-          showNow={false}
-        />
-
         <Button onClick={handleGenerateContent} type="default">
           Generate Content
         </Button>
@@ -772,6 +768,20 @@ const PostEditModal: React.FC<{
             />
           </div>
         )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
+          <DatePicker
+            showTime
+            style={{ width: "300px" }}
+            value={dayjs(scheduledDate)}
+            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+            disabledDate={disabledDate}
+            disabledTime={disabledTime}
+            showNow={false}
+            placeholder="Select date and time"
+          />
+        </div>
       </Space>
     </Modal>
   );
