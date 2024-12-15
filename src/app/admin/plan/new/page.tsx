@@ -1861,7 +1861,7 @@ function NewPlanView({
                 {editingTask
                   ? editingTask.section === "Other Tasks"
                     ? `Edit Task: ${editingTask.task}`
-                    : editingTask.task // Just show the task name without "Edit Task:" prefix for default tasks
+                    : editingTask.task
                   : "Create New Task"}
                 {editingCustomer && (
                   <div className="flex items-center gap-2 mt-2">
@@ -1874,9 +1874,14 @@ function NewPlanView({
                         {editingCustomer.store_name[0]}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-normal text-muted-foreground">
+                    <a
+                      href={`https://${editingCustomer.store_name}.etsy.com`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-normal text-blue-600 hover:text-blue-800 hover:underline"
+                    >
                       {editingCustomer.store_name}
-                    </span>
+                    </a>
                   </div>
                 )}
               </DialogTitle>
