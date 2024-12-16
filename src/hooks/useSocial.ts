@@ -27,6 +27,14 @@ interface UseSocialDeleteReturn {
   isDeleting: boolean;
 }
 
+interface UseInstagramScheduleReturn {
+  schedulePosts: (params: {
+    customerId: string;
+    postId: string;
+  }) => Promise<IAPIResponse<any> | null>;
+  isScheduling: boolean;
+}
+
 export function useFacebookSchedule(): UseFacebookScheduleReturn {
   const [isScheduling, setIsScheduling] = useState(false);
 
@@ -39,6 +47,36 @@ export function useFacebookSchedule(): UseFacebookScheduleReturn {
       try {
         const scheduleData = await HttpHelper.post(
           endpoints.social.schedulePost,
+          {
+            data: params,
+          },
+        );
+
+        return scheduleData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsScheduling(false);
+      }
+    },
+    [],
+  );
+
+  return { schedulePosts, isScheduling };
+}
+export function useInstagramSchedule(): UseInstagramScheduleReturn {
+  const [isScheduling, setIsScheduling] = useState(false);
+
+  const schedulePosts = useCallback(
+    async (params: {
+      customerId: string;
+      postId: string;
+    }): Promise<IAPIResponse<any> | null> => {
+      setIsScheduling(true);
+      try {
+        const scheduleData = await HttpHelper.post(
+          endpoints.social.scheduleInstagramPost,
           {
             data: params,
           },

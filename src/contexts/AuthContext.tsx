@@ -288,7 +288,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }, [selectedCustomerId, viewAsCustomer]);
 
   const forgotPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, email, {
+      url: window.location.href,
+    });
   };
 
   useEffect(() => {

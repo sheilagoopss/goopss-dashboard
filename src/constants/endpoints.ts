@@ -37,6 +37,7 @@ export const endpoints = {
       `${API_URL}/api/v1/facebook/updatePost/${postId}`,
     deletePost: (postId: string) =>
       `${API_URL}/api/v1/facebook/deletePost/${postId}`,
+    scheduleInstagramPost: `${API_URL}/api/v1/instagram/schedulePost`,
   },
   klaviyo: {
     subscribeCustomer: `${API_URL}/api/v1/klaviyo/subscribe-customer`,
