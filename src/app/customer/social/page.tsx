@@ -198,6 +198,15 @@ const PostCreationModal: React.FC<{
       return;
     }
 
+    // Check if selected date is at least 12 minutes in the future
+    const minScheduleTime = dayjs().add(12, 'minutes');
+    if (dayjs(scheduledDate).isBefore(minScheduleTime)) {
+      Modal.error({ 
+        content: "Schedule time must be at least 12 minutes from now."
+      });
+      return;
+    }
+
     const basePost = {
       scheduledDate, // This is already a Date object now
       dateCreated: new Date(),
@@ -293,6 +302,30 @@ const PostCreationModal: React.FC<{
     });
   }, [customerId, fetchBoards]);
 
+  const disabledDate = (current: dayjs.Dayjs) => {
+    // Can't select days before today
+    return current && current < dayjs().startOf('day');
+  };
+
+  const disabledTime = (current: dayjs.Dayjs) => {
+    if (current && dayjs(current).isSame(dayjs(), 'day')) {
+      const currentHour = dayjs().hour();
+      const currentMinute = dayjs().minute();
+      const minutesPlus12 = currentMinute + 12;
+
+      return {
+        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+        disabledMinutes: () => {
+          if (current.hour() === currentHour) {
+            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+          }
+          return [];
+        }
+      };
+    }
+    return {};
+  };
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
@@ -327,23 +360,19 @@ const PostCreationModal: React.FC<{
         ),
       ]}
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <DatePicker
-          showTime
-          style={{ width: "100%" }}
-          onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-        />
+      <Space direction="vertical" style={{ width: "100%", marginTop: "32px" }} size="large">
         <Radio.Group
           onChange={(e) => setPlatform(e.target.value)}
           value={platform}
         >
-          <Radio value="facebook">Facebook</Radio>
+          <Radio value="facebook">Facebook Page</Radio>
           <Radio value="facebookGroup">Facebook Group</Radio>
           <Radio value="instagram">Instagram</Radio>
           <Radio value="both">Facebook Page & Instagram</Radio>
           <Divider />
           <Radio value="pinterest">Pinterest</Radio>
         </Radio.Group>
+
         {platform !== "pinterest" && (
           <Button
             onClick={handleGenerateContent}
@@ -458,6 +487,19 @@ const PostCreationModal: React.FC<{
             </Form>
           </div>
         )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
+          <DatePicker
+            showTime
+            style={{ width: "300px" }}
+            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+            disabledDate={disabledDate}
+            disabledTime={disabledTime}
+            showNow={false}
+            placeholder="Select date and time"
+          />
+        </div>
       </Space>
     </Modal>
   );
@@ -578,6 +620,15 @@ const PostEditModal: React.FC<{
       return;
     }
 
+    // Check if selected date is at least 12 minutes in the future
+    const minScheduleTime = dayjs().add(12, 'minutes');
+    if (dayjs(scheduledDate).isBefore(minScheduleTime)) {
+      Modal.error({ 
+        content: "Schedule time must be at least 12 minutes from now."
+      });
+      return;
+    }
+
     const basePost = {
       id: post.id,
       scheduledDate,
@@ -620,6 +671,30 @@ const PostEditModal: React.FC<{
     onCancel();
   };
 
+  const disabledDate = (current: dayjs.Dayjs) => {
+    // Can't select days before today
+    return current && current < dayjs().startOf('day');
+  };
+
+  const disabledTime = (current: dayjs.Dayjs) => {
+    if (current && dayjs(current).isSame(dayjs(), 'day')) {
+      const currentHour = dayjs().hour();
+      const currentMinute = dayjs().minute();
+      const minutesPlus12 = currentMinute + 12;
+
+      return {
+        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
+        disabledMinutes: () => {
+          if (current.hour() === currentHour) {
+            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+          }
+          return [];
+        }
+      };
+    }
+    return {};
+  };
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
@@ -656,13 +731,6 @@ const PostEditModal: React.FC<{
     >
       {post.platform === "facebook" ? <FacebookFilled /> : <InstagramFilled />}
       <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <DatePicker
-          showTime
-          style={{ width: "100%" }}
-          value={dayjs(scheduledDate)}
-          onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-        />
-
         <Button onClick={handleGenerateContent} type="default">
           Generate Content
         </Button>
@@ -700,6 +768,20 @@ const PostEditModal: React.FC<{
             />
           </div>
         )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
+          <DatePicker
+            showTime
+            style={{ width: "300px" }}
+            value={dayjs(scheduledDate)}
+            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
+            disabledDate={disabledDate}
+            disabledTime={disabledTime}
+            showNow={false}
+            placeholder="Select date and time"
+          />
+        </div>
       </Space>
     </Modal>
   );
