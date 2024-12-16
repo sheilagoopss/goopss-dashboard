@@ -28,6 +28,7 @@ import {
   X,
   Plus,
   Loader2, // Add Plus here
+  CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -74,6 +75,7 @@ import { Form } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
 import { caseInsensitiveSearch } from "@/utils/caseInsensitveMatch";
 import { LoadingOutlined } from "@ant-design/icons";
+import { cn } from "@/lib/utils";
 
 interface Props {
   customers: ICustomer[];
@@ -198,6 +200,9 @@ const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
   }
 };
 
+// Add this type at the top of the file
+type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
+
 function NewPlanView({
   customers = [],
   selectedCustomer,
@@ -205,7 +210,7 @@ function NewPlanView({
 }: Props) {
   const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [progressFilter, setProgressFilter] = useState<
-    "All" | "To Do and Doing" | "Done"
+    "All" | "To Do" | "Doing" | "To Do and Doing" | "Done"
   >("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [teamMemberFilter, setTeamMemberFilter] = useState("all");
@@ -248,6 +253,18 @@ function NewPlanView({
     goal?: number;
     assignedTeamMembers?: string[];
   }>({});
+
+  const clearAllStates = () => {
+    setEditingTask(null);
+    setNewTask(null);
+    setEditingCustomer(null);
+    setNewSubTask("");
+    setSelectedRows([]);
+    setBulkEditModalVisible(false);
+    setBulkEditFormState({});
+    bulkEditForm.resetFields();
+    setEditModalVisible(false);
+  };
 
   const createPlanForCustomer = async (customer: ICustomer) => {
     try {
@@ -361,22 +378,36 @@ function NewPlanView({
   const loadPlan = async () => {
     if (!selectedCustomer) return;
     try {
+      // First, reset everything
+      setEditModalVisible(false);
+      setEditingTask(null);
+      setEditingCustomer(null);
+      setNewTask(null);
+      setNewSubTask("");
+      setSelectedRows([]);
+      setBulkEditModalVisible(false);
+      setBulkEditFormState({});
+      bulkEditForm.resetFields();
+      
+      // Clear plans first
+      setPlans(null);
+      setAllPlans({});
+      
+      // Wait for state to clear completely
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       setIsLoading(true);
       const planRef = doc(db, "plans", selectedCustomer.id);
       const planDoc = await getDoc(planRef);
 
       if (!planDoc.exists()) {
-        // Create new plan if one doesn't exist
         await createPlanForCustomer(selectedCustomer);
         return;
       }
 
       const planData = planDoc.data() as Plan;
 
-      // Clear all plans when in single customer view
-      setAllPlans({});
-
-      // Ensure files array exists for each task
+      // Process and set new plan data
       const processedPlan = {
         ...planData,
         sections: planData.sections.map((section) => ({
@@ -387,7 +418,11 @@ function NewPlanView({
           })),
         })),
       };
+
+      // Set new plan data
+      await new Promise(resolve => setTimeout(resolve, 50));  // Small delay before setting new data
       setPlans(processedPlan);
+
     } catch (error) {
       console.error("Error loading plan:", error);
       message.error("Failed to load plan");
@@ -397,51 +432,93 @@ function NewPlanView({
   };
 
   const handleCustomerSelect = async (value: string) => {
+    // First, force close any open modals and clear ALL states
+    setEditModalVisible(false);
+    setEditingTask(null);
+    setEditingCustomer(null);
+    setNewTask(null);
+    setNewSubTask("");
+    setSelectedRows([]);
+    setBulkEditModalVisible(false);
+    setBulkEditFormState({});
+    bulkEditForm.resetFields();
+    
+    // Important: Clear plans BEFORE setting new customer
+    setPlans(null);
+    setAllPlans({});
+    
+    // Wait for states to clear
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Then set the new customer or clear it
     if (value === "all") {
       setSelectedCustomer(null);
-      setPlans(null); // Clear single plan view
-      loadAllPlans();
+      await loadAllPlans();
     } else {
       const customer = customers.find((c) => c.id === value);
       if (customer) {
         setSelectedCustomer(customer);
-        setAllPlans({}); // Clear all plans when selecting single customer
+        
+        // Load the new customer's plan
         const planRef = doc(db, "plans", customer.id);
         const planDoc = await getDoc(planRef);
 
         if (!planDoc.exists()) {
-          // Create new plan if one doesn't exist
           await createPlanForCustomer(customer);
+        } else {
+          const planData = planDoc.data() as Plan;
+          // Set the new plan data directly instead of using loadPlan
+          setPlans({
+            ...planData,
+            sections: planData.sections.map((section) => ({
+              ...section,
+              tasks: section.tasks.map((task) => ({
+                ...task,
+                files: task.files || [],
+              })),
+            })),
+          });
         }
-        loadPlan();
       }
     }
     setIsOpen(false);
   };
 
   const handleEditTask = (task: PlanTask & { customer?: ICustomer }) => {
-    // Make sure we get the full task data including files
-    let fullTask = task;
+    // Close any open modal first
+    setEditModalVisible(false);
+    setEditingTask(null);
+    setEditingCustomer(null);
+    setNewTask(null);
+    setNewSubTask("");
+    
+    // Get the current customer
+    const customer = task.customer || selectedCustomer;
+    if (!customer) return;
 
+    // Set the task data directly first
+    const baseTask = {
+      ...task,
+      files: task.files || [],
+    };
+
+    // Try to get additional data from plans if available
+    let taskData;
     if (selectedCustomer && plans) {
-      // Find the task in the current plans data
-      const taskInPlans = plans.sections
-        .find((s) => s.title === task.section)
-        ?.tasks.find((t) => t.id === task.id);
-
-      if (taskInPlans) {
-        fullTask = taskInPlans;
-      }
-    }
-    // Set editingCustomer based on the task's customer
-    if (task.customer) {
-      setEditingCustomer(task.customer);
+      taskData = plans.sections
+        .find(s => s.title === task.section)
+        ?.tasks.find(t => t.id === task.id);
+    } else if (allPlans[customer.id]) {
+      taskData = allPlans[customer.id].sections
+        .find(s => s.title === task.section)
+        ?.tasks.find(t => t.id === task.id);
     }
 
-    setEditingTask({
-      ...fullTask,
-      files: fullTask.files || [],
-    });
+    // Set the task and customer data
+    setEditingCustomer(customer);
+    setEditingTask(taskData || baseTask);  // Use taskData if found, otherwise use baseTask
+    
+    // Open the modal
     setEditModalVisible(true);
   };
 
@@ -481,8 +558,8 @@ function NewPlanView({
         frequency: newTask.frequency || "One Time",
         current: newTask.current || 0,
         goal: newTask.goal || 0,
-        dueDate: newTask.dueDate || null,
-        completedDate: newTask.completedDate || null,
+        dueDate: newTask.dueDate ? new Date(newTask.dueDate).toISOString() : null,  // Fix date handling
+        completedDate: newTask.completedDate ? new Date(newTask.completedDate).toISOString() : null,  // Fix date handling
         isActive: true,
         notes: newTask.notes || "",
         assignedTeamMembers: newTask.assignedTeamMembers || [],
@@ -631,9 +708,8 @@ function NewPlanView({
         }));
       }
 
-      setEditModalVisible(false);
-      setEditingTask(null);
-      setEditingCustomer(null);
+      // Clear all states after successful save
+      clearAllStates();
       message.success("Task updated successfully");
     } catch (error) {
       console.error("Error updating task:", error);
@@ -788,11 +864,14 @@ function NewPlanView({
       const matchesSearch =
         searchQuery === "" ||
         task.task.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Updated progress matching logic
       const matchesProgress =
         progressFilter === "All" ||
         (progressFilter === "To Do and Doing"
           ? task.progress === "To Do" || task.progress === "Doing"
-          : task.progress === progressFilter);
+          : progressFilter === task.progress);
+        
       const matchesActive = !showActiveOnly || task.isActive;
 
       let matchesDueDate = true;
@@ -947,6 +1026,8 @@ function NewPlanView({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All Progress</SelectItem>
+              <SelectItem value="To Do">To Do</SelectItem>
+              <SelectItem value="Doing">Doing</SelectItem>
               <SelectItem value="To Do and Doing">To Do & Doing</SelectItem>
               <SelectItem value="Done">Done</SelectItem>
             </SelectContent>
@@ -1399,8 +1480,24 @@ function NewPlanView({
     selectedCustomer,
   ]);
 
+  // Add this useEffect to watch for selectedCustomer changes
+  useEffect(() => {
+    // Clear all editing states when customer changes
+    clearAllStates();
+  }, [selectedCustomer]); // This will run whenever selectedCustomer changes
+
+  // Add cleanup to useEffect that watches plans
+  useEffect(() => {
+    if (plans) {
+      clearAllStates();
+    }
+  }, [plans]);
+
   return (
-    <div className="w-full max-w-7xl mx-auto p-6">
+    <div 
+      key={`view-${selectedCustomer?.id || 'all'}`}  // Add this key
+      className="w-full max-w-7xl mx-auto p-6"
+    >
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Task Management</h1>
         <Button
@@ -1744,6 +1841,7 @@ function NewPlanView({
                                   }}
                                 >
                                   <TaskCard
+                                    key={`task-${task.id}-${task.customer?.id || selectedCustomer?.id}`}
                                     task={taskWithCustomer}
                                     teamMembers={teamMembers}
                                     onEdit={handleEditTask}
@@ -1853,7 +1951,15 @@ function NewPlanView({
       {editModalVisible && (
         <Dialog
           open={editModalVisible}
-          onOpenChange={(open) => !open && setEditModalVisible(false)}
+          onOpenChange={(open: boolean) => {
+            if (!open) {
+              setEditModalVisible(false);
+              setEditingTask(null);
+              setEditingCustomer(null);
+              setNewTask(null);
+              setNewSubTask("");
+            }
+          }}
         >
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1954,48 +2060,45 @@ function NewPlanView({
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
+                            variant={"outline"}
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !editingTask?.dueDate && !newTask?.dueDate && "text-muted-foreground"
+                            )}
                           >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
                             {editingTask?.dueDate ? (
                               format(new Date(editingTask.dueDate), "PPP")
+                            ) : newTask?.dueDate ? (
+                              format(new Date(newTask.dueDate), "PPP")
                             ) : (
-                              <span className="text-muted-foreground">
-                                Pick a date
-                              </span>
+                              <span>Pick a date</span>
                             )}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent className="w-auto p-0">
                           <CalendarComponent
                             mode="single"
                             selected={
                               editingTask?.dueDate
                                 ? new Date(editingTask.dueDate)
+                                : newTask?.dueDate
+                                ? new Date(newTask.dueDate)
                                 : undefined
                             }
                             onSelect={(date) => {
                               if (editingTask) {
-                                setEditingTask((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        dueDate: date
-                                          ? format(date, "yyyy-MM-dd")
-                                          : null,
-                                      }
-                                    : null,
-                                );
+                                handleEditSave({
+                                  dueDate: date ? date.toISOString() : null,
+                                });
                               } else {
                                 setNewTask((prev) =>
                                   prev
                                     ? {
                                         ...prev,
-                                        dueDate: date
-                                          ? format(date, "yyyy-MM-dd")
-                                          : null,
+                                        dueDate: date ? date.toISOString() : null,
                                       }
-                                    : null,
+                                    : null
                                 );
                               }
                             }}
@@ -2007,58 +2110,52 @@ function NewPlanView({
                   </div>
 
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label
-                      htmlFor="completedDate"
-                      className="text-sm text-right"
-                    >
+                    <Label htmlFor="completedDate" className="text-sm text-right">
                       Completed Date
                     </Label>
                     <div className="col-span-3">
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
+                            variant={"outline"}
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !editingTask?.completedDate && !newTask?.completedDate && "text-muted-foreground"
+                            )}
                           >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
                             {editingTask?.completedDate ? (
                               format(new Date(editingTask.completedDate), "PPP")
+                            ) : newTask?.completedDate ? (
+                              format(new Date(newTask.completedDate), "PPP")
                             ) : (
-                              <span className="text-muted-foreground">
-                                Pick a date
-                              </span>
+                              <span>Pick a date</span>
                             )}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContent className="w-auto p-0">
                           <CalendarComponent
                             mode="single"
                             selected={
                               editingTask?.completedDate
                                 ? new Date(editingTask.completedDate)
+                                : newTask?.completedDate
+                                ? new Date(newTask.completedDate)
                                 : undefined
                             }
                             onSelect={(date) => {
                               if (editingTask) {
-                                setEditingTask((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        completedDate: date
-                                          ? format(date, "yyyy-MM-dd")
-                                          : null,
-                                      }
-                                    : null,
-                                );
+                                handleEditSave({
+                                  completedDate: date ? date.toISOString() : null,
+                                });
                               } else {
                                 setNewTask((prev) =>
                                   prev
                                     ? {
                                         ...prev,
-                                        completedDate: date
-                                          ? format(date, "yyyy-MM-dd")
-                                          : null,
+                                        completedDate: date ? date.toISOString() : null,
                                       }
-                                    : null,
+                                    : null
                                 );
                               }
                             }}
@@ -2074,26 +2171,22 @@ function NewPlanView({
                       Frequency
                     </Label>
                     <Select
-                      value={
-                        editingTask?.frequency ||
-                        newTask?.frequency ||
-                        "One Time"
-                      }
-                      onValueChange={(
-                        value: "One Time" | "Monthly" | "As Needed",
-                      ) => {
+                      name="frequency"
+                      value={editingTask?.frequency || newTask?.frequency}
+                      onValueChange={(value: PlanTaskFrequency) => {
                         if (editingTask) {
-                          setEditingTask((prev) =>
-                            prev ? { ...prev, frequency: value } : null,
-                          );
-                        } else {
-                          setNewTask((prev) =>
-                            prev ? { ...prev, frequency: value } : null,
-                          );
+                          handleEditSave({ frequency: value });
+                        } else if (newTask) {
+                          setNewTask({
+                            ...newTask,
+                            frequency: value,
+                            // Reset current and goal if switching to One Time
+                            ...(value === "One Time" ? { current: 0, goal: 0 } : {}),
+                          });
                         }
                       }}
                     >
-                      <SelectTrigger className="col-span-3 text-sm">
+                      <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select frequency" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2104,75 +2197,53 @@ function NewPlanView({
                     </Select>
                   </div>
 
-                  {editingTask?.frequency !== "One Time" && (
-                    <>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="current" className="text-sm text-right">
-                          Current
-                        </Label>
-                        <Input
-                          id="current"
-                          type="number"
-                          min={0}
-                          value={editingTask?.current || newTask?.current || 0}
-                          onChange={(e) => {
-                            if (editingTask) {
-                              setEditingTask((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      current: parseInt(e.target.value) || 0,
-                                    }
-                                  : null,
-                              );
-                            } else {
-                              setNewTask((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      current: parseInt(e.target.value) || 0,
-                                    }
-                                  : null,
-                              );
-                            }
-                          }}
-                          className="col-span-3"
-                        />
+                  {((editingTask?.frequency || newTask?.frequency) === "Monthly" ||
+                    (editingTask?.frequency || newTask?.frequency) === "As Needed") && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">Progress</Label>
+                      <div className="col-span-3 flex gap-4">
+                        <div className="flex-1">
+                          <Label htmlFor="current">Current</Label>
+                          <Input
+                            id="current"
+                            type="number"
+                            min={0}
+                            value={editingTask?.current || newTask?.current || 0}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (editingTask) {
+                                handleEditSave({ current: value });
+                              } else {
+                                setNewTask((prev) => prev ? {
+                                  ...prev,
+                                  current: value
+                                } : null);
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label htmlFor="goal">Goal</Label>
+                          <Input
+                            id="goal"
+                            type="number"
+                            min={0}
+                            value={editingTask?.goal || newTask?.goal || 0}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (editingTask) {
+                                handleEditSave({ goal: value });
+                              } else {
+                                setNewTask((prev) => prev ? {
+                                  ...prev,
+                                  goal: value
+                                } : null);
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="goal" className="text-sm text-right">
-                          Goal
-                        </Label>
-                        <Input
-                          id="goal"
-                          type="number"
-                          min={0}
-                          value={editingTask?.goal || newTask?.goal || 0}
-                          onChange={(e) => {
-                            if (editingTask) {
-                              setEditingTask((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      goal: parseInt(e.target.value) || 0,
-                                    }
-                                  : null,
-                              );
-                            } else {
-                              setNewTask((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      goal: parseInt(e.target.value) || 0,
-                                    }
-                                  : null,
-                              );
-                            }
-                          }}
-                          className="col-span-3"
-                        />
-                      </div>
-                    </>
+                    </div>
                   )}
 
                   <div className="grid grid-cols-4 items-center gap-4">
