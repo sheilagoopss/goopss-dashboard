@@ -299,8 +299,7 @@ const UserListingOptimization: React.FC<UserListingOptimizationProps> = ({
               fontFamily: "Poppins, sans-serif",
             }}
           >
-            Hi {firstName} 👋! Here&apos;s everything we&apos;ve done with your
-            listings
+            Hi {customerData?.store_owner_name?.split(" ")[0]} 👋! Here's an overview of the updates to your listings.
           </h1>
           <Segmented
             options={tabs.map((tab) => ({ label: tab.label, value: tab.id }))}
