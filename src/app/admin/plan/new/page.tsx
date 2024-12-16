@@ -13,7 +13,6 @@ import {
   query,
   where,
   setDoc,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import {
@@ -27,7 +26,6 @@ import {
   Paperclip,
   X,
   Plus,
-  Loader2, // Add Plus here
   CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,11 +68,9 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dayjs from "dayjs";
-import { PlanTaskRule, PlanTaskRules } from "@/types/PlanTasks";
+import { PlanTaskRule } from "@/types/PlanTasks";
 import { Form } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
-import { caseInsensitiveSearch } from "@/utils/caseInsensitveMatch";
-import { LoadingOutlined } from "@ant-design/icons";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -1397,9 +1393,9 @@ function NewPlanView({
     if (selectedCustomer && plans) {
       // Single customer view
       plans.sections.forEach((section) => {
-        const filteredTasks = section.tasks.filter(filterTasks);
+        const filteredTasks = section.tasks?.filter(filterTasks);
 
-        if (filteredTasks.length > 0) {
+        if (filteredTasks?.length > 0) {
           sections[section.title] = {
             tasks: filteredTasks.map((task) => ({
               ...task,
@@ -1422,9 +1418,9 @@ function NewPlanView({
           return;
 
         plan.sections.forEach((section) => {
-          const filteredTasks = section.tasks.filter(filterTasks);
+          const filteredTasks = section.tasks?.filter(filterTasks);
 
-          if (filteredTasks.length > 0) {
+          if (filteredTasks?.length > 0) {
             if (!sections[section.title]) {
               sections[section.title] = { tasks: [], customers: [] };
             }
@@ -1572,9 +1568,9 @@ function NewPlanView({
 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach((section) => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    const filteredTasks = section.tasks?.filter(filterTasks);
 
-                    if (filteredTasks.length > 0) {
+                    if (filteredTasks?.length > 0) {
                       sections[section.title] = {
                         tasks: filteredTasks.map((task) => ({
                           ...task,
@@ -1595,9 +1591,9 @@ function NewPlanView({
                       return;
 
                     plan.sections.forEach((section) => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      const filteredTasks = section.tasks?.filter(filterTasks);
 
-                      if (filteredTasks.length > 0) {
+                      if (filteredTasks?.length > 0) {
                         if (!sections[section.title]) {
                           sections[section.title] = {
                             tasks: [],
@@ -1870,9 +1866,9 @@ function NewPlanView({
 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach((section) => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    const filteredTasks = section.tasks?.filter(filterTasks);
 
-                    if (filteredTasks.length > 0) {
+                    if (filteredTasks?.length > 0) {
                       sections[section.title] = {
                         tasks: filteredTasks.map((task) => ({
                           ...task,
@@ -1893,9 +1889,9 @@ function NewPlanView({
                       return;
 
                     plan.sections.forEach((section) => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      const filteredTasks = section.tasks?.filter(filterTasks);
 
-                      if (filteredTasks.length > 0) {
+                      if (filteredTasks?.length > 0) {
                         if (!sections[section.title]) {
                           sections[section.title] = {
                             tasks: [],

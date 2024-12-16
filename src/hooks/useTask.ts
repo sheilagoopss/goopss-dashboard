@@ -4,6 +4,7 @@ import { ITasklist, ITask } from "@/types/Task";
 import { ICustomer } from "@/types/Customer";
 import dayjs from "dayjs";
 import { Timestamp } from "firebase/firestore";
+import { PlanWithCustomer } from "@/types/Plan";
 
 interface UseTaskFetchReturn {
   fetchTask: (taskId: string) => Promise<ITask | null>;
@@ -60,6 +61,34 @@ export function useTaskCreate(): UseTaskCreateReturn {
       setIsLoading(true);
       try {
         await FirebaseHelper.create("tasklists", task);
+        const plan = await FirebaseHelper.findOne<PlanWithCustomer>(
+          "plans",
+          task.customerId,
+        );
+        if (plan) {
+          const updatedPlan: PlanWithCustomer = {
+            ...plan,
+            sections: plan.sections.map((section) => ({
+              ...section,
+              tasks: section.tasks.map((t) => {
+                if (t.type === task.category) {
+                  return {
+                    ...t,
+                    current:
+                      Number(t.current) < Number(t.goal)
+                        ? Number(t.current) + 1
+                        : Number(t.current),
+                  };
+                } else {
+                  return t;
+                }
+              }),
+            })),
+          };
+          if (updatedPlan) {
+            await FirebaseHelper.update("plans", updatedPlan.id, updatedPlan);
+          }
+        }
       } catch (error) {
         console.error("Error creating task:", error);
       } finally {
