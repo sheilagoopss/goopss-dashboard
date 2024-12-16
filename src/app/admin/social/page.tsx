@@ -300,22 +300,45 @@ const PostCreationModal: React.FC<{
     return current && current < dayjs().startOf('day');
   };
 
-  const disabledTime = (current: dayjs.Dayjs) => {
-    if (current && dayjs(current).isSame(dayjs(), 'day')) {
-      const currentHour = dayjs().hour();
-      const currentMinute = dayjs().minute();
-      const minutesPlus12 = currentMinute + 12;
-
+  const disabledTime = (date: dayjs.Dayjs | null) => {
+    const now = dayjs();
+    const selectedDate = date || now;
+    
+    // If it's today, we need to check the time
+    if (selectedDate.isSame(now, 'day')) {
+      const currentHour = now.hour();
+      const currentMinute = now.minute();
+      
       return {
-        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
-        disabledMinutes: () => {
-          if (current.hour() === currentHour) {
-            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+        // Block all past hours AND the current hour if we're too close to next hour
+        disabledHours: () => {
+          const hours = Array.from({ length: currentHour }, (_, i) => i);
+          // If we're within 12 minutes of the next hour, also disable current hour
+          if (currentMinute > 48) {
+            hours.push(currentHour);
+          }
+          return hours;
+        },
+        disabledMinutes: (selectedHour: number) => {
+          // If selected hour is current hour, disable minutes up to current minute + 12
+          if (selectedHour === currentHour) {
+            return Array.from(
+              { length: currentMinute + 12 }, 
+              (_, i) => i
+            );
+          }
+          // If selected hour is next hour but we're within 12 minutes of it
+          else if (selectedHour === currentHour + 1 && currentMinute > 48) {
+            return Array.from(
+              { length: currentMinute - 48 }, 
+              (_, i) => i
+            );
           }
           return [];
-        }
+        },
       };
     }
+
     return {};
   };
 
@@ -660,22 +683,45 @@ const PostEditModal: React.FC<{
     return current && current < dayjs().startOf('day');
   };
 
-  const disabledTime = (current: dayjs.Dayjs) => {
-    if (current && dayjs(current).isSame(dayjs(), 'day')) {
-      const currentHour = dayjs().hour();
-      const currentMinute = dayjs().minute();
-      const minutesPlus12 = currentMinute + 12;
-
+  const disabledTime = (date: dayjs.Dayjs | null) => {
+    const now = dayjs();
+    const selectedDate = date || now;
+    
+    // If it's today, we need to check the time
+    if (selectedDate.isSame(now, 'day')) {
+      const currentHour = now.hour();
+      const currentMinute = now.minute();
+      
       return {
-        disabledHours: () => Array.from({ length: currentHour }, (_, i) => i),
-        disabledMinutes: () => {
-          if (current.hour() === currentHour) {
-            return Array.from({ length: minutesPlus12 }, (_, i) => i);
+        // Block all past hours AND the current hour if we're too close to next hour
+        disabledHours: () => {
+          const hours = Array.from({ length: currentHour }, (_, i) => i);
+          // If we're within 12 minutes of the next hour, also disable current hour
+          if (currentMinute > 48) {
+            hours.push(currentHour);
+          }
+          return hours;
+        },
+        disabledMinutes: (selectedHour: number) => {
+          // If selected hour is current hour, disable minutes up to current minute + 12
+          if (selectedHour === currentHour) {
+            return Array.from(
+              { length: currentMinute + 12 }, 
+              (_, i) => i
+            );
+          }
+          // If selected hour is next hour but we're within 12 minutes of it
+          else if (selectedHour === currentHour + 1 && currentMinute > 48) {
+            return Array.from(
+              { length: currentMinute - 48 }, 
+              (_, i) => i
+            );
           }
           return [];
-        }
+        },
       };
     }
+
     return {};
   };
 
