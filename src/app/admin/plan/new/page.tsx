@@ -203,6 +203,9 @@ const calculateDueDate = (customer: ICustomer, rule: PlanTaskRule) => {
 // Add this type at the top of the file
 type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
 
+// Add this type near the top of the file
+type PlanTaskWithCustomer = PlanTask & { customer?: ICustomer };
+
 function NewPlanView({
   customers = [],
   selectedCustomer,
@@ -500,7 +503,8 @@ function NewPlanView({
     const baseTask = {
       ...task,
       files: task.files || [],
-    };
+      customer: customer, // Explicitly attach customer info to the task
+    } as PlanTaskWithCustomer;
 
     // Try to get additional data from plans if available
     let taskData;
@@ -516,7 +520,7 @@ function NewPlanView({
 
     // Set the task and customer data
     setEditingCustomer(customer);
-    setEditingTask(taskData || baseTask);  // Use taskData if found, otherwise use baseTask
+    setEditingTask(taskData ? { ...taskData, customer } : baseTask);  // Ensure customer info is attached
     
     // Open the modal
     setEditModalVisible(true);
@@ -643,73 +647,63 @@ function NewPlanView({
   };
 
   const handleEditSave = async (updates: Partial<PlanTask>) => {
-    if (!editingTask) {
-      message.error("No task selected");
-      return;
-    }
-
     try {
-      setIsLoading(true);
-      // Get the customer ID either from selected customer or from the task
-      const taskWithCustomer = editingTask as PlanTask & {
-        customer?: ICustomer;
-      };
-      const customerId = selectedCustomer?.id || taskWithCustomer.customer?.id;
-      if (!customerId) {
+      if (!editingTask) return;
+
+      // Type assertion to include customer property
+      const taskWithCustomer = editingTask as PlanTaskWithCustomer;
+      
+      // Get the correct customer ID either from selected customer or from the task's customer
+      const targetCustomerId = selectedCustomer?.id || taskWithCustomer.customer?.id;
+      if (!targetCustomerId) {
         message.error("Cannot find customer");
         return;
       }
 
-      const planRef = doc(db, "plans", customerId);
+      setIsLoading(true);
+      const planRef = doc(db, "plans", targetCustomerId);
       const planDoc = await getDoc(planRef);
 
       if (!planDoc.exists()) {
         throw new Error("Plan not found");
       }
 
-      // Only update the fields that were changed
-      const updatedTask = {
-        ...editingTask,
-        ...updates,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || "unknown",
-      };
-
-      const plan = planDoc.data() as Plan;
-      const updatedSections = plan.sections.map((section) => ({
+      const planData = planDoc.data() as Plan;
+      const updatedSections = planData.sections.map((section) => ({
         ...section,
         tasks: section.tasks.map((task) =>
-          task.id === editingTask.id ? updatedTask : task,
+          task.id === editingTask.id ? { ...task, ...updates } : task
         ),
       }));
 
-      // Save to Firestore
       await updateDoc(planRef, {
         sections: updatedSections,
         updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || "unknown",
       });
 
       // Update local state
       if (selectedCustomer) {
-        setPlans((prevPlans) => {
-          if (!prevPlans) return null;
-          return {
-            ...prevPlans,
-            sections: updatedSections,
-          };
-        });
+        // Single customer view
+        setPlans((prev) =>
+          prev
+            ? {
+                ...prev,
+                sections: updatedSections,
+              }
+            : null
+        );
       } else {
+        // All customers view
         setAllPlans((prev) => ({
           ...prev,
-          [customerId]: {
-            ...prev[customerId],
+          [targetCustomerId]: {
+            ...prev[targetCustomerId],
             sections: updatedSections,
           },
         }));
       }
 
-      // Clear all states after successful save
-      clearAllStates();
       message.success("Task updated successfully");
     } catch (error) {
       console.error("Error updating task:", error);
