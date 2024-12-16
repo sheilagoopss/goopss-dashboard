@@ -84,6 +84,7 @@ export interface IPlanTask {
   isActive: boolean;
   id: string;
   notes: string;
+  monthlyHistory: MonthlyHistory[];
 }
 
 export interface PlanWithCustomer {
