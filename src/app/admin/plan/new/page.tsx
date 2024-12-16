@@ -2169,14 +2169,16 @@ function NewPlanView({
                       value={editingTask?.frequency || newTask?.frequency}
                       onValueChange={(value: PlanTaskFrequency) => {
                         if (editingTask) {
-                          handleEditSave({ frequency: value });
+                          setEditingTask(prev => prev ? {
+                            ...prev,
+                            frequency: value
+                          } : null);
                         } else if (newTask) {
-                          setNewTask({
-                            ...newTask,
+                          setNewTask(prev => prev ? {
+                            ...prev,
                             frequency: value,
-                            // Reset current and goal if switching to One Time
-                            ...(value === "One Time" ? { current: 0, goal: 0 } : {}),
-                          });
+                            ...(value === "One Time" ? { current: 0, goal: 0 } : {})
+                          } : null);
                         }
                       }}
                     >
@@ -2206,9 +2208,13 @@ function NewPlanView({
                             onChange={(e) => {
                               const value = parseInt(e.target.value);
                               if (editingTask) {
-                                handleEditSave({ current: value });
-                              } else {
-                                setNewTask((prev) => prev ? {
+                                // Update local state only, don't save to database
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  current: value
+                                } : null);
+                              } else if (newTask) {
+                                setNewTask(prev => prev ? {
                                   ...prev,
                                   current: value
                                 } : null);
@@ -2226,9 +2232,13 @@ function NewPlanView({
                             onChange={(e) => {
                               const value = parseInt(e.target.value);
                               if (editingTask) {
-                                handleEditSave({ goal: value });
-                              } else {
-                                setNewTask((prev) => prev ? {
+                                // Update local state only, don't save to database
+                                setEditingTask(prev => prev ? {
+                                  ...prev,
+                                  goal: value
+                                } : null);
+                              } else if (newTask) {
+                                setNewTask(prev => prev ? {
                                   ...prev,
                                   goal: value
                                 } : null);
@@ -2252,13 +2262,15 @@ function NewPlanView({
                         }
                         onCheckedChange={(checked) => {
                           if (editingTask) {
-                            setEditingTask((prev) =>
-                              prev ? { ...prev, isActive: checked } : null,
-                            );
-                          } else {
-                            setNewTask((prev) =>
-                              prev ? { ...prev, isActive: checked } : null,
-                            );
+                            setEditingTask(prev => prev ? {
+                              ...prev,
+                              isActive: checked
+                            } : null);
+                          } else if (newTask) {
+                            setNewTask(prev => prev ? {
+                              ...prev,
+                              isActive: checked
+                            } : null);
                           }
                         }}
                       />
@@ -2733,7 +2745,14 @@ function NewPlanView({
                 className="text-sm"
                 onClick={() => {
                   if (editingTask) {
-                    handleEditSave(editingTask);
+                    // Only save the changes, not the entire task
+                    const updates = {
+                      ...editingTask,
+                      updatedAt: new Date().toISOString(),
+                      updatedBy: user?.email || "unknown",
+                    };
+                    handleEditSave(updates);
+                    setEditModalVisible(false);
                   } else if (newTask) {
                     handleCreateTask(newTask);
                   }
