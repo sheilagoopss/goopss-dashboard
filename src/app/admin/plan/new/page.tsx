@@ -1397,7 +1397,9 @@ function NewPlanView({
     if (selectedCustomer && plans) {
       // Single customer view
       plans.sections.forEach((section) => {
-        const filteredTasks = section.tasks.filter(filterTasks);
+        // Add null check for tasks
+        const tasks = section.tasks || [];
+        const filteredTasks = tasks.filter(filterTasks);
 
         if (filteredTasks.length > 0) {
           sections[section.title] = {
@@ -1422,7 +1424,9 @@ function NewPlanView({
           return;
 
         plan.sections.forEach((section) => {
-          const filteredTasks = section.tasks.filter(filterTasks);
+          // Add null check for tasks
+          const tasks = section.tasks || [];
+          const filteredTasks = tasks.filter(filterTasks);
 
           if (filteredTasks.length > 0) {
             if (!sections[section.title]) {
@@ -1572,7 +1576,9 @@ function NewPlanView({
 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach((section) => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    // Add null check for tasks
+                    const tasks = section.tasks || [];
+                    const filteredTasks = tasks.filter(filterTasks);
 
                     if (filteredTasks.length > 0) {
                       sections[section.title] = {
@@ -1595,7 +1601,9 @@ function NewPlanView({
                       return;
 
                     plan.sections.forEach((section) => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      // Add null check for tasks
+                      const tasks = section.tasks || [];
+                      const filteredTasks = tasks.filter(filterTasks);
 
                       if (filteredTasks.length > 0) {
                         if (!sections[section.title]) {
@@ -1870,7 +1878,9 @@ function NewPlanView({
 
                 if (selectedCustomer && plans) {
                   plans.sections.forEach((section) => {
-                    const filteredTasks = section.tasks.filter(filterTasks);
+                    // Add null check for tasks
+                    const tasks = section.tasks || [];
+                    const filteredTasks = tasks.filter(filterTasks);
 
                     if (filteredTasks.length > 0) {
                       sections[section.title] = {
@@ -1893,7 +1903,9 @@ function NewPlanView({
                       return;
 
                     plan.sections.forEach((section) => {
-                      const filteredTasks = section.tasks.filter(filterTasks);
+                      // Add null check for tasks
+                      const tasks = section.tasks || [];
+                      const filteredTasks = tasks.filter(filterTasks);
 
                       if (filteredTasks.length > 0) {
                         if (!sections[section.title]) {
