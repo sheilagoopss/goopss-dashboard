@@ -203,6 +203,8 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
     searchTerm,
     includeBestSellers,
     includeUploadedToEtsy,
+    dateRange,
+    listingImages
   ]);
 
   return (
