@@ -288,7 +288,10 @@ const ListingsTable = ({
           pageSize: pageSize,
           total: listings.length,
           onChange: handlePageChange,
-          showTotal: (total) => `Total ${total} items`,
+          showTotal: () => {
+            const totalImagesCreated = listings.reduce((sum, listing) => sum + (listing.uploadedImages || 0), 0);
+            return `Total ${totalImagesCreated} Images Created`;
+          },
         }}
         rowKey="id"
         expandable={{ expandedRowRender }}
