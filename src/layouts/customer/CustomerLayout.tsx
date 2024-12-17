@@ -6,6 +6,7 @@ import CustomerSidebar from "./CustomerSidebar";
 import { Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import UpgradeNotice from "@/components/common/UpgradeNotice";
+import { usePathname } from "next/navigation";
 
 const { Content } = Layout;
 
@@ -18,6 +19,14 @@ export default function CustomerLayout({
   ...props
 }: CustomerLayoutProps) {
   const { customerData } = useAuth();
+  const pathname = usePathname();
+
+  const FreeRoutes = [
+    "/customer/tagify",
+    "/customer/roas-calculator",
+    "/customer/store-analysis",
+  ];
+
   return (
     <ProtectedLayout>
       <Layout className="bg-white" {...props}>
@@ -30,7 +39,8 @@ export default function CustomerLayout({
           }
         >
           <Content className="p-4 bg-white">
-            {customerData?.customer_type === "Paid" ? (
+            {customerData?.customer_type === "Paid" ||
+            FreeRoutes.includes(pathname) ? (
               children
             ) : (
               <UpgradeNotice />

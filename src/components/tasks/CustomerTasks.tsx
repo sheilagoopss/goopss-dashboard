@@ -18,7 +18,7 @@ import { ITask } from "@/types/Task";
 import dayjs from "dayjs";
 import { usePlan } from "@/hooks/usePlan";
 import { IPlanTask, PlanWithCustomer } from "@/types/Plan";
-import { PlanType } from "@/types/PlanTasks";
+import { PlanTaskType } from "@/types/PlanTasks";
 
 const { Content, Header } = Layout;
 
@@ -72,13 +72,13 @@ const CustomerTasks = () => {
     [selectedCustomer, dateRange],
   );
 
-  const getPlanLabel = (plan: PlanType) => {
+  const getPlanLabel = (plan: PlanTaskType) => {
     switch (plan) {
-      case "HighSearch":
+      case "NewKeywordResearchHighSearches":
         return "New keyword research - High searches";
-      case "LowCompetition":
+      case "NewKeywordResearchLowCompetition":
         return "New keyword research - Low Competition";
-      case "NewsLetters":
+      case "Newsletter":
         return "Newsletters";
       case "PinterestBanner":
         return "Pinterest Banner";
@@ -109,7 +109,7 @@ const CustomerTasks = () => {
     Object.entries(groupedPlans).forEach(([category, count]) => {
       if (category !== "undefined" && category !== "Other") {
         groupedTasks.push({
-          category: getPlanLabel(category as PlanType),
+          category: getPlanLabel(category as PlanTaskType),
           count: count.length,
         });
       }

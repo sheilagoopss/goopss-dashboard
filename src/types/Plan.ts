@@ -1,14 +1,6 @@
-import { ICustomer } from "./Customer";
-import type { PlanTaskFrequency, PlanType, SubTask } from "./PlanTasks";
+import type { PlanTaskFrequency, PlanTaskType, SubTask } from "./PlanTasks";
 
 export type PlanTaskProgress = "To Do" | "Doing" | "Done";
-interface MonthlyProgress {
-  month: string; // Format: 'YYYY-MM'
-  current: number;
-  goal: number;
-  completedAt?: string | null;
-}
-
 export interface TaskFile {
   name: string;
   url: string;
@@ -87,11 +79,12 @@ export interface IPlanTask {
   goal: number;
   frequency: PlanTaskFrequency;
   current: number;
-  type: PlanType;
+  type: PlanTaskType;
   requiresGoal: boolean;
   isActive: boolean;
   id: string;
   notes: string;
+  monthlyHistory: MonthlyHistory[];
 }
 
 export interface PlanWithCustomer {

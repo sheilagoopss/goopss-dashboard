@@ -32,6 +32,10 @@ export const endpoints = {
     generateDescription: `${API_URL}/api/v1/tagify/generate-description`,
   },
   social: {
+    getFacebookPages: (customerId: string) =>
+      `${API_URL}/api/v1/facebook/pages/${customerId}`,
+    getInstagramAccounts: (customerId: string) =>
+      `${API_URL}/api/v1/facebook/instagram/${customerId}`,
     schedulePost: `${API_URL}/api/v1/facebook/schedulePost`,
     updatePost: (postId: string) =>
       `${API_URL}/api/v1/facebook/updatePost/${postId}`,

@@ -35,6 +35,16 @@ interface UseInstagramScheduleReturn {
   isScheduling: boolean;
 }
 
+interface UseFacebookPagesReturn {
+  getFacebookPages: (customerId: string) => Promise<IAPIResponse<any> | null>;
+  isLoadingPages: boolean;
+}
+
+interface UseInstagramAccountsReturn {
+  getInstagramAccounts: (customerId: string) => Promise<IAPIResponse<any> | null>;
+  isLoadingAccounts: boolean;
+}
+
 export function useFacebookSchedule(): UseFacebookScheduleReturn {
   const [isScheduling, setIsScheduling] = useState(false);
 
@@ -151,4 +161,50 @@ export function useSocialDelete(): UseSocialDeleteReturn {
   );
 
   return { deletePost, isDeleting };
+}
+
+export function useFacebookPages(): UseFacebookPagesReturn {
+  const [isLoadingPages, setIsLoadingPages] = useState(false);
+
+  const getFacebookPages = useCallback(
+    async (customerId: string): Promise<IAPIResponse<any> | null> => {
+      setIsLoadingPages(true);
+      try {
+        const pagesData = await HttpHelper.get(
+          endpoints.social.getFacebookPages(customerId),
+        );
+
+        return pagesData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsLoadingPages(false);
+      }
+    }, []);
+
+  return { getFacebookPages, isLoadingPages };
+}
+
+export function useInstagramAccounts(): UseInstagramAccountsReturn {
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+
+  const getInstagramAccounts = useCallback(
+    async (customerId: string): Promise<IAPIResponse<any> | null> => {
+      setIsLoadingAccounts(true);
+      try {
+        const accountsData = await HttpHelper.get(
+          endpoints.social.getInstagramAccounts(customerId),
+        );
+
+        return accountsData?.data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    }, []);
+
+  return { getInstagramAccounts, isLoadingAccounts };
 }
