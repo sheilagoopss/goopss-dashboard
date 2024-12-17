@@ -637,63 +637,92 @@ const Social: React.FC = () => {
             flexDirection: "row",
             gap: "2ch",
             marginBottom: "1ch",
-            alignItems: "center",
+            alignItems: "flex-start",
+            minHeight: "120px"
           }}
         >
-          {selectedCustomer?.facebook?.is_connected ? (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "2ch" }}
-            >
-              <ConnectedAccountCard
-                profilePictureUrl={
-                  selectedCustomer?.facebook?.profile_picture_url || ""
-                }
-                pageName={selectedCustomer?.facebook?.page_name || ""}
-                userEmail={selectedCustomer?.facebook?.user_email || ""}
-                handleDisconnect={handleDisconnect}
-                isUpdatingCustomer={isUpdatingCustomer}
-                platform="facebook"
-              />
-              <FacebookPages customerId={selectedCustomer?.id || ""} />
-            </div>
-          ) : (
-            <FacebookButton email={selectedCustomer?.email || ""} />
-          )}
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "2ch",
+            minWidth: "300px"
+          }}>
+            {selectedCustomer?.facebook?.is_connected ? (
+              <>
+                <ConnectedAccountCard
+                  profilePictureUrl={selectedCustomer?.facebook?.profile_picture_url || ""}
+                  pageName={selectedCustomer?.facebook?.page_name || ""}
+                  userEmail={selectedCustomer?.facebook?.user_email || ""}
+                  handleDisconnect={handleDisconnect}
+                  isUpdatingCustomer={isUpdatingCustomer}
+                  platform="facebook"
+                />
+                <FacebookPages customerId={selectedCustomer?.id || ""} />
+              </>
+            ) : (
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center",
+                minHeight: "120px"
+              }}>
+                <FacebookButton email={selectedCustomer?.email || ""} />
+              </div>
+            )}
+          </div>
 
-          {selectedCustomer?.instagram?.is_connected ? (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "2ch" }}
-            >
-              <ConnectedAccountCard
-                profilePictureUrl={
-                  selectedCustomer?.instagram?.profile_picture_url || ""
-                }
-                pageName={selectedCustomer?.instagram?.page_name || ""}
-                userEmail={selectedCustomer?.instagram?.user_email || ""}
-                handleDisconnect={handleDisconnectInstagram}
-                isUpdatingCustomer={isUpdatingCustomer}
-                platform="instagram"
-              />
-              <InstagramAccounts customerId={selectedCustomer?.id || ""} />
-            </div>
-          ) : (
-            <InstagramButton email={selectedCustomer?.email || ""} />
-          )}
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "2ch",
+            minWidth: "300px"
+          }}>
+            {selectedCustomer?.instagram?.is_connected ? (
+              <>
+                <ConnectedAccountCard
+                  profilePictureUrl={selectedCustomer?.instagram?.profile_picture_url || ""}
+                  pageName={selectedCustomer?.instagram?.page_name || ""}
+                  userEmail={selectedCustomer?.instagram?.user_email || ""}
+                  handleDisconnect={handleDisconnectInstagram}
+                  isUpdatingCustomer={isUpdatingCustomer}
+                  platform="instagram"
+                />
+                <InstagramAccounts customerId={selectedCustomer?.id || ""} />
+              </>
+            ) : (
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center",
+                minHeight: "120px"
+              }}>
+                <InstagramButton email={selectedCustomer?.email || ""} />
+              </div>
+            )}
+          </div>
 
-          {selectedCustomer?.pinterest?.is_connected ? (
-            <ConnectedAccountCard
-              profilePictureUrl={
-                selectedCustomer?.pinterest?.profile_picture_url || ""
-              }
-              pageName={selectedCustomer?.pinterest?.page_name || ""}
-              userEmail={selectedCustomer?.pinterest?.user_email || ""}
-              handleDisconnect={handleDisconnectPinterest}
-              isUpdatingCustomer={isUpdatingCustomer}
-              platform="pinterest"
-            />
-          ) : (
-            <PinterestButton email={selectedCustomer?.email || ""} />
-          )}
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column",
+            minWidth: "300px"
+          }}>
+            {selectedCustomer?.pinterest?.is_connected ? (
+              <ConnectedAccountCard
+                profilePictureUrl={selectedCustomer?.pinterest?.profile_picture_url || ""}
+                pageName={selectedCustomer?.pinterest?.page_name || ""}
+                userEmail={selectedCustomer?.pinterest?.user_email || ""}
+                handleDisconnect={handleDisconnectPinterest}
+                isUpdatingCustomer={isUpdatingCustomer}
+                platform="pinterest"
+              />
+            ) : (
+              <div style={{ 
+                display: "flex", 
+                alignItems: "center",
+                minHeight: "120px"
+              }}>
+                <PinterestButton email={selectedCustomer?.email || ""} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
