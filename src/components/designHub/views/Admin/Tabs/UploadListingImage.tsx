@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { Checkbox, Col, Input, message, Row, Select, Switch } from "antd";
+import { Checkbox, Col, Input, message, Row, Select, Switch, DatePicker } from "antd";
 import { useCustomerListingImagesFetch } from "@/hooks/useCustomer";
 import { useEffect, useState } from "react";
 import { ICustomer } from "@/types/Customer";
@@ -13,6 +13,8 @@ import {
 } from "@/hooks/useListingImage";
 import { StatusFilterType } from "@/components/designHub/StatusFilter";
 import ListingsTableV2 from "@/components/designHub/ListingsTableV2";
+import type { RangePickerProps } from "antd/es/date-picker";
+const { RangePicker } = DatePicker;
 
 interface UploadListingImageProps {
   selectedCustomer: ICustomer;
@@ -45,6 +47,7 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
   const [dataToDisplay, setDataToDisplay] = useState<
     (Listing & { uploadedImages: number; totalImages: number })[]
   >([]);
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
 
   const refetch = () => {
     if (selectedCustomer) {
@@ -131,12 +134,25 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
     }
   };
 
+  const filterImagesByDate = (images: ListingImage[]) => {
+    if (!dateRange[0] || !dateRange[1]) return images;
+    
+    return images.filter((image) => {
+      const imageDate = image.date ? new Date(image.date) : null;
+      if (!imageDate) return false;
+      
+      return imageDate >= dateRange[0]! && imageDate <= dateRange[1]!;
+    });
+  };
+
   const filterListings = (
     filteredListings: Listing[],
   ): (Listing & { uploadedImages: number; totalImages: number })[] => {
-    const filteredImages = includeUploadedToEtsy
+    let filteredImages = includeUploadedToEtsy
       ? listingImages
       : listingImages.filter((image) => !image.uploadedToEtsy);
+
+    filteredImages = filterImagesByDate(filteredImages);
 
     const listingsWithImages = filteredListings.filter((listing) => {
       const listingsWithImages = filteredImages.some(
@@ -202,6 +218,19 @@ const UploadListingImage: React.FC<UploadListingImageProps> = ({
             prefix={<SearchOutlined />}
             style={{ width: "30ch" }}
             onChange={(e) => handleSearch(e.target.value)}
+          />
+          <RangePicker
+            onChange={(dates: RangePickerProps['value']) => {
+              if (dates) {
+                setDateRange([
+                  dates?.[0]?.toDate() || null,
+                  dates?.[1]?.toDate() || null
+                ]);
+              } else {
+                setDateRange([null, null]);
+              }
+            }}
+            style={{ width: "280px" }}
           />
           <Select
             placeholder="Sort by"
