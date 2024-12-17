@@ -1,5 +1,18 @@
-export type PlanType =  'Other' | 'NewsLetters' | 'PinterestBanner' | 'HighSearch' | 'LowCompetition' | 'StoreBanner';
-export type PlanTaskFrequency = 'One Time' | 'Monthly' | 'As Needed';
+export type PlanTaskType =
+  | "Design"
+  | "Optimization"
+  | "Plan"
+  | "Duplication"
+  | "FacebookGroupPost"
+  | "FacebookPagePost"
+  | "InstagramPost"
+  | "NewKeywordResearchLowCompetition"
+  | "NewKeywordResearchHighSearches"
+  | "StoreBanner"
+  | "PinterestBanner"
+  | "Newsletter"
+  | "Other";
+export type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
 export interface SubTask {
   id: string;
   text: string;
@@ -28,11 +41,11 @@ export interface PlanTaskRule {
 }
 
 export interface PlanTaskRules {
+  id: string;
   tasks: PlanTaskRule[];
   sections: string[];
   createdAt: string;
   updatedAt: string;
   updatedBy: string;
-  type: PlanType;
-} 
-
+  type: PlanTaskType;
+}

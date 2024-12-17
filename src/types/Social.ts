@@ -20,3 +20,14 @@ export interface ISocialPost {
     };
   };
 }
+
+export interface EtsyListing {
+  id: string;
+  listingID: string;
+  listingTitle: string;
+  scheduled_post_date?: string;
+  primaryImage?: string;
+  totalSales?: number;
+  dailyViews?: number;
+  etsyLink?: string;
+}
