@@ -38,9 +38,11 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
     return formatDate(lastImage?.statusChangeDate || null);
   };
 
-  const formatDate = (date: Date | null): string => {
+  const formatDate = (date: any | null): string => {
     if (!date) return "";
-    return date.toLocaleDateString("en-GB", {
+    // Convert Firestore timestamp to Date object if needed
+    const dateObj = date.toDate ? date.toDate() : new Date(date);
+    return dateObj.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -172,6 +174,11 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
                   Optimized Title:
                 </div>
                 <div>{listing.optimizedTitle}</div>
+                {listing.optimizedAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Optimized on: {formatDate(listing.optimizedAt)}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -231,6 +238,11 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
                 <div style={{ maxHeight: "200px", overflow: "auto" }}>
                   {sanitizeHtml(listing.optimizedDescription || "")}
                 </div>
+                {listing.optimizedAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Optimized on: {formatDate(listing.optimizedAt)}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -314,6 +326,11 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
                     </span>
                   ))}
                 </div>
+                {listing.optimizedAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Optimized on: {formatDate(listing.optimizedAt)}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -340,12 +357,13 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
               ></span>
               Images Added
             </h4>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
-              {listing.uploadedImages && listing.uploadedImages.length > 0 ? (
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
-                  >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+              <div style={{ flex: 1 }}></div>
+              <ArrowRight style={{ marginTop: "24px", color: "#666" }} />
+              <div style={{ flex: 1, padding: "12px", border: "1px solid #eee", borderRadius: "4px" }}>
+                <div style={{ fontWeight: 500, marginBottom: "8px" }}>Additional Images</div>
+                {listing.uploadedImages && listing.uploadedImages.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {listing.uploadedImages.map((image, index) => (
                       <Image
                         key={image.id}
@@ -361,23 +379,17 @@ const OptimizationCard = ({ listing }: { listing: Listing }) => {
                       />
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div style={{ color: "#666" }}>
-                  No additional images have been added.
-                </div>
-              )}
-            </div>
-            {/* Date information */}
-            <div style={{ fontSize: "14px", color: "#666", marginTop: "8px" }}>
-              Last image added: {getLastImageDate(listing)}
+                ) : (
+                  <div style={{ color: "#666" }}>No additional images have been added.</div>
+                )}
+                {listing.uploadedImages && listing.uploadedImages.length > 0 && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Last image added: {formatDate(listing.uploadedImages[listing.uploadedImages.length - 1].date)}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
-
-          {/* Date information */}
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "16px" }}>
-            Optimized on: {formatDate(listing.optimizedAt || null)}
-          </div>
         </div>
       )}
     </div>

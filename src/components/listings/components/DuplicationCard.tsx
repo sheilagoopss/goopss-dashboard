@@ -6,6 +6,7 @@ import { Fragment, useEffect, useState } from "react";
 import DOMPurify from "dompurify";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
+import { ListingImage } from "@/types/Listing";
 
 const pastelColors: Record<OptimizationType, { bg: string; text: string }> = {
   Title: { bg: "#fce7f3", text: "#9d174d" }, // pink pastel
@@ -19,10 +20,13 @@ const pastelColors: Record<OptimizationType, { bg: string; text: string }> = {
 const DuplicationCard = ({ listing }: { listing: Listing }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [originalListing, setOriginalListing] = useState<Listing | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<ListingImage[]>([]);
 
-  const formatDate = (date: Date | null): string => {
+  const formatDate = (date: any | null): string => {
     if (!date) return "";
-    return date.toLocaleDateString("en-GB", {
+    // Convert Firestore timestamp to Date object if needed
+    const dateObj = date.toDate ? date.toDate() : new Date(date);
+    return dateObj.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -55,6 +59,33 @@ const DuplicationCard = ({ listing }: { listing: Listing }) => {
 
     fetchOriginalListing();
   }, [isExpanded, listing.duplicatedFrom]);
+
+  // Add this function to fetch images
+  const fetchImagesForListing = async () => {
+    try {
+      const imagesRef = collection(db, "images");
+      const q = query(
+        imagesRef,
+        where("listing_id", "==", listing.id), // Use the duplicated listing's ID
+        where("status", "!=", "superseded"),
+      );
+      const querySnapshot = await getDocs(q);
+      const images = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as ListingImage[];
+      setUploadedImages(images);
+    } catch (error) {
+      console.error("Error fetching images:", error);
+    }
+  };
+
+  // Fetch images when expanded
+  useEffect(() => {
+    if (isExpanded) {
+      fetchImagesForListing();
+    }
+  }, [isExpanded, listing.id]);
 
   // Get optimization types for badges
   const getOptimizationTypes = (): OptimizationType[] => {
@@ -194,6 +225,11 @@ const DuplicationCard = ({ listing }: { listing: Listing }) => {
                   Duplicated Title:
                 </div>
                 <div>{listing.listingTitle}</div>
+                {listing.createdAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Added on: {formatDate(new Date(listing.createdAt))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -255,6 +291,11 @@ const DuplicationCard = ({ listing }: { listing: Listing }) => {
                 <div style={{ maxHeight: "200px", overflow: "auto" }}>
                   {sanitizeHtml(listing.listingDescription)}
                 </div>
+                {listing.createdAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Added on: {formatDate(new Date(listing.createdAt))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -338,15 +379,70 @@ const DuplicationCard = ({ listing }: { listing: Listing }) => {
                     </span>
                   ))}
                 </div>
+                {listing.createdAt && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Added on: {formatDate(new Date(listing.createdAt))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
 
-          {/* Date information */}
-          <div style={{ fontSize: "14px", color: "#666", marginTop: "16px" }}>
-            Created on:{" "}
-            {formatDate(listing.createdAt ? new Date(listing.createdAt) : null)}
-          </div>
+          {/* Images */}
+          <section style={{ marginBottom: "24px" }}>
+            <h4
+              style={{
+                fontSize: "18px",
+                fontWeight: 600,
+                marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  width: "4px",
+                  height: "24px",
+                  backgroundColor: "#fcd34d",
+                  marginRight: "8px",
+                  borderRadius: "2px",
+                }}
+              ></span>
+              Images Added
+            </h4>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+              <div style={{ flex: 1 }}></div>
+              <ArrowRight style={{ marginTop: "24px", color: "#666" }} />
+              <div style={{ flex: 1, padding: "12px", border: "1px solid #eee", borderRadius: "4px" }}>
+                <div style={{ fontWeight: 500, marginBottom: "8px" }}>Additional Images</div>
+                {uploadedImages.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {uploadedImages.map((image, index) => (
+                      <Image
+                        key={image.id}
+                        src={image.url}
+                        alt={`Additional ${index + 1}`}
+                        style={{
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                          border: "1px solid #eee",
+                        }}
+                        width={120}
+                        height={120}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: "#666" }}>No additional images have been added.</div>
+                )}
+                {uploadedImages.length > 0 && (
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    Last image added: {formatDate(uploadedImages[uploadedImages.length - 1].date || null)}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
       )}
     </div>
