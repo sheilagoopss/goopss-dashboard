@@ -19,8 +19,12 @@ import {
   Popconfirm,
   message,
   DatePicker,
+  Card,
 } from "antd";
 import dayjs from "dayjs";
+import DragDropUpload from "../common/DragDropUpload";
+import { CloseCircleFilled } from "@ant-design/icons";
+import { useImageUpload } from "@/hooks/useFileUpload";
 
 const PostCreationModal: React.FC<{
   isOpen: boolean;
@@ -41,6 +45,8 @@ const PostCreationModal: React.FC<{
   const [facebookGroupContent, setFacebookGroupContent] = useState("");
   const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
+  const [facebookImages, setFacebookImages] = useState<string[]>([]);
+  const { uploadImages, isUploading } = useImageUpload();
 
   useEffect(() => {
     setScheduledDate(null);
@@ -142,7 +148,7 @@ const PostCreationModal: React.FC<{
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!scheduledDate) {
       Modal.error({ content: "Please select a date before saving the post." });
       return;
@@ -168,10 +174,12 @@ const PostCreationModal: React.FC<{
 
     if (platform === "both") {
       if (facebookContent.trim()) {
+        const images = await uploadImages(facebookImages);
         postsToSave.push({
           ...basePost,
           platform: "facebook",
           content: facebookContent,
+          images: images,
         });
       }
       if (instagramContent.trim()) {
@@ -182,10 +190,12 @@ const PostCreationModal: React.FC<{
         });
       }
     } else if (platform === "facebook" && facebookContent.trim()) {
+      const images = await uploadImages(facebookImages);
       postsToSave.push({
         ...basePost,
         platform: "facebook",
         content: facebookContent,
+        images: images,
       });
     } else if (platform === "facebookGroup" && facebookGroupContent.trim()) {
       postsToSave.push({
@@ -293,6 +303,10 @@ const PostCreationModal: React.FC<{
     return {};
   };
 
+  const handleFacebookUpload = (files: string[]) => {
+    setFacebookImages([...facebookImages, ...files]);
+  };
+
   return (
     <Modal
       title={`Create Post for ${listing?.listingTitle}`}
@@ -311,7 +325,7 @@ const PostCreationModal: React.FC<{
             okText="Yes"
             cancelText="No"
           >
-            <Button key="save" type="primary" loading={isSaving}>
+            <Button key="save" type="primary" loading={isSaving || isUploading}>
               Save
             </Button>
           </Popconfirm>
@@ -320,7 +334,7 @@ const PostCreationModal: React.FC<{
             key="save"
             type="primary"
             onClick={handleSave}
-            loading={isSaving}
+            loading={isSaving || isUploading}
           >
             Save
           </Button>
@@ -333,7 +347,10 @@ const PostCreationModal: React.FC<{
         size="large"
       >
         <Radio.Group
-          onChange={(e) => setPlatform(e.target.value)}
+          onChange={(e) => {
+            setPlatform(e.target.value);
+            setFacebookImages([]);
+          }}
           value={platform}
         >
           <Radio value="facebook">Facebook Page</Radio>
@@ -356,6 +373,46 @@ const PostCreationModal: React.FC<{
 
         {(platform === "facebook" || platform === "both") && (
           <div>
+            <DragDropUpload
+              handleUpload={(files) => handleFacebookUpload(files as string[])}
+              multiple={true}
+            />
+            <div className="flex flex-row gap-2 pt-4">
+              {facebookImages.map((image, index) => (
+                <Card
+                  key={index}
+                  style={{ width: "150px", height: "150px" }}
+                  bordered={false}
+                  cover={
+                    <Image
+                      src={image}
+                      alt="uploaded"
+                      preview={false}
+                      width={150}
+                      height={150}
+                    />
+                  }
+                >
+                  <Button
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 1,
+                    }}
+                    icon={<CloseCircleFilled />}
+                    type="primary"
+                    onClick={() =>
+                      setFacebookImages(
+                        facebookImages.filter((_, i) => i !== index),
+                      )
+                    }
+                    danger
+                  />
+                </Card>
+              ))}
+            </div>
+
             <Typography.Text strong>Facebook Content:</Typography.Text>
             <Input.TextArea
               value={facebookContent}

@@ -34,8 +34,8 @@ export const endpoints = {
   social: {
     getFacebookPages: (customerId: string) =>
       `${API_URL}/api/v1/facebook/pages/${customerId}`,
-    getInstagramAccounts: (customerId: string) =>
-      `${API_URL}/api/v1/facebook/instagram/${customerId}`,
+    getInstagramAccount: (customerId: string) =>
+      `${API_URL}/api/v1/instagram/account/${customerId}`,
     schedulePost: `${API_URL}/api/v1/facebook/schedulePost`,
     updatePost: (postId: string) =>
       `${API_URL}/api/v1/facebook/updatePost/${postId}`,

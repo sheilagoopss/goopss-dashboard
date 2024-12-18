@@ -7,6 +7,7 @@ export interface ISocialPost {
   listingId: string;
   customerId: string;
   imageUrl?: string;
+  images?: string[];
   pinterest?: {
     boardId?: string;
     content?: {
