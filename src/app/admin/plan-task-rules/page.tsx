@@ -26,6 +26,7 @@ import {
   RedoOutlined,
 } from "@ant-design/icons";
 import type { PlanTaskRule, SubTask } from "@/types/PlanTasks";
+import type { PlanTask, ISubtask } from "@/types/Plan";
 import {
   doc,
   getDoc,
@@ -375,11 +376,9 @@ const PlanTaskRulesPage: React.FC = () => {
 
   const handleSubmit = async (values: any) => {
     try {
-      const packageId =
-        Object.keys(packageTypes).find(
-          (key) =>
-            packageTypes[key as keyof typeof packageTypes] === selectedPackage,
-        ) || "default";
+      const packageId = Object.keys(packageTypes).find(
+        (key) => packageTypes[key as keyof typeof packageTypes] === selectedPackage,
+      ) || "default";
 
       const rulesRef = doc(db, "planTaskRules", packageId);
       const rulesDoc = await getDoc(rulesRef);
@@ -395,36 +394,41 @@ const PlanTaskRulesPage: React.FC = () => {
         // Process subtasks properly
         const subtasks: SubTask[] =
           values.subtasks?.map((subtask: { text: string; id?: string }) => ({
-            id:
-              subtask.id ||
-              `subtask-${Date.now()}-${Math.random()
-                .toString(36)
-                .substr(2, 9)}`,
+            id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             text: subtask.text,
             isCompleted: false,
             completedDate: null,
           })) || [];
 
-        const newTask: PlanTaskRule = {
+        const newTask: PlanTask = {
           id: taskId,
           task: values.task,
           section: values.section,
           order: values.order || currentRules.tasks.length + 1,
           frequency: values.frequency,
-          daysAfterJoin: values.daysAfterJoin,
-          monthlyDueDate:
-            values.frequency === "Monthly"
-              ? dayjs(values.monthlyDueDate).date()
-              : null,
-          isActive: true,
-          requiresGoal: values.requiresGoal || false,
-          defaultGoal: values.requiresGoal ? values.defaultGoal : null,
-          defaultCurrent: values.requiresGoal
-            ? values.defaultCurrent || 0
-            : null,
-          subtasks: subtasks, // Use the new subtasks array instead of keeping old ones
+          daysAfterJoin: values.daysAfterJoin || null,
+          dueDate: null, // We can't calculate due date here as we don't have customer info
+          completedDate: null,
+          current: values.defaultCurrent || 0,
+          goal: values.defaultGoal || 0,
+          progress: "To Do", // Add missing required field
+          isActive: true,   // Add missing required field
+          notes: "",        // Add missing required field
+          subtasks: (values.subtasks || []).map((subtask: SubTask): ISubtask => ({
+            id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            text: subtask.text,
+            isCompleted: false,
+            completedDate: null,
+            completedBy: null,
+            createdAt: new Date().toISOString(),
+            createdBy: user?.email || "system"
+          })),
+          files: [],
+          assignedTeamMembers: [],
+          createdAt: new Date().toISOString(),
+          createdBy: user?.email || "system",
           updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || "",
+          updatedBy: user?.email || "system"
         };
 
         // Update or add task
@@ -594,18 +598,21 @@ const PlanTaskRulesPage: React.FC = () => {
                 daysAfterJoin: rule.daysAfterJoin,
                 dueDate: newDueDate,
                 goal: rule.defaultGoal || currentTasks[existingTaskIndex].goal,
-                subtasks:
-                  rule.subtasks?.map((subtask: SubTask) => ({
-                    ...subtask,
-                    isCompleted:
-                      currentTasks[existingTaskIndex].subtasks?.find(
-                        (s: SubTask) => s.id === subtask.id,
-                      )?.isCompleted || false,
-                    completedDate:
-                      currentTasks[existingTaskIndex].subtasks?.find(
-                        (s: SubTask) => s.id === subtask.id,
-                      )?.completedDate || null,
-                  })) || [],
+                subtasks: (rule.subtasks || []).map((subtask: SubTask) => ({
+                  id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  text: subtask.text,
+                  isCompleted: currentTasks[existingTaskIndex].subtasks?.find(
+                    (s) => s.id === subtask.id || s.text === subtask.text
+                  )?.isCompleted || false,
+                  completedDate: currentTasks[existingTaskIndex].subtasks?.find(
+                    (s) => s.id === subtask.id || s.text === subtask.text
+                  )?.completedDate || null,
+                  completedBy: currentTasks[existingTaskIndex].subtasks?.find(
+                    (s) => s.id === subtask.id || s.text === subtask.text
+                  )?.completedBy || null,
+                  createdAt: subtask.createdAt || new Date().toISOString(),
+                  createdBy: subtask.createdBy || user?.email || "system"
+                })),
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || "",
               };
@@ -621,7 +628,7 @@ const PlanTaskRulesPage: React.FC = () => {
                 task: rule.task,
                 section: rule.section,
                 order: rule.order,
-                progress: "To Do" as const,
+                progress: "To Do",
                 isActive: rule.isActive,
                 notes: "",
                 frequency: rule.frequency,
@@ -630,12 +637,19 @@ const PlanTaskRulesPage: React.FC = () => {
                 completedDate: null,
                 current: rule.defaultCurrent || 0,
                 goal: rule.defaultGoal || 0,
-                subtasks:
-                  rule.subtasks?.map((subtask) => ({
-                    ...subtask,
-                    isCompleted: false,
-                    completedDate: null,
-                  })) || [],
+                subtasks: (rule.subtasks || []).map((subtask) => ({
+                  id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  text: subtask.text,
+                  isCompleted: false,
+                  completedDate: null,
+                  completedBy: null,
+                  createdAt: new Date().toISOString(),
+                  createdBy: user?.email || "system"
+                })),
+                files: [],
+                assignedTeamMembers: [],
+                createdAt: new Date().toISOString(),
+                createdBy: user?.email || "system",
                 updatedAt: new Date().toISOString(),
                 updatedBy: user?.email || "",
               });
@@ -761,25 +775,27 @@ const PlanTaskRulesPage: React.FC = () => {
                       id: updatedRule.id,
                       task: updatedRule.task,
                       section: updatedRule.section,
+                      order: updatedRule.order || 0,
                       isActive: updatedRule.isActive ?? true,
                       frequency: updatedRule.frequency,
                       daysAfterJoin: updatedRule.daysAfterJoin || null,
-                      dueDate:
-                        calculateDueDate(customerData, updatedRule) || null,
+                      dueDate: calculateDueDate(customerData, updatedRule) || null,
                       goal: updatedRule.defaultGoal || task.goal || 0,
-                      order: updatedRule.order || 0,
-                      subtasks:
-                        updatedRule.subtasks?.map(
-                          (subtask: { id: string }) => ({
-                            ...subtask,
-                            isCompleted:
-                              task.subtasks?.find((s) => s.id === subtask.id)
-                                ?.isCompleted || false,
-                            completedDate:
-                              task.subtasks?.find((s) => s.id === subtask.id)
-                                ?.completedDate || null,
-                          }),
-                        ) || [],
+                      subtasks: (updatedRule.subtasks || []).map((subtask: SubTask) => ({
+                        id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        text: subtask.text,
+                        isCompleted: task.subtasks?.find(
+                          (s) => s.id === subtask.id || s.text === subtask.text
+                        )?.isCompleted || false,
+                        completedDate: task.subtasks?.find(
+                          (s) => s.id === subtask.id || s.text === subtask.text
+                        )?.completedDate || null,
+                        completedBy: task.subtasks?.find(
+                          (s) => s.id === subtask.id || s.text === subtask.text
+                        )?.completedBy || null,
+                        createdAt: new Date().toISOString(),
+                        createdBy: user?.email || "system"
+                      } as ISubtask)),
                       updatedAt: new Date().toISOString(),
                       updatedBy: user?.email || "system",
                     };

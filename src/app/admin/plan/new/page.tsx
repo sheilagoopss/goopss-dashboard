@@ -630,17 +630,20 @@ function NewPlanView({
         frequency: newTask.frequency || "One Time",
         current: newTask.current || 0,
         goal: newTask.goal || 0,
-        dueDate: newTask.dueDate ? new Date(newTask.dueDate).toISOString() : null,  // Fix date handling
-        completedDate: newTask.completedDate ? new Date(newTask.completedDate).toISOString() : null,  // Fix date handling
+        dueDate: newTask.dueDate ? new Date(newTask.dueDate).toISOString() : null,
+        completedDate: newTask.completedDate ? new Date(newTask.completedDate).toISOString() : null,
         isActive: true,
         notes: newTask.notes || "",
         assignedTeamMembers: newTask.assignedTeamMembers || [],
         subtasks: newTask.subtasks || [],
         files: newTask.files || [],
         createdAt: new Date().toISOString(),
-        createdBy: user?.email || "unknown",
+        createdBy: user?.email || "system",
         updatedAt: new Date().toISOString(),
-        updatedBy: user?.email || "unknown",
+        updatedBy: user?.email || "system",
+        monthlyHistory: [],
+        order: newTask.order || 0,  // Add this line
+        daysAfterJoin: newTask.daysAfterJoin || null  // Add this line
       };
 
       const plan = planDoc.data() as Plan;
@@ -1588,6 +1591,8 @@ function NewPlanView({
               createdBy: user?.email || "unknown",
               updatedAt: new Date().toISOString(),
               updatedBy: user?.email || "unknown",
+              order: 0,  // Add this line
+              daysAfterJoin: null  // Add this line
             });
             setEditingTask(null);
             setEditingCustomer(null);
@@ -2348,7 +2353,7 @@ function NewPlanView({
                                           ...st,
                                           isCompleted: !!checked,
                                           completedDate: checked ? new Date().toISOString() : null,
-                                          completedBy: checked ? user?.email || "unknown" : null,
+                                          completedBy: checked ? (user?.email || "system") : null, // Ensure it's never undefined
                                         }
                                       : st
                                   )
@@ -2429,9 +2434,9 @@ function NewPlanView({
                                     text: newSubTask.trim(),
                                     isCompleted: false,
                                     completedDate: null,
-                                    completedBy: null,
+                                    completedBy: null, // Explicitly set to null
                                     createdAt: new Date().toISOString(),
-                                    createdBy: user?.email || "unknown",
+                                    createdBy: user?.email || "system"
                                   },
                                 ],
                               });
@@ -2453,9 +2458,9 @@ function NewPlanView({
                                   text: newSubTask.trim(),
                                   isCompleted: false,
                                   completedDate: null,
-                                  completedBy: null,
+                                  completedBy: null, // Explicitly set to null
                                   createdAt: new Date().toISOString(),
-                                  createdBy: user?.email || "unknown",
+                                  createdBy: user?.email || "system"
                                 },
                               ],
                             });

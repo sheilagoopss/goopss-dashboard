@@ -15,6 +15,13 @@ export interface MonthlyHistory {
   completedAt?: string | null;
 }
 
+export interface MonthlyHistoryEntry {
+  month: string;
+  current: number;
+  goal: number;
+  completedAt: string | null;
+}
+
 export interface PlanTask {
   id: string;
   task: string;
@@ -34,6 +41,9 @@ export interface PlanTask {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  monthlyHistory?: MonthlyHistoryEntry[];
+  order: number;
+  daysAfterJoin?: number | null;
 }
 
 export interface PlanSection {
