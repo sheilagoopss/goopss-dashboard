@@ -407,21 +407,32 @@ function NewPlanView() {
         const planDoc = await getDoc(planRef);
 
         if (planDoc.exists()) {
-          const planData = planDoc.data();
-          setPlans(planData as { sections: PlanSection[] });
+          const planData = planDoc.data() as Plan;
+          const processedPlan: Plan = {
+            ...planData,
+            sections: planData.sections.map(section => ({
+              title: section.title,
+              tasks: section.tasks.map(task => ({
+                ...task,
+                assignedTeamMembers: task.assignedTeamMembers || [],
+                subtasks: task.subtasks || [],
+                files: task.files || [],
+                monthlyHistory: task.monthlyHistory || [],
+                createdAt: task.createdAt || new Date().toISOString(),
+                createdBy: task.createdBy || "system",
+                updatedAt: task.updatedAt || new Date().toISOString(),
+                updatedBy: task.updatedBy || "system"
+              }))
+            }))
+          };
+          setPlans(processedPlan);
         } else {
-          // If no plan exists, create a default plan structure
-          const defaultPlan = {
-            sections: [
-              {
-                title: "General Tasks",
-                tasks: [],
-              },
-              {
-                title: "Other Tasks",
-                tasks: [],
-              },
-            ],
+          // Create default plan with proper typing
+          const defaultPlan: Plan = {
+            sections: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            updatedBy: "system"
           };
           setPlans(defaultPlan);
         }
