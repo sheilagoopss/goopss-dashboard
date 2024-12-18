@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlanSection, PlanTask, Plan } from "@/types/Plan";
+import { PlanSection, PlanTask, Plan, TaskFile, ISubtask } from "@/types/Plan";
 import { ICustomer, IAdmin } from "@/types/Customer";
 import { message } from "antd";
 import {
@@ -252,6 +252,8 @@ function NewPlanView({
     goal?: number;
     assignedTeamMembers?: string[];
   }>({});
+  // Add this state to track unsaved changes
+  const [unsavedTask, setUnsavedTask] = useState<PlanTask | null>(null);
 
   const clearAllStates = () => {
     setEditingTask(null);
@@ -291,12 +293,11 @@ function NewPlanView({
 
       const rules = rulesDoc.data();
 
-      // Create the plan with these rules
-      const planRef = doc(db, "plans", customer.id);
-      await setDoc(planRef, {
-        sections: rules.sections.map((sectionTitle: string) => ({
+      // Create the initial plan data
+      const newPlan = {
+        sections: (rules.sections || []).map((sectionTitle: string) => ({
           title: sectionTitle,
-          tasks: rules.tasks
+          tasks: (rules.tasks || [])
             .filter((task: PlanTaskRule) => task.section === sectionTitle)
             .map((task: PlanTaskRule) => ({
               ...task,
@@ -312,19 +313,31 @@ function NewPlanView({
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         updatedBy: user?.email || "",
-      });
+      };
+
+      // Create the plan with these rules
+      const planRef = doc(db, "plans", customer.id);
+      await setDoc(planRef, newPlan);
 
       message.success("Plan created successfully");
 
-      // Reload the plans after creating
+      // Set the plan data immediately after creation
       if (selectedCustomer) {
-        loadPlan();
+        // If we're in single customer view, set the plans state
+        setPlans(newPlan);
       } else {
-        loadAllPlans();
+        // If we're in all customers view, update the allPlans state
+        setAllPlans((prev) => ({
+          ...prev,
+          [customer.id]: newPlan,
+        }));
       }
+
+      return newPlan; // Return the new plan data
     } catch (error) {
       console.error("Error creating plan:", error);
       message.error("Failed to create plan");
+      return null;
     }
   };
 
@@ -406,20 +419,80 @@ function NewPlanView({
 
       const planData = planDoc.data() as Plan;
 
-      // Process and set new plan data
+      // Add this before processing the plan
+      console.log('Raw plan data:', JSON.stringify(planData, null, 2));
+
+      // Process and set new plan data with proper typing
       const processedPlan = {
         ...planData,
-        sections: planData.sections.map((section) => ({
-          ...section,
-          tasks: section.tasks.map((task) => ({
-            ...task,
-            files: task.files || [],
-          })),
-        })),
+        sections: (planData?.sections || []).map((section) => {
+          if (!section) {
+            return {
+              title: 'Other Tasks',
+              tasks: [] as PlanTask[]  // Explicitly type the empty array
+            };
+          }
+
+          const processedTasks = (section?.tasks || [])
+            .map((task) => {
+              if (!task) return null;
+              
+              return {
+                id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                task: task.task || 'Untitled Task',
+                section: task.section || section.title || 'Other Tasks',
+                files: (task?.files || []).map(file => {
+                  if (typeof file === 'string') {
+                    return {
+                      name: file,
+                      url: file,
+                      size: 0,
+                      uploadedAt: new Date().toISOString()
+                    } as TaskFile;
+                  }
+                  return file as TaskFile;
+                }),
+                subtasks: (task?.subtasks || []).map(subtask => {
+                  if (typeof subtask === 'string') {
+                    return {
+                      id: subtask,
+                      text: subtask,
+                      isCompleted: false,
+                      completedDate: null,
+                      completedBy: null,
+                      createdAt: new Date().toISOString(),
+                      createdBy: 'system'
+                    } as ISubtask;
+                  }
+                  return subtask as ISubtask;
+                }),
+                assignedTeamMembers: task?.assignedTeamMembers || [],
+                current: task?.current || 0,
+                goal: task?.goal || 0,
+                progress: task?.progress || 'To Do',
+                frequency: task?.frequency || 'One Time',
+                isActive: task?.isActive ?? true,
+                notes: task?.notes || '',
+                dueDate: task?.dueDate || null,
+                completedDate: task?.completedDate || null,
+                createdAt: task?.createdAt || new Date().toISOString(),
+                createdBy: task?.createdBy || 'system',
+                updatedAt: task?.updatedAt || new Date().toISOString(),
+                updatedBy: task?.updatedBy || 'system'
+              } as PlanTask;
+            })
+            .filter((task): task is PlanTask => task !== null); // Type guard to remove nulls
+
+          return {
+            ...section,
+            title: section.title || 'Other Tasks',
+            tasks: processedTasks
+          };
+        })
       };
 
       // Set new plan data
-      await new Promise(resolve => setTimeout(resolve, 50));  // Small delay before setting new data
+      await new Promise(resolve => setTimeout(resolve, 50));
       setPlans(processedPlan);
 
     } catch (error) {
@@ -463,18 +536,17 @@ function NewPlanView({
         const planDoc = await getDoc(planRef);
 
         if (!planDoc.exists()) {
-          await createPlanForCustomer(customer);
+          const newPlan = await createPlanForCustomer(customer);
+          if (newPlan) {
+            setPlans(newPlan);
+          }
         } else {
           const planData = planDoc.data() as Plan;
-          // Set the new plan data directly instead of using loadPlan
           setPlans({
             ...planData,
             sections: planData.sections.map((section) => ({
               ...section,
-              tasks: section.tasks.map((task) => ({
-                ...task,
-                files: task.files || [],
-              })),
+              tasks: (section?.tasks || []).filter(Boolean),
             })),
           });
         }
@@ -667,7 +739,7 @@ function NewPlanView({
       const planData = planDoc.data() as Plan;
       const updatedSections = planData.sections.map((section) => ({
         ...section,
-        tasks: section.tasks.map((task) =>
+        tasks: (section?.tasks || []).filter(Boolean).map((task) =>
           task.id === editingTask.id ? { ...task, ...updates } : task
         ),
       }));
@@ -727,7 +799,7 @@ function NewPlanView({
       const plan = planDoc.data() as Plan;
       const updatedSections = plan.sections.map((section) => ({
         ...section,
-        tasks: section.tasks.map((t) =>
+        tasks: (section?.tasks || []).filter(Boolean).map((t) =>
           t.id === task.id ? { ...t, ...updates } : t,
         ),
       }));
@@ -744,7 +816,7 @@ function NewPlanView({
           ...prevPlans,
           sections: prevPlans.sections.map((section) => ({
             ...section,
-            tasks: section.tasks.map((t) =>
+            tasks: (section?.tasks || []).filter(Boolean).map((t) =>
               t.id === task.id ? { ...t, ...updates } : t,
             ),
           })),
@@ -1148,7 +1220,7 @@ function NewPlanView({
             ...planData,
             sections: planData.sections.map((section) => ({
               ...section,
-              tasks: section.tasks.map((task) => ({
+              tasks: (section?.tasks || []).filter(Boolean).map((task) => ({
                 ...task,
                 files: task.files || [],
               })),
@@ -1222,31 +1294,20 @@ function NewPlanView({
         uploadedAt: new Date().toISOString(),
       };
 
-      setEditingTask((prev) => {
-        if (!prev) return null;
-        return {
+      // Update unsavedTask instead of editingTask
+      setUnsavedTask(prev => {
+        if (!prev && editingTask) {
+          // Initialize unsavedTask with editingTask if it doesn't exist
+          return {
+            ...editingTask,
+            files: [...(editingTask.files || []), newFile],
+          };
+        }
+        return prev ? {
           ...prev,
           files: [...(prev.files || []), newFile],
-        };
+        } : null;
       });
-
-      // Update local state
-      if (selectedCustomer) {
-        setPlans((prevPlans) => {
-          if (!prevPlans) return null;
-          return {
-            ...prevPlans,
-            sections: prevPlans.sections.map((section) => ({
-              ...section,
-              tasks: section.tasks.map((task) =>
-                task.id === editingTask?.id
-                  ? { ...task, files: [...(task.files || []), newFile] }
-                  : task,
-              ),
-            })),
-          };
-        });
-      }
 
       message.success("File uploaded successfully");
       return false;
@@ -1283,7 +1344,7 @@ function NewPlanView({
           const plan = planDoc.data() as Plan;
           const updatedSections = plan.sections.map((section) => ({
             ...section,
-            tasks: section.tasks.map((t) => {
+            tasks: (section?.tasks || []).filter(Boolean).map((t) => {
               if (t.id === task.id) {
                 // Calculate due date based on frequency
                 let dueDate = t.dueDate;
@@ -1392,17 +1453,17 @@ function NewPlanView({
 
     if (selectedCustomer && plans) {
       // Single customer view
-      plans.sections.forEach((section) => {
+      (plans.sections || []).forEach((section) => {
         // Add null check for tasks
-        const tasks = section.tasks || [];
+        const tasks = section?.tasks || [];
         const filteredTasks = tasks.filter(filterTasks);
 
         if (filteredTasks?.length > 0) {
-          sections[section.title] = {
+          sections[section.title || 'Other Tasks'] = {
             tasks: filteredTasks.map((task) => ({
               ...task,
               customer: selectedCustomer,
-              customerId: selectedCustomer.id, // Add customerId for consistency
+              customerId: selectedCustomer.id,
             })),
             customers: [selectedCustomer],
           };
@@ -1412,40 +1473,29 @@ function NewPlanView({
       // All customers view
       Object.entries(allPlans).forEach(([customerId, plan]) => {
         const customer = customers.find((c) => c.id === customerId);
-        if (
-          !customer ||
-          !customer.isActive ||
-          customer.customer_type !== "Paid"
-        )
-          return;
+        if (!customer || !customer.isActive || customer.customer_type !== "Paid") return;
 
-        plan.sections.forEach((section) => {
+        (plan.sections || []).forEach((section) => {
           // Add null check for tasks
-          const tasks = section.tasks || [];
+          const tasks = section?.tasks || [];
           const filteredTasks = tasks.filter(filterTasks);
 
           if (filteredTasks?.length > 0) {
-            if (!sections[section.title]) {
-              sections[section.title] = { tasks: [], customers: [] };
+            const sectionTitle = section.title || 'Other Tasks';
+            if (!sections[sectionTitle]) {
+              sections[sectionTitle] = { tasks: [], customers: [] };
             }
 
-            // Add tasks with customer information
-            const tasksWithCustomer = filteredTasks.map((task) => ({
-              ...task,
-              customer,
-              customerId, // Add customerId for consistency
-            }));
+            sections[sectionTitle].tasks.push(
+              ...filteredTasks.map((task) => ({
+                ...task,
+                customer,
+                customerId,
+              }))
+            );
 
-            // Use concat instead of push to create a new array
-            sections[section.title].tasks =
-              sections[section.title].tasks.concat(tasksWithCustomer);
-
-            if (
-              !sections[section.title].customers.find(
-                (c) => c.id === customer.id,
-              )
-            ) {
-              sections[section.title].customers.push(customer);
+            if (!sections[sectionTitle].customers.find((c) => c.id === customer.id)) {
+              sections[sectionTitle].customers.push(customer);
             }
           }
         });
@@ -1486,6 +1536,21 @@ function NewPlanView({
       clearAllStates();
     }
   }, [plans]);
+
+  // Modify the task editing handlers to update unsavedTask instead of directly calling handleEditSave
+  const handleTaskChange = (changes: Partial<PlanTask>) => {
+    if (editingTask) {
+      setUnsavedTask(prev => ({
+        ...(prev || editingTask),
+        ...changes
+      }));
+    } else if (newTask) {
+      setNewTask(prev => prev ? {
+        ...prev,
+        ...changes
+      } : null);
+    }
+  };
 
   return (
     <div 
@@ -1571,16 +1636,17 @@ function NewPlanView({
                 } = {};
 
                 if (selectedCustomer && plans) {
-                  plans.sections.forEach((section) => {
+                  (plans.sections || []).forEach((section) => {
                     // Add null check for tasks
-                    const tasks = section.tasks || [];
+                    const tasks = section?.tasks || [];
                     const filteredTasks = tasks.filter(filterTasks);
 
                     if (filteredTasks?.length > 0) {
-                      sections[section.title] = {
+                      sections[section.title || 'Other Tasks'] = {
                         tasks: filteredTasks.map((task) => ({
                           ...task,
                           customer: selectedCustomer,
+                          customerId: selectedCustomer.id,
                         })),
                         customers: [selectedCustomer],
                       };
@@ -1589,40 +1655,29 @@ function NewPlanView({
                 } else {
                   Object.entries(allPlans).forEach(([customerId, plan]) => {
                     const customer = customers.find((c) => c.id === customerId);
-                    if (
-                      !customer ||
-                      !customer.isActive ||
-                      customer.customer_type !== "Paid"
-                    )
-                      return;
+                    if (!customer || !customer.isActive || customer.customer_type !== "Paid") return;
 
-                    plan.sections.forEach((section) => {
-
+                    (plan.sections || []).forEach((section) => {
                       // Add null check for tasks
-                      const tasks = section.tasks || [];
+                      const tasks = section?.tasks || [];
                       const filteredTasks = tasks.filter(filterTasks);
 
                       if (filteredTasks?.length > 0) {
-                        if (!sections[section.title]) {
-                          sections[section.title] = {
-                            tasks: [],
-                            customers: [],
-                          };
+                        const sectionTitle = section.title || 'Other Tasks';
+                        if (!sections[sectionTitle]) {
+                          sections[sectionTitle] = { tasks: [], customers: [] };
                         }
 
-                        sections[section.title].tasks.push(
+                        sections[sectionTitle].tasks.push(
                           ...filteredTasks.map((task) => ({
                             ...task,
                             customer,
-                          })),
+                            customerId,
+                          }))
                         );
 
-                        if (
-                          !sections[section.title].customers.find(
-                            (c) => c.id === customer.id,
-                          )
-                        ) {
-                          sections[section.title].customers.push(customer);
+                        if (!sections[sectionTitle].customers.find((c) => c.id === customer.id)) {
+                          sections[sectionTitle].customers.push(customer);
                         }
                       }
                     });
@@ -1874,17 +1929,17 @@ function NewPlanView({
                 } = {};
 
                 if (selectedCustomer && plans) {
-                  plans.sections.forEach((section) => {
-
+                  (plans.sections || []).forEach((section) => {
                     // Add null check for tasks
-                    const tasks = section.tasks || [];
+                    const tasks = section?.tasks || [];
                     const filteredTasks = tasks.filter(filterTasks);
 
                     if (filteredTasks?.length > 0) {
-                      sections[section.title] = {
+                      sections[section.title || 'Other Tasks'] = {
                         tasks: filteredTasks.map((task) => ({
                           ...task,
                           customer: selectedCustomer,
+                          customerId: selectedCustomer.id,
                         })),
                         customers: [selectedCustomer],
                       };
@@ -1893,40 +1948,22 @@ function NewPlanView({
                 } else {
                   Object.entries(allPlans).forEach(([customerId, plan]) => {
                     const customer = customers.find((c) => c.id === customerId);
-                    if (
-                      !customer ||
-                      !customer.isActive ||
-                      customer.customer_type !== "Paid"
-                    )
-                      return;
+                    if (!customer || !customer.isActive || customer.customer_type !== "Paid") return;
 
-                    plan.sections.forEach((section) => {
-            // Add null check for tasks
-                      const tasks = section.tasks || [];
+                    (plan.sections || []).forEach((section) => {
+                      // Add null check for tasks
+                      const tasks = section?.tasks || [];
                       const filteredTasks = tasks.filter(filterTasks);
 
                       if (filteredTasks?.length > 0) {
-                        if (!sections[section.title]) {
-                          sections[section.title] = {
-                            tasks: [],
-                            customers: [],
-                          };
-                        }
-
-                        sections[section.title].tasks.push(
-                          ...filteredTasks.map((task) => ({
+                        sections[section.title || 'Other Tasks'] = {
+                          tasks: filteredTasks.map((task) => ({
                             ...task,
                             customer,
+                            customerId,
                           })),
-                        );
-
-                        if (
-                          !sections[section.title].customers.find(
-                            (c) => c.id === customer.id,
-                          )
-                        ) {
-                          sections[section.title].customers.push(customer);
-                        }
+                          customers: [customer], // Changed from [selectedCustomer] to [customer]
+                        };
                       }
                     });
                   });
@@ -2010,15 +2047,7 @@ function NewPlanView({
                         id="task"
                         value={editingTask?.task || newTask?.task || ""}
                         onChange={(e) => {
-                          if (editingTask) {
-                            setEditingTask((prev) =>
-                              prev ? { ...prev, task: e.target.value } : null,
-                            );
-                          } else {
-                            setNewTask((prev) =>
-                              prev ? { ...prev, task: e.target.value } : null,
-                            );
-                          }
+                          handleTaskChange({ task: e.target.value });
                         }}
                         className="col-span-3"
                       />
@@ -2030,19 +2059,9 @@ function NewPlanView({
                       Progress
                     </Label>
                     <Select
-                      value={
-                        editingTask?.progress || newTask?.progress || "To Do"
-                      }
+                      value={unsavedTask?.progress || editingTask?.progress || newTask?.progress || "To Do"}
                       onValueChange={(value: "To Do" | "Doing" | "Done") => {
-                        if (editingTask) {
-                          setEditingTask((prev) =>
-                            prev ? { ...prev, progress: value } : null,
-                          );
-                        } else {
-                          setNewTask((prev) =>
-                            prev ? { ...prev, progress: value } : null,
-                          );
-                        }
+                        handleTaskChange({ progress: value });
                       }}
                     >
                       <SelectTrigger className="col-span-3 text-sm">
@@ -2067,11 +2086,13 @@ function NewPlanView({
                             variant={"outline"}
                             className={cn(
                               "w-full justify-start text-left font-normal",
-                              !editingTask?.dueDate && !newTask?.dueDate && "text-muted-foreground"
+                              !unsavedTask?.dueDate && !editingTask?.dueDate && !newTask?.dueDate && "text-muted-foreground"
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editingTask?.dueDate ? (
+                            {unsavedTask?.dueDate ? (
+                              format(new Date(unsavedTask.dueDate), "PPP")
+                            ) : editingTask?.dueDate ? (
                               format(new Date(editingTask.dueDate), "PPP")
                             ) : newTask?.dueDate ? (
                               format(new Date(newTask.dueDate), "PPP")
@@ -2084,27 +2105,18 @@ function NewPlanView({
                           <CalendarComponent
                             mode="single"
                             selected={
-                              editingTask?.dueDate
+                              unsavedTask?.dueDate
+                                ? new Date(unsavedTask.dueDate)
+                                : editingTask?.dueDate
                                 ? new Date(editingTask.dueDate)
                                 : newTask?.dueDate
                                 ? new Date(newTask.dueDate)
                                 : undefined
                             }
                             onSelect={(date) => {
-                              if (editingTask) {
-                                handleEditSave({
-                                  dueDate: date ? date.toISOString() : null,
-                                });
-                              } else {
-                                setNewTask((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        dueDate: date ? date.toISOString() : null,
-                                      }
-                                    : null
-                                );
-                              }
+                              handleTaskChange({
+                                dueDate: date ? format(date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null
+                              });
                             }}
                             initialFocus
                           />
@@ -2124,11 +2136,13 @@ function NewPlanView({
                             variant={"outline"}
                             className={cn(
                               "w-full justify-start text-left font-normal",
-                              !editingTask?.completedDate && !newTask?.completedDate && "text-muted-foreground"
+                              !unsavedTask?.completedDate && !editingTask?.completedDate && !newTask?.completedDate && "text-muted-foreground"
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editingTask?.completedDate ? (
+                            {unsavedTask?.completedDate ? (
+                              format(new Date(unsavedTask.completedDate), "PPP")
+                            ) : editingTask?.completedDate ? (
                               format(new Date(editingTask.completedDate), "PPP")
                             ) : newTask?.completedDate ? (
                               format(new Date(newTask.completedDate), "PPP")
@@ -2141,27 +2155,18 @@ function NewPlanView({
                           <CalendarComponent
                             mode="single"
                             selected={
-                              editingTask?.completedDate
+                              unsavedTask?.completedDate
+                                ? new Date(unsavedTask.completedDate)
+                                : editingTask?.completedDate
                                 ? new Date(editingTask.completedDate)
                                 : newTask?.completedDate
                                 ? new Date(newTask.completedDate)
                                 : undefined
                             }
                             onSelect={(date) => {
-                              if (editingTask) {
-                                handleEditSave({
-                                  completedDate: date ? date.toISOString() : null,
-                                });
-                              } else {
-                                setNewTask((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        completedDate: date ? date.toISOString() : null,
-                                      }
-                                    : null
-                                );
-                              }
+                              handleTaskChange({
+                                completedDate: date ? format(date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null
+                              });
                             }}
                             initialFocus
                           />
@@ -2176,20 +2181,9 @@ function NewPlanView({
                     </Label>
                     <Select
                       name="frequency"
-                      value={editingTask?.frequency || newTask?.frequency}
+                      value={unsavedTask?.frequency || editingTask?.frequency || newTask?.frequency}
                       onValueChange={(value: PlanTaskFrequency) => {
-                        if (editingTask) {
-                          setEditingTask(prev => prev ? {
-                            ...prev,
-                            frequency: value
-                          } : null);
-                        } else if (newTask) {
-                          setNewTask(prev => prev ? {
-                            ...prev,
-                            frequency: value,
-                            ...(value === "One Time" ? { current: 0, goal: 0 } : {})
-                          } : null);
-                        }
+                        handleTaskChange({ frequency: value });
                       }}
                     >
                       <SelectTrigger className="col-span-3">
@@ -2203,8 +2197,13 @@ function NewPlanView({
                     </Select>
                   </div>
 
-                  {((editingTask?.frequency || newTask?.frequency) === "Monthly" ||
-                    (editingTask?.frequency || newTask?.frequency) === "As Needed") && (
+                  {/* Add this block for Monthly and As Needed tasks */}
+                  {(unsavedTask?.frequency === "Monthly" || 
+                    unsavedTask?.frequency === "As Needed" ||
+                    editingTask?.frequency === "Monthly" || 
+                    editingTask?.frequency === "As Needed" ||
+                    newTask?.frequency === "Monthly" || 
+                    newTask?.frequency === "As Needed") && (
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label className="text-right">Progress</Label>
                       <div className="col-span-3 flex gap-4">
@@ -2214,21 +2213,9 @@ function NewPlanView({
                             id="current"
                             type="number"
                             min={0}
-                            value={editingTask?.current || newTask?.current || 0}
+                            value={unsavedTask?.current || editingTask?.current || newTask?.current || 0}
                             onChange={(e) => {
-                              const value = parseInt(e.target.value);
-                              if (editingTask) {
-                                // Update local state only, don't save to database
-                                setEditingTask(prev => prev ? {
-                                  ...prev,
-                                  current: value
-                                } : null);
-                              } else if (newTask) {
-                                setNewTask(prev => prev ? {
-                                  ...prev,
-                                  current: value
-                                } : null);
-                              }
+                              handleTaskChange({ current: parseInt(e.target.value) });
                             }}
                           />
                         </div>
@@ -2238,21 +2225,9 @@ function NewPlanView({
                             id="goal"
                             type="number"
                             min={0}
-                            value={editingTask?.goal || newTask?.goal || 0}
+                            value={unsavedTask?.goal || editingTask?.goal || newTask?.goal || 0}
                             onChange={(e) => {
-                              const value = parseInt(e.target.value);
-                              if (editingTask) {
-                                // Update local state only, don't save to database
-                                setEditingTask(prev => prev ? {
-                                  ...prev,
-                                  goal: value
-                                } : null);
-                              } else if (newTask) {
-                                setNewTask(prev => prev ? {
-                                  ...prev,
-                                  goal: value
-                                } : null);
-                              }
+                              handleTaskChange({ goal: parseInt(e.target.value) });
                             }}
                           />
                         </div>
@@ -2267,21 +2242,9 @@ function NewPlanView({
                     <div className="col-span-3">
                       <Switch
                         id="isActive"
-                        checked={
-                          editingTask?.isActive ?? newTask?.isActive ?? true
-                        }
+                        checked={unsavedTask?.isActive ?? editingTask?.isActive ?? newTask?.isActive ?? true}
                         onCheckedChange={(checked) => {
-                          if (editingTask) {
-                            setEditingTask(prev => prev ? {
-                              ...prev,
-                              isActive: checked
-                            } : null);
-                          } else if (newTask) {
-                            setNewTask(prev => prev ? {
-                              ...prev,
-                              isActive: checked
-                            } : null);
-                          }
+                          handleTaskChange({ isActive: checked });
                         }}
                       />
                     </div>
@@ -2293,17 +2256,9 @@ function NewPlanView({
                     </Label>
                     <Textarea
                       id="notes"
-                      value={editingTask?.notes || newTask?.notes || ""}
+                      value={unsavedTask?.notes || editingTask?.notes || newTask?.notes || ""}
                       onChange={(e) => {
-                        if (editingTask) {
-                          setEditingTask((prev) =>
-                            prev ? { ...prev, notes: e.target.value } : null,
-                          );
-                        } else {
-                          setNewTask((prev) =>
-                            prev ? { ...prev, notes: e.target.value } : null,
-                          );
-                        }
+                        handleTaskChange({ notes: e.target.value });
                       }}
                       className="col-span-3"
                       rows={4}
@@ -2326,6 +2281,9 @@ function NewPlanView({
                               <Checkbox
                                 id={admin.email}
                                 checked={
+                                  unsavedTask?.assignedTeamMembers?.includes(
+                                    admin.email,
+                                  ) ||
                                   editingTask?.assignedTeamMembers?.includes(
                                     admin.email,
                                   ) ||
@@ -2335,39 +2293,16 @@ function NewPlanView({
                                   false
                                 }
                                 onCheckedChange={(checked) => {
-                                  if (editingTask) {
-                                    setEditingTask((prev) => {
-                                      if (!prev) return null;
-                                      const newMembers = checked
-                                        ? [
-                                            ...(prev.assignedTeamMembers || []),
-                                            admin.email,
-                                          ]
-                                        : prev.assignedTeamMembers?.filter(
-                                            (email) => email !== admin.email,
-                                          ) || [];
-                                      return {
-                                        ...prev,
-                                        assignedTeamMembers: newMembers,
-                                      };
-                                    });
-                                  } else {
-                                    setNewTask((prev) => {
-                                      if (!prev) return null;
-                                      const newMembers = checked
-                                        ? [
-                                            ...(prev.assignedTeamMembers || []),
-                                            admin.email,
-                                          ]
-                                        : prev.assignedTeamMembers?.filter(
-                                            (email) => email !== admin.email,
-                                          ) || [];
-                                      return {
-                                        ...prev,
-                                        assignedTeamMembers: newMembers,
-                                      };
-                                    });
-                                  }
+                                  handleTaskChange({
+                                    assignedTeamMembers: checked
+                                      ? [
+                                          ...(unsavedTask?.assignedTeamMembers || []),
+                                          admin.email,
+                                        ]
+                                      : (unsavedTask?.assignedTeamMembers || []).filter(
+                                          (email) => email !== admin.email,
+                                        ) || []
+                                  });
                                 }}
                               />
                               <Label
@@ -2406,49 +2341,18 @@ function NewPlanView({
                             <Checkbox
                               checked={subtask.isCompleted}
                               onCheckedChange={(checked) => {
-                                if (editingTask) {
-                                  setEditingTask((prev) => {
-                                    if (!prev) return null;
-                                    return {
-                                      ...prev,
-                                      subtasks: prev.subtasks?.map((st) =>
-                                        st.id === subtask.id
-                                          ? {
-                                              ...st,
-                                              isCompleted: !!checked,
-                                              completedDate: checked
-                                                ? new Date().toISOString()
-                                                : null,
-                                              completedBy: checked
-                                                ? user?.email || "unknown"
-                                                : null,
-                                            }
-                                          : st,
-                                      ),
-                                    };
-                                  });
-                                } else {
-                                  setNewTask((prev) => {
-                                    if (!prev) return null;
-                                    return {
-                                      ...prev,
-                                      subtasks: prev.subtasks?.map((st) =>
-                                        st.id === subtask.id
-                                          ? {
-                                              ...st,
-                                              isCompleted: !!checked,
-                                              completedDate: checked
-                                                ? new Date().toISOString()
-                                                : null,
-                                              completedBy: checked
-                                                ? user?.email || "unknown"
-                                                : null,
-                                            }
-                                          : st,
-                                      ),
-                                    };
-                                  });
-                                }
+                                handleTaskChange({
+                                  subtasks: (editingTask?.subtasks || []).map((st) => 
+                                    st.id === subtask.id
+                                      ? {
+                                          ...st,
+                                          isCompleted: !!checked,
+                                          completedDate: checked ? new Date().toISOString() : null,
+                                          completedBy: checked ? user?.email || "unknown" : null,
+                                        }
+                                      : st
+                                  )
+                                });
                               }}
                             />
                             <div className="flex flex-col">
@@ -2496,27 +2400,11 @@ function NewPlanView({
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              if (editingTask) {
-                                setEditingTask((prev) => {
-                                  if (!prev) return null;
-                                  return {
-                                    ...prev,
-                                    subtasks: prev.subtasks?.filter(
-                                      (st) => st.id !== subtask.id,
-                                    ),
-                                  };
-                                });
-                              } else {
-                                setNewTask((prev) => {
-                                  if (!prev) return null;
-                                  return {
-                                    ...prev,
-                                    subtasks: prev.subtasks?.filter(
-                                      (st) => st.id !== subtask.id,
-                                    ),
-                                  };
-                                });
-                              }
+                              handleTaskChange({
+                                subtasks: editingTask?.subtasks?.filter(
+                                  (st) => st.id !== subtask.id
+                                ) || []
+                              });
                             }}
                           >
                             <X className="h-4 w-4" />
@@ -2531,10 +2419,10 @@ function NewPlanView({
                           className="text-sm"
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && newSubTask.trim()) {
-                              if (editingTask) {
-                                setEditingTask((prev) => {
-                                  if (!prev) return null;
-                                  const newSubtask = {
+                              handleTaskChange({
+                                subtasks: [
+                                  ...(editingTask?.subtasks || []),
+                                  {
                                     id: `subtask-${Date.now()}-${Math.random()
                                       .toString(36)
                                       .substr(2, 9)}`,
@@ -2544,38 +2432,9 @@ function NewPlanView({
                                     completedBy: null,
                                     createdAt: new Date().toISOString(),
                                     createdBy: user?.email || "unknown",
-                                  };
-                                  return {
-                                    ...prev,
-                                    subtasks: [
-                                      ...(prev.subtasks || []),
-                                      newSubtask,
-                                    ],
-                                  };
-                                });
-                              } else {
-                                setNewTask((prev) => {
-                                  if (!prev) return null;
-                                  const newSubtask = {
-                                    id: `subtask-${Date.now()}-${Math.random()
-                                      .toString(36)
-                                      .substr(2, 9)}`,
-                                    text: newSubTask.trim(),
-                                    isCompleted: false,
-                                    completedDate: null,
-                                    completedBy: null,
-                                    createdAt: new Date().toISOString(),
-                                    createdBy: user?.email || "unknown",
-                                  };
-                                  return {
-                                    ...prev,
-                                    subtasks: [
-                                      ...(prev.subtasks || []),
-                                      newSubtask,
-                                    ],
-                                  };
-                                });
-                              }
+                                  },
+                                ],
+                              });
                               setNewSubTask("");
                             }
                           }}
@@ -2584,10 +2443,10 @@ function NewPlanView({
                           className="text-sm"
                           onClick={() => {
                             if (!newSubTask.trim()) return;
-                            if (editingTask) {
-                              setEditingTask((prev) => {
-                                if (!prev) return null;
-                                const newSubtask = {
+                            handleTaskChange({
+                              subtasks: [
+                                ...(editingTask?.subtasks || []),
+                                {
                                   id: `subtask-${Date.now()}-${Math.random()
                                     .toString(36)
                                     .substr(2, 9)}`,
@@ -2597,38 +2456,9 @@ function NewPlanView({
                                   completedBy: null,
                                   createdAt: new Date().toISOString(),
                                   createdBy: user?.email || "unknown",
-                                };
-                                return {
-                                  ...prev,
-                                  subtasks: [
-                                    ...(prev.subtasks || []),
-                                    newSubtask,
-                                  ],
-                                };
-                              });
-                            } else {
-                              setNewTask((prev) => {
-                                if (!prev) return null;
-                                const newSubtask = {
-                                  id: `subtask-${Date.now()}-${Math.random()
-                                    .toString(36)
-                                    .substr(2, 9)}`,
-                                  text: newSubTask.trim(),
-                                  isCompleted: false,
-                                  completedDate: null,
-                                  completedBy: null,
-                                  createdAt: new Date().toISOString(),
-                                  createdBy: user?.email || "unknown",
-                                };
-                                return {
-                                  ...prev,
-                                  subtasks: [
-                                    ...(prev.subtasks || []),
-                                    newSubtask,
-                                  ],
-                                };
-                              });
-                            }
+                                },
+                              ],
+                            });
                             setNewSubTask("");
                           }}
                         >
@@ -2694,31 +2524,11 @@ function NewPlanView({
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    if (editingTask) {
-                                      setEditingTask((prev) => {
-                                        if (!prev) return null;
-                                        const updatedFiles =
-                                          prev.files?.filter(
-                                            (_, i) => i !== index,
-                                          ) || [];
-                                        return {
-                                          ...prev,
-                                          files: updatedFiles,
-                                        };
-                                      });
-                                    } else {
-                                      setNewTask((prev) => {
-                                        if (!prev) return null;
-                                        const updatedFiles =
-                                          prev.files?.filter(
-                                            (_, i) => i !== index,
-                                          ) || [];
-                                        return {
-                                          ...prev,
-                                          files: updatedFiles,
-                                        };
-                                      });
-                                    }
+                                    handleTaskChange({
+                                      files: editingTask?.files?.filter(
+                                        (_, i) => i !== index
+                                      ) || []
+                                    });
                                   }}
                                   className="flex-shrink-0 ml-2"
                                 >
@@ -2747,6 +2557,7 @@ function NewPlanView({
                   setNewTask(null);
                   setEditingTask(null);
                   setEditingCustomer(null);
+                  setUnsavedTask(null); // Clear unsaved changes
                 }}
               >
                 Cancel
@@ -2754,18 +2565,23 @@ function NewPlanView({
               <Button
                 className="text-sm"
                 onClick={() => {
-                  if (editingTask) {
-                    // Only save the changes, not the entire task
-                    const updates = {
-                      ...editingTask,
-                      updatedAt: new Date().toISOString(),
-                      updatedBy: user?.email || "unknown",
-                    };
-                    handleEditSave(updates);
-                    setEditModalVisible(false);
+                  if (editingTask && unsavedTask) {
+                    // Only save the changes that are different from the original task
+                    const updates = Object.entries(unsavedTask).reduce((acc, [key, value]) => {
+                      if (editingTask[key as keyof PlanTask] !== value) {
+                        acc[key as keyof PlanTask] = value;
+                      }
+                      return acc;
+                    }, {} as Partial<PlanTask>);
+
+                    if (Object.keys(updates).length > 0) {
+                      handleEditSave(updates);
+                    }
+                    setUnsavedTask(null); // Clear unsaved changes
                   } else if (newTask) {
                     handleCreateTask(newTask);
                   }
+                  setEditModalVisible(false);
                 }}
               >
                 {editingTask ? "Save Changes" : "Create Task"}
@@ -3049,12 +2865,10 @@ function NewPlanView({
                         id="current"
                         type="number"
                         min={0}
-                        onChange={(e) =>
-                          bulkEditForm.setFieldValue(
-                            "current",
-                            parseInt(e.target.value),
-                          )
-                        }
+                        value={unsavedTask?.current || editingTask?.current || newTask?.current || 0}
+                        onChange={(e) => {
+                          handleTaskChange({ current: parseInt(e.target.value) });
+                        }}
                       />
                     </div>
                     <div className="flex-1">
@@ -3063,12 +2877,10 @@ function NewPlanView({
                         id="goal"
                         type="number"
                         min={0}
-                        onChange={(e) =>
-                          bulkEditForm.setFieldValue(
-                            "goal",
-                            parseInt(e.target.value),
-                          )
-                        }
+                        value={unsavedTask?.goal || editingTask?.goal || newTask?.goal || 0}
+                        onChange={(e) => {
+                          handleTaskChange({ goal: parseInt(e.target.value) });
+                        }}
                       />
                     </div>
                   </div>
