@@ -19,24 +19,21 @@ export interface PlanTask {
   id: string;
   task: string;
   section: string;
-  progress: PlanTaskProgress;
-  isActive: boolean;
-  notes: string;
-  frequency: PlanTaskFrequency;
+  progress: 'To Do' | 'Doing' | 'Done';
+  frequency: 'One Time' | 'Monthly' | 'As Needed';
+  current: number;
+  goal: number;
   dueDate: string | null;
   completedDate: string | null;
-  current?: number;
-  goal?: number;
-  order?: number;
-  daysAfterJoin?: number | null;
-  subtasks?: SubTask[];
-  monthlyHistory?: MonthlyHistory[];
-  files?: TaskFile[];
-  createdBy?: string;
-  createdAt?: string;
+  isActive: boolean;
+  notes: string;
+  assignedTeamMembers: string[];
+  subtasks: ISubtask[];
+  files: TaskFile[];
+  createdAt: string;
+  createdBy: string;
   updatedAt: string;
   updatedBy: string;
-  assignedTeamMembers?: string[];
 }
 
 export interface PlanSection {
@@ -48,15 +45,16 @@ export interface Plan {
   sections: PlanSection[];
   createdAt: string;
   updatedAt: string;
+  updatedBy: string;
 }
 
 export interface ISubtask {
-  completedBy: string | null;
-  completedDate: string | null;
-  createdAt: string;
+  id: string;
   text: string;
   isCompleted: boolean;
-  id: string;
+  completedDate: string | null;
+  completedBy: string | null;
+  createdAt: string;
   createdBy: string;
 }
 
