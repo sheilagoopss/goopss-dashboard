@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Form, Input, Button, message, Row, Col, Card, Space } from "antd";
+import { Form, Input, Button, message, Row, Col, Card } from "antd";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOptimizeListing } from "@/hooks/useOptimizeEtsy";
+import { useTaskCreate } from "@/hooks/useTask";
 
 interface NewListingFormProps {
   customerId: string;
@@ -26,12 +27,16 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
     description: string;
   } | null>(null);
   const [tags, setTags] = useState<string>("");
+  const { createTask } = useTaskCreate();
   const MAX_TAGS = 13;
 
   const handleOptimize = async () => {
     try {
-      const values = await form.validateFields(['productTitle', 'productDescription']);
-      
+      const values = await form.validateFields([
+        "productTitle",
+        "productDescription",
+      ]);
+
       const optimized = await optimizeText({
         title: values.productTitle,
         description: values.productDescription,
@@ -44,10 +49,10 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
           optimizedTitle: optimized.title,
           optimizedDescription: optimized.description,
         });
-        
-        message.success('Content optimized successfully');
+
+        message.success("Content optimized successfully");
       } else {
-        throw new Error('Failed to optimize content');
+        throw new Error("Failed to optimize content");
       }
     } catch (error) {
       console.error("Error optimizing listing:", error);
@@ -102,6 +107,14 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
       };
 
       await setDoc(doc(db, "listings", values.listingId), listingData);
+      await createTask({
+        customerId: customerId,
+        category: "NewListing",
+        taskName: `${user?.name} created new listing`,
+        teamMemberName: user?.name || user?.email || "unknown",
+        listingId: values.listingId,
+        isDone: true,
+      });
       message.success("Listing created successfully");
       form.resetFields();
       setOptimizedContent(null);
@@ -117,11 +130,11 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
     <div className="space-y-6">
       <Row gutter={24}>
         <Col span={12}>
-          <Card 
-            title="Product Content" 
+          <Card
+            title="Product Content"
             extra={
-              <Button 
-                type="primary" 
+              <Button
+                type="primary"
                 onClick={handleOptimize}
                 loading={isOptimizing}
               >
@@ -133,7 +146,9 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
               <Form.Item
                 name="productTitle"
                 label="Draft Title"
-                rules={[{ required: true, message: "Please enter the product title" }]}
+                rules={[
+                  { required: true, message: "Please enter the product title" },
+                ]}
               >
                 <Input.TextArea rows={3} placeholder="Enter draft title" />
               </Form.Item>
@@ -141,7 +156,12 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
               <Form.Item
                 name="productDescription"
                 label="Product Details"
-                rules={[{ required: true, message: "Please enter the product description" }]}
+                rules={[
+                  {
+                    required: true,
+                    message: "Please enter the product description",
+                  },
+                ]}
               >
                 <Input.TextArea rows={6} placeholder="Enter product details" />
               </Form.Item>
@@ -158,7 +178,12 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                     <Form.Item
                       name="listingId"
                       label="Listing ID"
-                      rules={[{ required: true, message: "Please enter the listing ID" }]}
+                      rules={[
+                        {
+                          required: true,
+                          message: "Please enter the listing ID",
+                        },
+                      ]}
                     >
                       <Input placeholder="Enter listing ID" />
                     </Form.Item>
@@ -167,7 +192,9 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                     <Form.Item
                       name="section"
                       label="Section"
-                      rules={[{ required: true, message: "Please enter the section" }]}
+                      rules={[
+                        { required: true, message: "Please enter the section" },
+                      ]}
                     >
                       <Input placeholder="Enter section name" />
                     </Form.Item>
@@ -177,13 +204,19 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                       name="imageCount"
                       label="Image Count"
                       rules={[
-                        { required: true, message: "Please enter the image count" },
-                        { type: 'number', message: "Please enter a valid number" },
+                        {
+                          required: true,
+                          message: "Please enter the image count",
+                        },
+                        {
+                          type: "number",
+                          message: "Please enter a valid number",
+                        },
                       ]}
                     >
-                      <Input 
-                        type="number" 
-                        min={1} 
+                      <Input
+                        type="number"
+                        min={1}
                         placeholder="Enter number of images"
                         onChange={(e) => {
                           const value = parseInt(e.target.value);
@@ -198,7 +231,12 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                     <Form.Item
                       name="primaryImage"
                       label="Primary Image URL"
-                      rules={[{ required: true, message: "Please enter the primary image URL" }]}
+                      rules={[
+                        {
+                          required: true,
+                          message: "Please enter the primary image URL",
+                        },
+                      ]}
                     >
                       <Input placeholder="Enter the primary image URL" />
                     </Form.Item>
@@ -209,18 +247,17 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
 
             <Card title="Optimized Content">
               <Form form={form} layout="vertical">
-                <Form.Item
-                  name="optimizedTitle"
-                  label="Optimized Title"
-                >
-                  <Input.TextArea 
-                    rows={3} 
+                <Form.Item name="optimizedTitle" label="Optimized Title">
+                  <Input.TextArea
+                    rows={3}
                     placeholder="Optimized title will appear here"
                     value={optimizedContent?.title || ""}
-                    onChange={(e) => setOptimizedContent(prev => ({
-                      ...prev!,
-                      title: e.target.value
-                    }))}
+                    onChange={(e) =>
+                      setOptimizedContent((prev) => ({
+                        ...prev!,
+                        title: e.target.value,
+                      }))
+                    }
                   />
                 </Form.Item>
 
@@ -228,18 +265,22 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                   name="optimizedDescription"
                   label="Optimized Description"
                 >
-                  <Input.TextArea 
-                    rows={6} 
+                  <Input.TextArea
+                    rows={6}
                     placeholder="Optimized description will appear here"
                     value={optimizedContent?.description || ""}
-                    onChange={(e) => setOptimizedContent(prev => ({
-                      ...prev!,
-                      description: e.target.value
-                    }))}
+                    onChange={(e) =>
+                      setOptimizedContent((prev) => ({
+                        ...prev!,
+                        description: e.target.value,
+                      }))
+                    }
                   />
                 </Form.Item>
 
-                <Form.Item label={`Tags (comma-separated, exactly ${MAX_TAGS} tags required)`}>
+                <Form.Item
+                  label={`Tags (comma-separated, exactly ${MAX_TAGS} tags required)`}
+                >
                   <Input.TextArea
                     rows={4}
                     value={tags}
@@ -247,7 +288,11 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                     placeholder="Enter tags, separated by commas"
                   />
                   <div style={{ marginTop: 8 }}>
-                    {tags.split(/,\s*/).filter(tag => tag.trim() !== "").length}/{MAX_TAGS} tags
+                    {
+                      tags.split(/,\s*/).filter((tag) => tag.trim() !== "")
+                        .length
+                    }
+                    /{MAX_TAGS} tags
                   </div>
                 </Form.Item>
 
@@ -263,4 +308,4 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
   );
 };
 
-export default NewListingForm; 
+export default NewListingForm;

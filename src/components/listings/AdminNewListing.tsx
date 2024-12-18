@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, Table, Button, message, Modal, Tabs } from "antd";
-import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { useState, useEffect, useCallback } from "react";
+import { Card, Table, Button, message, Tabs } from "antd";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/firebase/config";
-import { useAuth } from "@/contexts/AuthContext";
-import { useOptimizeListing } from "@/hooks/useOptimizeEtsy";
 import { PlusCircle } from "lucide-react";
 import { format } from "date-fns";
 import NewListingForm from "@/components/listings/NewListingForm";
-
-const { TabPane } = Tabs;
+import Image from "next/image";
 
 interface AdminNewListingProps {
   customerId: string;
@@ -36,13 +33,7 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (activeTab === "listings") {
-      fetchListings();
-    }
-  }, [customerId, activeTab]);
-
-  const fetchListings = async () => {
+  const fetchListings = useCallback(async () => {
     try {
       setLoading(true);
       const listingsRef = collection(db, "listings");
@@ -50,11 +41,11 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
         listingsRef,
         where("customer_id", "==", customerId),
         where("optimizationStatus", "==", true),
-        where("isNewListing", "==", true)
+        where("isNewListing", "==", true),
       );
-      
+
       const querySnapshot = await getDocs(q);
-      const fetchedListings = querySnapshot.docs.map(doc => ({
+      const fetchedListings = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
@@ -67,7 +58,7 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [customerId]);
 
   const columns = [
     {
@@ -76,16 +67,16 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
       key: "primaryImage",
       width: 100,
       render: (image: string) => (
-        <div style={{ width: '60px', height: '60px' }}>
-          <img 
-            src={image} 
-            alt="Listing" 
-            style={{ 
-              width: '100%', 
-              height: '100%', 
-              objectFit: 'cover',
-              borderRadius: '4px'
-            }} 
+        <div style={{ width: "60px", height: "60px" }}>
+          <Image
+            src={image}
+            alt="Listing"
+            style={{
+              objectFit: "cover",
+              borderRadius: "4px",
+            }}
+            width={60}
+            height={60}
           />
         </div>
       ),
@@ -126,6 +117,11 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
     setActiveTab("listings");
     fetchListings();
   };
+  useEffect(() => {
+    if (activeTab === "listings") {
+      fetchListings();
+    }
+  }, [customerId, activeTab, fetchListings]);
 
   return (
     <div className="space-y-4">
@@ -185,4 +181,4 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
   );
 };
 
-export default AdminNewListing; 
+export default AdminNewListing;

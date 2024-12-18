@@ -60,19 +60,33 @@ const CustomerTasks = () => {
         return acc;
       }, {} as Record<string, number>);
 
-      const groupedTasks = Object.entries(taskCounts).map(
-        ([category, count]) => ({
-          category: category === "undefined" ? "Other" : category,
-          count,
-        }),
-      );
+      const groupedTasks: {
+        category: string;
+        count: number;
+      }[] = [];
+
+      Object.entries(taskCounts).forEach(([category, count]) => {
+        if (category !== "undefined" && category !== "Other") {
+          groupedTasks.push({
+            category,
+            count,
+          });
+        }
+      });
 
       setTasks(groupedTasks);
     },
     [selectedCustomer, dateRange],
   );
 
-  const getPlanLabel = (plan: PlanTaskType) => {
+  const toNormalText = (camelCaseText: string) => {
+    return camelCaseText
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+      .trim();
+  };
+
+  const getPlanLabel = useCallback((plan: PlanTaskType) => {
     switch (plan) {
       case "NewKeywordResearchHighSearches":
         return "New keyword research - High searches";
@@ -85,38 +99,41 @@ const CustomerTasks = () => {
       case "StoreBanner":
         return "Store Banner";
       default:
-        return "Other";
+        return toNormalText(plan);
     }
-  };
-
-  const handlePlanGrouping = useCallback((plans: PlanWithCustomer) => {
-    const groupedPlans = plans.sections.reduce((acc, section) => {
-      section.tasks.forEach((task) => {
-        const taskType = task.type || "Other";
-        if (!acc[taskType]) {
-          acc[taskType] = [];
-        }
-        acc[taskType].push(task);
-      });
-      return acc;
-    }, {} as Record<string, IPlanTask[]>);
-
-    const groupedTasks: {
-      category: string;
-      count: number;
-    }[] = [];
-
-    Object.entries(groupedPlans).forEach(([category, count]) => {
-      if (category !== "undefined" && category !== "Other") {
-        groupedTasks.push({
-          category: getPlanLabel(category as PlanTaskType),
-          count: count.length,
-        });
-      }
-    });
-
-    setPlans(groupedTasks);
   }, []);
+
+  const handlePlanGrouping = useCallback(
+    (plans: PlanWithCustomer) => {
+      const groupedPlans = plans.sections.reduce((acc, section) => {
+        section.tasks?.forEach((task) => {
+          if (task.progress === "Done") {
+            const taskType = task.type || "Other";
+            if (!acc[taskType]) {
+              acc[taskType] = [];
+            }
+            acc[taskType].push(task);
+          }
+        });
+        return acc;
+      }, {} as Record<string, IPlanTask[]>);
+
+      const groupedTasks: {
+        category: string;
+        count: number;
+      }[] = [];
+      Object.entries(groupedPlans).forEach(([category, count]) => {
+        if (category !== "undefined" && category !== "Other") {
+          groupedTasks.push({
+            category: getPlanLabel(category as PlanTaskType),
+            count: count.length,
+          });
+        }
+      });
+      setPlans(groupedTasks);
+    },
+    [getPlanLabel],
+  );
 
   useEffect(() => {
     if (selectedCustomer) {

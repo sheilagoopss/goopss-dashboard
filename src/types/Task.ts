@@ -21,7 +21,8 @@ export interface ITask {
     | "NewKeywordResearchHighSearches"
     | "StoreBanner"
     | "PinterestBanner"
-    | "Newsletter";
+    | "Newsletter"
+    | "NewListing";
   count?: number;
 }
 
