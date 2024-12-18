@@ -33,16 +33,30 @@ import {
 } from "@/components/ui/tooltip"
 
 interface TaskCalendarProps {
-  taskGroups: { 
-    title: string; 
-    tasks: (PlanTask & { customer?: ICustomer })[] 
-  }[]
-  users: IAdmin[]
-  onUpdateTask: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>
-  onEdit: (task: PlanTask & { customer?: ICustomer }) => void
+  taskGroups: Array<{
+    title: string;
+    tasks: (PlanTask & { customer?: ICustomer })[];
+  }>;
+  users: Array<{
+    id: string;
+    email: string;
+    name: string;
+    avatarUrl: string;
+    role: string;
+    isAdmin: boolean;
+  }>;
+  readOnly?: boolean;
+  onUpdateTask?: (task: PlanTask, updates: Partial<PlanTask>) => Promise<void>;
+  onEdit?: (task: PlanTask) => void;
 }
 
-export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCalendarProps) {
+export function TaskCalendar({
+  taskGroups,
+  users,
+  readOnly = false,
+  onUpdateTask,
+  onEdit,
+}: TaskCalendarProps) {
   const today = startOfToday()
   const [selectedDay, setSelectedDay] = useState(today)
   const [currentMonth, setCurrentMonth] = useState(format(today, 'MMM-yyyy'))
@@ -94,9 +108,11 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
   }
 
   const handleTaskClick = (e: React.MouseEvent, task: PlanTask & { customer?: ICustomer }) => {
-    e.stopPropagation() // Prevent day selection when clicking on a task
-    onEdit(task)
-  }
+    e.stopPropagation();
+    if (!readOnly && onEdit) {
+      onEdit(task);
+    }
+  };
 
   const colStartClasses = [
     '',
@@ -234,7 +250,8 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
                                 'w-full text-left text-xs px-2 py-1 rounded-md truncate transition-colors',
                                 task.progress === 'To Do' && 'bg-blue-100 text-blue-700 hover:bg-blue-200',
                                 task.progress === 'Doing' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-                                task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200'
+                                task.progress === 'Done' && 'bg-green-100 text-green-700 hover:bg-green-200',
+                                readOnly && 'cursor-default hover:bg-inherit'
                               )}
                             >
                               {task.task}
@@ -244,7 +261,7 @@ export function TaskCalendar({ taskGroups, users, onUpdateTask, onEdit }: TaskCa
                             <div className="space-y-1">
                               <p className="font-medium">{task.customer?.store_name}</p>
                               <p className="text-sm">{task.task}</p>
-                              {task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
+                              {!readOnly && task.assignedTeamMembers && task.assignedTeamMembers.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
                                   Team: {getTeamMemberNames(task.assignedTeamMembers)}
                                 </p>

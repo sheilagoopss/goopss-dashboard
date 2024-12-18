@@ -52,8 +52,15 @@ export const usePlan = () => {
                 current: rule.defaultCurrent || 0,
                 goal: rule.defaultGoal || 0,
                 order: rule.order || 0,
+                daysAfterJoin: rule.daysAfterJoin || null,
+                assignedTeamMembers: [],
+                subtasks: [],
+                files: [],
+                createdAt: new Date().toISOString(),
+                createdBy: "system",
                 updatedAt: new Date().toISOString(),
                 updatedBy: "system",
+                monthlyHistory: []
               })),
           }),
         );
@@ -62,6 +69,7 @@ export const usePlan = () => {
           sections,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          updatedBy: "system"
         };
 
         await setDoc(planRef, defaultPlan);
