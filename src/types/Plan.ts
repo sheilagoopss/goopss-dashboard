@@ -34,6 +34,8 @@ export interface PlanTask {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  order?: number;
+  daysAfterJoin?: number | null;
 }
 
 export interface PlanSection {
