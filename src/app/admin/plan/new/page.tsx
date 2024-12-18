@@ -2348,7 +2348,7 @@ function NewPlanView({
                                           ...st,
                                           isCompleted: !!checked,
                                           completedDate: checked ? new Date().toISOString() : null,
-                                          completedBy: checked ? user?.email || "unknown" : null,
+                                          completedBy: checked ? (user?.email || "system") : null, // Ensure it's never undefined
                                         }
                                       : st
                                   )
@@ -2429,9 +2429,9 @@ function NewPlanView({
                                     text: newSubTask.trim(),
                                     isCompleted: false,
                                     completedDate: null,
-                                    completedBy: null,
+                                    completedBy: null, // Explicitly set to null
                                     createdAt: new Date().toISOString(),
-                                    createdBy: user?.email || "unknown",
+                                    createdBy: user?.email || "system"
                                   },
                                 ],
                               });
@@ -2453,9 +2453,9 @@ function NewPlanView({
                                   text: newSubTask.trim(),
                                   isCompleted: false,
                                   completedDate: null,
-                                  completedBy: null,
+                                  completedBy: null, // Explicitly set to null
                                   createdAt: new Date().toISOString(),
-                                  createdBy: user?.email || "unknown",
+                                  createdBy: user?.email || "system"
                                 },
                               ],
                             });
