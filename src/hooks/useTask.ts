@@ -3,7 +3,7 @@ import FirebaseHelper from "@/helpers/FirebaseHelper";
 import { ITasklist, ITask } from "@/types/Task";
 import { ICustomer } from "@/types/Customer";
 import dayjs from "dayjs";
-import { Timestamp } from "firebase/firestore";
+import { serverTimestamp, Timestamp } from "firebase/firestore";
 import { PlanWithCustomer } from "@/types/Plan";
 
 interface UseTaskFetchReturn {
@@ -60,7 +60,10 @@ export function useTaskCreate(): UseTaskCreateReturn {
     async (task: Omit<ITask, "id">): Promise<void> => {
       setIsLoading(true);
       try {
-        await FirebaseHelper.create("tasklists", task);
+        await FirebaseHelper.create("tasklists", {
+          ...task,
+          dateCompleted: task.dateCompleted || serverTimestamp(),
+        });
         const plan = await FirebaseHelper.findOne<PlanWithCustomer>(
           "plans",
           task.customerId,

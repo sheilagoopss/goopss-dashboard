@@ -45,7 +45,7 @@ const PostCreationModal: React.FC<{
   const [facebookGroupContent, setFacebookGroupContent] = useState("");
   const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
-  const [facebookImages, setFacebookImages] = useState<string[]>([]);
+  const [postImages, setPostImages] = useState<string[]>([]);
   const { uploadImages, isUploading } = useImageUpload();
 
   useEffect(() => {
@@ -54,6 +54,7 @@ const PostCreationModal: React.FC<{
     setFacebookContent("");
     setInstagramContent("");
     setFacebookGroupContent("");
+    setPostImages([]);
   }, [isOpen, listing, customerId]);
 
   const handleGenerateContent = async () => {
@@ -173,8 +174,8 @@ const PostCreationModal: React.FC<{
     const postsToSave: Omit<ISocialPost, "id">[] = [];
 
     if (platform === "both") {
+      const images = await uploadImages(postImages);
       if (facebookContent.trim()) {
-        const images = await uploadImages(facebookImages);
         postsToSave.push({
           ...basePost,
           platform: "facebook",
@@ -187,10 +188,11 @@ const PostCreationModal: React.FC<{
           ...basePost,
           platform: "instagram",
           content: instagramContent,
+          images: images,
         });
       }
     } else if (platform === "facebook" && facebookContent.trim()) {
-      const images = await uploadImages(facebookImages);
+      const images = await uploadImages(postImages);
       postsToSave.push({
         ...basePost,
         platform: "facebook",
@@ -204,10 +206,16 @@ const PostCreationModal: React.FC<{
         content: facebookGroupContent,
       });
     } else if (platform === "instagram" && instagramContent.trim()) {
+      // const images = await uploadImages(postImages);
       postsToSave.push({
         ...basePost,
         platform: "instagram",
         content: instagramContent,
+        // images: images,
+        images: [
+          "https://i.etsystatic.com/28522475/r/il/60f1b8/3091317553/il_1588xN.3091317553_hzc2.jpg",
+          "https://i.etsystatic.com/28522475/r/il/6e6996/3043590228/il_1588xN.3043590228_6piw.jpg",
+        ],
       });
     } else if (platform === "pinterest") {
       const values = form.getFieldsValue();
@@ -304,7 +312,7 @@ const PostCreationModal: React.FC<{
   };
 
   const handleFacebookUpload = (files: string[]) => {
-    setFacebookImages([...facebookImages, ...files]);
+    setPostImages([...postImages, ...files]);
   };
 
   return (
@@ -318,7 +326,7 @@ const PostCreationModal: React.FC<{
         <Button key="cancel" onClick={handleCancel}>
           Cancel
         </Button>,
-        platform === "facebook" || platform === "both" ? (
+        platform !== "pinterest" ? (
           <Popconfirm
             title="Are you sure you want to schedule this post?"
             onConfirm={handleSave}
@@ -349,7 +357,7 @@ const PostCreationModal: React.FC<{
         <Radio.Group
           onChange={(e) => {
             setPlatform(e.target.value);
-            setFacebookImages([]);
+            setPostImages([]);
           }}
           value={platform}
         >
@@ -371,14 +379,16 @@ const PostCreationModal: React.FC<{
           </Button>
         )}
 
-        {(platform === "facebook" || platform === "both") && (
-          <div>
+        {(platform === "facebook" ||
+          platform === "instagram" ||
+          platform === "both") && (
+          <>
             <DragDropUpload
               handleUpload={(files) => handleFacebookUpload(files as string[])}
               multiple={true}
             />
             <div className="flex flex-row gap-2 pt-4">
-              {facebookImages.map((image, index) => (
+              {postImages.map((image, index) => (
                 <Card
                   key={index}
                   style={{ width: "150px", height: "150px" }}
@@ -403,16 +413,18 @@ const PostCreationModal: React.FC<{
                     icon={<CloseCircleFilled />}
                     type="primary"
                     onClick={() =>
-                      setFacebookImages(
-                        facebookImages.filter((_, i) => i !== index),
-                      )
+                      setPostImages(postImages.filter((_, i) => i !== index))
                     }
                     danger
                   />
                 </Card>
               ))}
             </div>
+          </>
+        )}
 
+        {(platform === "facebook" || platform === "both") && (
+          <div>
             <Typography.Text strong>Facebook Content:</Typography.Text>
             <Input.TextArea
               value={facebookContent}
