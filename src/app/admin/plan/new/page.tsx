@@ -72,6 +72,9 @@ import { PlanTaskRule } from "@/types/PlanTasks";
 import { Form } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { Modal } from "antd";
+import { Alert } from "antd";
+import { Button as AntButton } from "antd";  // Import Antd Button
 
 interface Props {
   customers: ICustomer[];
@@ -201,6 +204,92 @@ type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
 
 // Add this type near the top of the file
 type PlanTaskWithCustomer = PlanTask & { customer?: ICustomer };
+
+// Add this new component near the BulkEditModal
+const BulkDeleteButton = ({ selectedRows, onSuccess }: { 
+  selectedRows: (PlanTask & { customer?: ICustomer })[],
+  onSuccess: () => void 
+}) => {
+  const handleBulkDelete = async () => {
+    if (selectedRows.length === 0) {
+      message.warning("Please select tasks to delete");
+      return;
+    }
+
+    Modal.confirm({
+      title: "Delete Selected Tasks",
+      content: (
+        <div>
+          <p>Are you sure you want to delete {selectedRows.length} selected tasks?</p>
+          <Alert
+            message="Warning"
+            description="This action cannot be undone. Tasks will be permanently removed from customer plans."
+            type="warning"
+            showIcon
+            className="mt-4"
+          />
+        </div>
+      ),
+      okText: "Yes, Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          // Group tasks by customer for batch processing
+          const tasksByCustomer: { [customerId: string]: PlanTask[] } = {};
+          selectedRows.forEach(task => {
+            if (task.customer?.id) {
+              if (!tasksByCustomer[task.customer.id]) {
+                tasksByCustomer[task.customer.id] = [];
+              }
+              tasksByCustomer[task.customer.id].push(task);
+            }
+          });
+
+          // Process each customer's tasks
+          for (const [customerId, tasks] of Object.entries(tasksByCustomer)) {
+            const planRef = doc(db, "plans", customerId);
+            const planDoc = await getDoc(planRef);
+
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              const taskIds = tasks.map(t => t.id);
+
+              // Filter out the deleted tasks from each section
+              const updatedSections = plan.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.filter(task => !taskIds.includes(task.id))
+              }));
+
+              // Update the plan
+              await updateDoc(planRef, {
+                sections: updatedSections,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+
+          message.success(`Successfully deleted ${selectedRows.length} tasks`);
+          onSuccess(); // Clear selection and refresh data
+        } catch (error) {
+          console.error("Error deleting tasks:", error);
+          message.error("Failed to delete tasks");
+        }
+      }
+    });
+  };
+
+  return (
+    <AntButton  // Use AntButton instead of Button
+      onClick={handleBulkDelete}
+      disabled={selectedRows.length === 0}
+      danger
+      className="ml-2"
+    >
+      Delete Selected ({selectedRows.length})
+    </AntButton>
+  );
+};
 
 function NewPlanView({
   customers = [],
@@ -1607,13 +1696,25 @@ function NewPlanView({
 
       <FiltersSection />
 
-      {selectedRows.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 mb-4">
-          <Button onClick={() => setBulkEditModalVisible(true)}>
-            Bulk Edit ({selectedRows.length})
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mb-4">
+        {selectedRows.length > 0 && (
+          <>
+            <Button
+              onClick={() => setBulkEditModalVisible(true)}
+              disabled={selectedRows.length === 0}
+            >
+              Bulk Edit ({selectedRows.length})
+            </Button>
+            <BulkDeleteButton 
+              selectedRows={selectedRows}
+              onSuccess={() => {
+                setSelectedRows([]);
+                loadAllPlans(); // Refresh the data
+              }}
+            />
+          </>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center items-center min-h-[200px]">
