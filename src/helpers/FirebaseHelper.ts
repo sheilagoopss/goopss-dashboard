@@ -10,9 +10,10 @@ import {
   where,
   setDoc,
 } from "firebase/firestore";
-import { db } from "@/firebase/config";
+import { db, storage } from "@/firebase/config";
 import { filterUndefined } from "@/utils/filterUndefined";
 import { COLLECTIONS } from "@/config/collections";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 class FirebaseHandler {
   private db: Firestore;
@@ -94,6 +95,32 @@ class FirebaseHandler {
     id: string,
   ): Promise<void> {
     await deleteDoc(doc(this.db, collectionName, id));
+  }
+
+  async uploadImage(base64File: string, folder = "images"): Promise<string> {
+    let downloadURL = "";
+    if (base64File) {
+      const matches = base64File.match(/^data:(image\/\w+);base64,/);
+      const fileExtension = matches ? matches[1].split("/")[1] : "png";
+      const base64Data = base64File.replace(/^data:image\/\w+;base64,/, "");
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length)
+        .fill(0)
+        .map((_, i) => byteCharacters.charCodeAt(i));
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], {
+        type: `image/${fileExtension}`,
+      });
+
+      const uniqueFileName = `${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 9)}.${fileExtension}`;
+      const storageRef = ref(storage, `${folder}/${uniqueFileName}`);
+      await uploadBytes(storageRef, blob);
+      downloadURL = await getDownloadURL(storageRef);
+    }
+
+    return downloadURL;
   }
 }
 

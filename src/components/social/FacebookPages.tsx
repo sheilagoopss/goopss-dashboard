@@ -19,7 +19,7 @@ const FacebookPages = ({ customerId }: { customerId: string }) => {
   return isLoadingPages ? (
     <Skeleton.Button />
   ) : (
-    pages.map((page, index) => {
+    pages?.map((page, index) => {
       return (
         <div
           key={index}
