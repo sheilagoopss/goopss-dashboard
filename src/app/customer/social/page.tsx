@@ -44,7 +44,6 @@ import { useCustomerUpdate } from "@/hooks/useCustomer";
 import { ISocialPost } from "@/types/Social";
 import FacebookButton from "@/components/common/FacebookButton";
 import PinterestButton from "@/components/common/PinterestButton";
-import InstagramButton from "@/components/common/InstagramButton";
 import PostCreationModal from "@/components/social/PostCreation";
 import PostEditModal from "@/components/social/PostEdit";
 import ConnectedAccountCard from "@/components/social/ConnectedAccountCard";
@@ -586,23 +585,23 @@ const Social: React.FC = () => {
       });
     }
   };
-  const handleDisconnectInstagram = async () => {
-    if (!selectedCustomer) return;
-    const updatedCustomer = await updateCustomer(selectedCustomer.id, {
-      instagram: {
-        is_connected: false,
-      },
-    });
+  // const handleDisconnectInstagram = async () => {
+  //   if (!selectedCustomer) return;
+  //   const updatedCustomer = await updateCustomer(selectedCustomer.id, {
+  //     instagram: {
+  //       is_connected: false,
+  //     },
+  //   });
 
-    if (updatedCustomer) {
-      setSelectedCustomer({
-        ...selectedCustomer,
-        instagram: {
-          is_connected: false,
-        },
-      });
-    }
-  };
+  //   if (updatedCustomer) {
+  //     setSelectedCustomer({
+  //       ...selectedCustomer,
+  //       instagram: {
+  //         is_connected: false,
+  //       },
+  //     });
+  //   }
+  // };
 
   const handleEditPost = (post: ISocialPost) => {
     setEditablePost(post);
@@ -638,39 +637,44 @@ const Social: React.FC = () => {
             gap: "2ch",
             marginBottom: "1ch",
             alignItems: "flex-start",
-            minHeight: "120px"
+            minHeight: "120px",
           }}
         >
-          <div style={{ 
-            display: "flex", 
-            flexDirection: "column", 
-            gap: "2ch",
-            minWidth: "300px"
-          }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "2ch",
+              minWidth: "300px",
+            }}
+          >
             {selectedCustomer?.facebook?.is_connected ? (
               <>
                 <ConnectedAccountCard
-                  profilePictureUrl={selectedCustomer?.facebook?.profile_picture_url || ""}
+                  profilePictureUrl={
+                    selectedCustomer?.facebook?.profile_picture_url || ""
+                  }
                   pageName={selectedCustomer?.facebook?.page_name || ""}
                   userEmail={selectedCustomer?.facebook?.user_email || ""}
                   handleDisconnect={handleDisconnect}
                   isUpdatingCustomer={isUpdatingCustomer}
                   platform="facebook"
                 />
-                <FacebookPages customerId={selectedCustomer?.id || ""} />
               </>
             ) : (
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center",
-                minHeight: "120px"
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "120px",
+                }}
+              >
                 <FacebookButton email={selectedCustomer?.email || ""} />
               </div>
             )}
           </div>
 
-          <div style={{ 
+          {/* <div style={{ 
             display: "flex", 
             flexDirection: "column", 
             gap: "2ch",
@@ -697,16 +701,20 @@ const Social: React.FC = () => {
                 <InstagramButton email={selectedCustomer?.email || ""} />
               </div>
             )}
-          </div>
+          </div> */}
 
-          <div style={{ 
-            display: "flex", 
-            flexDirection: "column",
-            minWidth: "300px"
-          }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minWidth: "300px",
+            }}
+          >
             {selectedCustomer?.pinterest?.is_connected ? (
               <ConnectedAccountCard
-                profilePictureUrl={selectedCustomer?.pinterest?.profile_picture_url || ""}
+                profilePictureUrl={
+                  selectedCustomer?.pinterest?.profile_picture_url || ""
+                }
                 pageName={selectedCustomer?.pinterest?.page_name || ""}
                 userEmail={selectedCustomer?.pinterest?.user_email || ""}
                 handleDisconnect={handleDisconnectPinterest}
@@ -714,18 +722,26 @@ const Social: React.FC = () => {
                 platform="pinterest"
               />
             ) : (
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center",
-                minHeight: "120px"
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "120px",
+                }}
+              >
                 <PinterestButton email={selectedCustomer?.email || ""} />
               </div>
             )}
           </div>
         </div>
       )}
-
+      {(selectedCustomer?.facebook?.is_connected ||
+        selectedCustomer?.instagram?.is_connected) && (
+        <div className="flex flex-row gap-2 mb-2">
+          <FacebookPages customerId={selectedCustomer?.id || ""} />
+          <InstagramAccounts customerId={selectedCustomer?.id || ""} />
+        </div>
+      )}
       {(isAdmin || customerData?.isSuperCustomer) && (
         <>
           <Card style={{ marginBottom: "20px" }}>

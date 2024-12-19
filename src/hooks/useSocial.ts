@@ -194,7 +194,7 @@ export function useInstagramAccounts(): UseInstagramAccountsReturn {
       setIsLoadingAccounts(true);
       try {
         const accountsData = await HttpHelper.get(
-          endpoints.social.getInstagramAccounts(customerId),
+          endpoints.social.getInstagramAccount(customerId),
         );
 
         return accountsData?.data;
