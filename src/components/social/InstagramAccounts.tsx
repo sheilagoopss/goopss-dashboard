@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 const InstagramAccounts = ({ customerId }: { customerId: string }) => {
   const [accounts, setAccounts] = useState<
-    { id: string; name: string; cover: string }[]
+    { id: string; name: string; profile_picture_url: string }[]
   >([]);
   const { getInstagramAccounts, isLoadingAccounts } = useInstagramAccounts();
 
@@ -25,7 +25,7 @@ const InstagramAccounts = ({ customerId }: { customerId: string }) => {
           key={index}
           className="flex flex-row items-center gap-2 border w-fit p-2 rounded-md"
         >
-          <Avatar src={account.cover} alt={account.name} shape="square" size={50} />
+          <Avatar src={account.profile_picture_url} alt={account.name} shape="square" size={50} />
           <Typography.Text>{account.name}</Typography.Text>
           <InstagramFilled style={{ fontSize: "2ch", color: "#E1306C" }} />
         </div>
