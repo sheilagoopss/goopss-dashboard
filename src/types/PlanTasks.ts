@@ -10,6 +10,7 @@ export type PlanTaskType =
   | "NewKeywordResearchHighSearches"
   | "StoreBanner"
   | "PinterestBanner"
+  | "NewListing"
   | "Newsletter"
   | "Other";
 export type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
