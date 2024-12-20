@@ -1763,63 +1763,20 @@ function NewPlanView({
     } 
     // If it's an existing task being edited
     else if (editingTask) {
-      // Update both UI and Firestore
-      try {
-        setEditingTask(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subtasks: [...(prev.subtasks || []), subtask]
-          };
-        });
-
-        // Then update Firestore if it's an existing task
-        if (editingCustomer || selectedCustomer) {
-          const customerId = editingCustomer?.id || selectedCustomer?.id;
-          const planRef = doc(db, "plans", customerId!);
-          const planDoc = await getDoc(planRef);
-
-          if (planDoc.exists()) {
-            const plan = planDoc.data() as Plan;
-            const updatedSections = plan.sections.map(section => ({
-              ...section,
-              tasks: section.tasks.map(t => {
-                if (t.id === editingTask.id) {
-                  return {
-                    ...t,
-                    subtasks: [...(t.subtasks || []), subtask]
-                  };
-                }
-                return t;
-              })
-            }));
-
-            await updateDoc(planRef, {
-              sections: updatedSections,
-              updatedAt: new Date().toISOString()
-            });
-
-            // Update local state
-            if (selectedCustomer) {
-              setPlans(prev => ({
-                ...prev!,
-                sections: updatedSections
-              }));
-            } else {
-              setAllPlans(prev => ({
-                ...prev,
-                [customerId!]: {
-                  sections: updatedSections
-                }
-              }));
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error adding subtask:", error);
-        message.error("Failed to add subtask");
-        return;
-      }
+      // Just update the UI state, don't save to Firestore yet
+      setEditingTask(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          subtasks: [...(prev.subtasks || []), subtask]
+        };
+      });
+      
+      // Update unsavedTask state to track changes
+      setUnsavedTask(prev => ({
+        ...(prev || editingTask),
+        subtasks: [...(editingTask.subtasks || []), subtask]
+      }));
     }
 
     // Clear the input
@@ -2761,14 +2718,36 @@ function NewPlanView({
                                         : st
                                     )
                                   }));
-                                } else if (editingTask && editingCustomer) {
-                                  // For existing tasks, handle as before
-                                  handleSubtaskComplete(
-                                    editingTask,
-                                    subtask.id,
-                                    checked as boolean,
-                                    editingCustomer.id
-                                  );
+                                } else if (editingTask) {
+                                  // For existing tasks, update local state only
+                                  setEditingTask(prev => ({
+                                    ...prev!,
+                                    subtasks: prev!.subtasks.map(st => 
+                                      st.id === subtask.id 
+                                        ? { 
+                                            ...st, 
+                                            isCompleted: checked as boolean,
+                                            completedDate: checked ? new Date().toISOString() : null,
+                                            completedBy: checked ? user?.email || "unknown" : null
+                                          }
+                                        : st
+                                    )
+                                  }));
+                                  
+                                  // Update unsaved changes
+                                  setUnsavedTask(prev => ({
+                                    ...(prev || editingTask),
+                                    subtasks: editingTask.subtasks.map(st => 
+                                      st.id === subtask.id 
+                                        ? { 
+                                            ...st, 
+                                            isCompleted: checked as boolean,
+                                            completedDate: checked ? new Date().toISOString() : null,
+                                            completedBy: checked ? user?.email || "unknown" : null
+                                          }
+                                        : st
+                                    )
+                                  }));
                                 }
                               }}
                             />
