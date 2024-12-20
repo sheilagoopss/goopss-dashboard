@@ -29,6 +29,7 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
   const [tags, setTags] = useState<string>("");
   const { createTask } = useTaskCreate();
   const MAX_TAGS = 13;
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleOptimize = async () => {
     try {
@@ -61,7 +62,10 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
+    
     try {
+      setIsSaving(true);
       const values = await form.validateFields();
       const tagsList = tags
         .split(/,\s*/)
@@ -123,6 +127,8 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
     } catch (error) {
       console.error("Error saving listing:", error);
       message.error("Failed to save listing");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -296,8 +302,14 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
                   </div>
                 </Form.Item>
 
-                <Button type="primary" onClick={handleSave} block>
-                  Save Listing
+                <Button 
+                  type="primary" 
+                  onClick={handleSave} 
+                  loading={isSaving} 
+                  disabled={isSaving} 
+                  block
+                >
+                  {isSaving ? 'Saving...' : 'Save Listing'}
                 </Button>
               </Form>
             </Card>
