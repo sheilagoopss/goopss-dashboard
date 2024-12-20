@@ -113,7 +113,6 @@ const AdminNewListing: React.FC<AdminNewListingProps> = ({
   ];
 
   const handleCreateSuccess = () => {
-    message.success("Listing created successfully");
     setActiveTab("listings");
     fetchListings();
   };
