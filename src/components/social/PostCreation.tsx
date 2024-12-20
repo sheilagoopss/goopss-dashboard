@@ -206,16 +206,12 @@ const PostCreationModal: React.FC<{
         content: facebookGroupContent,
       });
     } else if (platform === "instagram" && instagramContent.trim()) {
-      // const images = await uploadImages(postImages);
+      const images = await uploadImages(postImages);
       postsToSave.push({
         ...basePost,
         platform: "instagram",
         content: instagramContent,
-        // images: images,
-        images: [
-          "https://i.etsystatic.com/28522475/r/il/60f1b8/3091317553/il_1588xN.3091317553_hzc2.jpg",
-          "https://i.etsystatic.com/28522475/r/il/6e6996/3043590228/il_1588xN.3043590228_6piw.jpg",
-        ],
+        images: images,
       });
     } else if (platform === "pinterest") {
       const values = form.getFieldsValue();
