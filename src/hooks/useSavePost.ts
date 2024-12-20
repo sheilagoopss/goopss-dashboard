@@ -43,7 +43,9 @@ export default function useSavePost() {
             scheduledDate: post.scheduledDate,
             dateCreated: new Date(),
             imageUrl: listing?.primaryImage,
-            scheduled: post.platform === "pinterest" ? false : null,
+            scheduled: ["pinterest", "instagram"].includes(post.platform)
+              ? false
+              : null,
           });
 
           savedPosts.push({
