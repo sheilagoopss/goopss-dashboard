@@ -3,22 +3,13 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// const firebaseConfig = {
-//   apiKey: "AIzaSyDckKYqZNT4bdE51UoxFu9Mglc6ZDLnFTM",
-//   authDomain: "goopss-testing.firebaseapp.com",
-//   projectId: "goopss-testing",
-//   storageBucket: "goopss-testing.firebasestorage.app",
-//   messagingSenderId: "727749770526",
-//   appId: "1:727749770526:web:de63a4f5c5af53837c5d0f",
-// };
-// LIVE
 const firebaseConfig = {
-  apiKey: "AIzaSyAxrhmVhtFCRVWp_ZwQMXRNBryoRn7RS0I",
-  authDomain: "goopss-user-admin-dashboard.firebaseapp.com",
-  projectId: "goopss-user-admin-dashboard",
-  storageBucket: "goopss-user-admin-dashboard.appspot.com",
-  messagingSenderId: "163336972796",
-  appId: "1:163336972796:web:4dda62af9ec6436f2dea79"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
