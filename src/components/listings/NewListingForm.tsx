@@ -114,7 +114,7 @@ const NewListingForm: React.FC<NewListingFormProps> = ({
       await createTask({
         customerId: customerId,
         category: "NewListing",
-        taskName: `${user?.name} created new listing`,
+        taskName: `Created new listing`,
         teamMemberName: user?.name || user?.email || "unknown",
         listingId: values.listingId,
         isDone: true,
