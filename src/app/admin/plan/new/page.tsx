@@ -72,6 +72,9 @@ import { PlanTaskRule } from "@/types/PlanTasks";
 import { Form } from "antd";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { Modal } from "antd";
+import { Alert } from "antd";
+import { Button as AntButton } from "antd";  // Import Antd Button
 
 interface Props {
   customers: ICustomer[];
@@ -201,6 +204,92 @@ type PlanTaskFrequency = "One Time" | "Monthly" | "As Needed";
 
 // Add this type near the top of the file
 type PlanTaskWithCustomer = PlanTask & { customer?: ICustomer };
+
+// Add this new component near the BulkEditModal
+const BulkDeleteButton = ({ selectedRows, onSuccess }: { 
+  selectedRows: (PlanTask & { customer?: ICustomer })[],
+  onSuccess: () => void 
+}) => {
+  const handleBulkDelete = async () => {
+    if (selectedRows.length === 0) {
+      message.warning("Please select tasks to delete");
+      return;
+    }
+
+    Modal.confirm({
+      title: "Delete Selected Tasks",
+      content: (
+        <div>
+          <p>Are you sure you want to delete {selectedRows.length} selected tasks?</p>
+          <Alert
+            message="Warning"
+            description="This action cannot be undone. Tasks will be permanently removed from customer plans."
+            type="warning"
+            showIcon
+            className="mt-4"
+          />
+        </div>
+      ),
+      okText: "Yes, Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          // Group tasks by customer for batch processing
+          const tasksByCustomer: { [customerId: string]: PlanTask[] } = {};
+          selectedRows.forEach(task => {
+            if (task.customer?.id) {
+              if (!tasksByCustomer[task.customer.id]) {
+                tasksByCustomer[task.customer.id] = [];
+              }
+              tasksByCustomer[task.customer.id].push(task);
+            }
+          });
+
+          // Process each customer's tasks
+          for (const [customerId, tasks] of Object.entries(tasksByCustomer)) {
+            const planRef = doc(db, "plans", customerId);
+            const planDoc = await getDoc(planRef);
+
+            if (planDoc.exists()) {
+              const plan = planDoc.data() as Plan;
+              const taskIds = tasks.map(t => t.id);
+
+              // Filter out the deleted tasks from each section
+              const updatedSections = plan.sections.map(section => ({
+                ...section,
+                tasks: section.tasks.filter(task => !taskIds.includes(task.id))
+              }));
+
+              // Update the plan
+              await updateDoc(planRef, {
+                sections: updatedSections,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+
+          message.success(`Successfully deleted ${selectedRows.length} tasks`);
+          onSuccess(); // Clear selection and refresh data
+        } catch (error) {
+          console.error("Error deleting tasks:", error);
+          message.error("Failed to delete tasks");
+        }
+      }
+    });
+  };
+
+  return (
+    <AntButton  // Use AntButton instead of Button
+      onClick={handleBulkDelete}
+      disabled={selectedRows.length === 0}
+      danger
+      className="ml-2"
+    >
+      Delete Selected ({selectedRows.length})
+    </AntButton>
+  );
+};
 
 function NewPlanView({
   customers = [],
@@ -1555,6 +1644,256 @@ function NewPlanView({
     }
   };
 
+  // Add this function to handle subtask completion
+  const handleSubtaskComplete = async (
+    task: PlanTask,
+    subtaskId: string,
+    isCompleted: boolean,
+    customerId: string
+  ) => {
+    try {
+      // Immediately update the UI for both views
+      setEditingTask(prev => {
+        if (!prev) return null;
+        const updated = {
+          ...prev,
+          subtasks: prev.subtasks.map(st => {
+            if (st.id === subtaskId) {
+              return {
+                ...st,
+                isCompleted,
+                completedDate: isCompleted ? new Date().toISOString() : null,
+                completedBy: isCompleted ? user?.email || "unknown" : null
+              };
+            }
+            return st;
+          })
+        };
+        return updated;
+      });
+
+      // Then update Firestore
+      const planRef = doc(db, "plans", customerId);
+      const planDoc = await getDoc(planRef);
+
+      if (!planDoc.exists()) {
+        message.error("Plan not found");
+        return;
+      }
+
+      const plan = planDoc.data() as Plan;
+      const updatedSections = plan.sections.map(section => ({
+        ...section,
+        tasks: section.tasks.map(t => {
+          if (t.id === task.id) {
+            return {
+              ...t,
+              subtasks: t.subtasks.map(st => {
+                if (st.id === subtaskId) {
+                  return {
+                    ...st,
+                    isCompleted,
+                    completedDate: isCompleted ? new Date().toISOString() : null,
+                    completedBy: isCompleted ? user?.email || "unknown" : null
+                  };
+                }
+                return st;
+              })
+            };
+          }
+          return t;
+        })
+      }));
+
+      // Update Firestore first
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Then update local state for both views consistently
+      if (selectedCustomer) {
+        setPlans(currentPlans => {
+          if (!currentPlans) return currentPlans;
+          const newPlans = {
+            ...currentPlans,
+            sections: updatedSections
+          };
+          return newPlans;
+        });
+      } else {
+        setAllPlans(currentPlans => ({
+          ...currentPlans,
+          [customerId]: {
+            sections: updatedSections
+          }
+        }));
+      }
+
+      message.success("Subtask updated successfully");
+    } catch (error) {
+      console.error("Error updating subtask:", error);
+      message.error("Failed to update subtask");
+    }
+  };
+
+  // Update the subtask addition handler
+  const handleAddSubtask = async () => {
+    if (!newSubTask.trim()) return;
+
+    const subtask = {
+      id: `subtask-${Date.now()}`,
+      text: newSubTask.trim(),
+      isCompleted: false,
+      completedDate: null,
+      completedBy: null,
+      createdAt: new Date().toISOString(),
+      createdBy: user?.email || "unknown"
+    };
+
+    // If it's a new task that hasn't been saved yet
+    if (newTask) {
+      // Just update the local state
+      setNewTask(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          subtasks: [...(prev.subtasks || []), subtask]
+        };
+      });
+    } 
+    // If it's an existing task being edited
+    else if (editingTask) {
+      // Update both UI and Firestore
+      try {
+        setEditingTask(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            subtasks: [...(prev.subtasks || []), subtask]
+          };
+        });
+
+        // Then update Firestore if it's an existing task
+        if (editingCustomer || selectedCustomer) {
+          const customerId = editingCustomer?.id || selectedCustomer?.id;
+          const planRef = doc(db, "plans", customerId!);
+          const planDoc = await getDoc(planRef);
+
+          if (planDoc.exists()) {
+            const plan = planDoc.data() as Plan;
+            const updatedSections = plan.sections.map(section => ({
+              ...section,
+              tasks: section.tasks.map(t => {
+                if (t.id === editingTask.id) {
+                  return {
+                    ...t,
+                    subtasks: [...(t.subtasks || []), subtask]
+                  };
+                }
+                return t;
+              })
+            }));
+
+            await updateDoc(planRef, {
+              sections: updatedSections,
+              updatedAt: new Date().toISOString()
+            });
+
+            // Update local state
+            if (selectedCustomer) {
+              setPlans(prev => ({
+                ...prev!,
+                sections: updatedSections
+              }));
+            } else {
+              setAllPlans(prev => ({
+                ...prev,
+                [customerId!]: {
+                  sections: updatedSections
+                }
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error adding subtask:", error);
+        message.error("Failed to add subtask");
+        return;
+      }
+    }
+
+    // Clear the input
+    setNewSubTask("");
+    message.success("Subtask added");
+  };
+
+  // When saving the entire new task
+  const handleSaveNewTask = async () => {
+    try {
+      // Validate the task has required fields
+      if (!newTask?.task || !newTask?.section) {
+        message.error("Please fill in all required fields");
+        return;
+      }
+
+      const customerId = selectedCustomer?.id;
+      if (!customerId) {
+        message.error("No customer selected");
+        return;
+      }
+
+      // First save the main task with its subtasks
+      const planRef = doc(db, "plans", customerId);
+      const planDoc = await getDoc(planRef);
+
+      if (!planDoc.exists()) {
+        message.error("Plan not found");
+        return;
+      }
+
+      const plan = planDoc.data() as Plan;
+      const updatedSections = plan.sections.map(section => {
+        if (section.title === newTask.section) {
+          return {
+            ...section,
+            tasks: [...section.tasks, newTask]
+          };
+        }
+        return section;
+      });
+
+      // Save everything to Firestore
+      await updateDoc(planRef, {
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Update local state
+      if (selectedCustomer) {
+        setPlans(prev => ({
+          ...prev!,
+          sections: updatedSections
+        }));
+      } else {
+        setAllPlans(prev => ({
+          ...prev,
+          [customerId]: {
+            sections: updatedSections
+          }
+        }));
+      }
+
+      // Clear states
+      setNewTask(null);
+      setEditModalVisible(false);
+      message.success("Task created successfully");
+    } catch (error) {
+      console.error("Error saving new task:", error);
+      message.error("Failed to create task");
+    }
+  };
+
   return (
     <div 
       key={`view-${selectedCustomer?.id || 'all'}`}  // Add this key
@@ -1607,13 +1946,25 @@ function NewPlanView({
 
       <FiltersSection />
 
-      {selectedRows.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 mb-4">
-          <Button onClick={() => setBulkEditModalVisible(true)}>
-            Bulk Edit ({selectedRows.length})
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mb-4">
+        {selectedRows.length > 0 && (
+          <>
+            <Button
+              onClick={() => setBulkEditModalVisible(true)}
+              disabled={selectedRows.length === 0}
+            >
+              Bulk Edit ({selectedRows.length})
+            </Button>
+            <BulkDeleteButton 
+              selectedRows={selectedRows}
+              onSuccess={() => {
+                setSelectedRows([]);
+                loadAllPlans(); // Refresh the data
+              }}
+            />
+          </>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center items-center min-h-[200px]">
@@ -1714,10 +2065,9 @@ function NewPlanView({
                                   selectedRows.some(
                                     (r) =>
                                       r.id === task.id &&
-                                      r.customer?.id === task.customer?.id,
-                                  ),
-                                )
-                              ) {
+                                      r.customer?.id === task.customer?.id
+                                  )
+                                )) {
                                 // If all tasks are selected, deselect them
                                 setSelectedRows((prev) =>
                                   prev.filter(
@@ -1725,9 +2075,9 @@ function NewPlanView({
                                       !sectionTasks.some(
                                         (task) =>
                                           task.id === row.id &&
-                                          row.customer?.id === row.customer?.id,
-                                      ),
-                                  ),
+                                          row.customer?.id === row.customer?.id
+                                      )
+                                  )
                                 );
                               } else {
                                 // If not all tasks are selected, select all
@@ -1736,8 +2086,8 @@ function NewPlanView({
                                     !selectedRows.some(
                                       (r) =>
                                         r.id === task.id &&
-                                        r.customer?.id === task.customer?.id,
-                                    ),
+                                        r.customer?.id === task.customer?.id
+                                    )
                                 );
                                 setSelectedRows([...selectedRows, ...newTasks]);
                               }
@@ -1748,11 +2098,11 @@ function NewPlanView({
                                 selectedRows.some(
                                   (r) =>
                                     r.id === task.id &&
-                                    r.customer?.id === task.customer?.id,
-                                ),
-                            )
-                              ? "Deselect All"
-                              : "Select All"}
+                                    r.customer?.id === task.customer?.id
+                                )
+                              )
+                                ? "Deselect All"
+                                : "Select All"}
                           </Button>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2344,20 +2694,25 @@ function NewPlanView({
                         >
                           <div className="flex items-center space-x-2">
                             <Checkbox
+                              id={subtask.id}
                               checked={subtask.isCompleted}
                               onCheckedChange={(checked) => {
-                                handleTaskChange({
-                                  subtasks: (editingTask?.subtasks || []).map((st) => 
-                                    st.id === subtask.id
-                                      ? {
-                                          ...st,
-                                          isCompleted: !!checked,
-                                          completedDate: checked ? new Date().toISOString() : null,
-                                          completedBy: checked ? (user?.email || "system") : null, // Ensure it's never undefined
-                                        }
-                                      : st
-                                  )
-                                });
+                                if (editingTask && editingCustomer) {
+                                  handleSubtaskComplete(
+                                    editingTask,
+                                    subtask.id,
+                                    checked as boolean,
+                                    editingCustomer.id
+                                  );
+                                } else if (editingTask && selectedCustomer) {
+                                  // Handle single customer view
+                                  handleSubtaskComplete(
+                                    editingTask,
+                                    subtask.id,
+                                    checked as boolean,
+                                    selectedCustomer.id
+                                  );
+                                }
                               }}
                             />
                             <div className="flex flex-col">
@@ -2424,47 +2779,14 @@ function NewPlanView({
                           className="text-sm"
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && newSubTask.trim()) {
-                              handleTaskChange({
-                                subtasks: [
-                                  ...(editingTask?.subtasks || []),
-                                  {
-                                    id: `subtask-${Date.now()}-${Math.random()
-                                      .toString(36)
-                                      .substr(2, 9)}`,
-                                    text: newSubTask.trim(),
-                                    isCompleted: false,
-                                    completedDate: null,
-                                    completedBy: null, // Explicitly set to null
-                                    createdAt: new Date().toISOString(),
-                                    createdBy: user?.email || "system"
-                                  },
-                                ],
-                              });
-                              setNewSubTask("");
+                              handleAddSubtask();
                             }
                           }}
                         />
                         <Button
                           className="text-sm"
                           onClick={() => {
-                            if (!newSubTask.trim()) return;
-                            handleTaskChange({
-                              subtasks: [
-                                ...(editingTask?.subtasks || []),
-                                {
-                                  id: `subtask-${Date.now()}-${Math.random()
-                                    .toString(36)
-                                    .substr(2, 9)}`,
-                                  text: newSubTask.trim(),
-                                  isCompleted: false,
-                                  completedDate: null,
-                                  completedBy: null, // Explicitly set to null
-                                  createdAt: new Date().toISOString(),
-                                  createdBy: user?.email || "system"
-                                },
-                              ],
-                            });
-                            setNewSubTask("");
+                            handleAddSubtask();
                           }}
                         >
                           Add
@@ -2584,7 +2906,7 @@ function NewPlanView({
                     }
                     setUnsavedTask(null); // Clear unsaved changes
                   } else if (newTask) {
-                    handleCreateTask(newTask);
+                    handleSaveNewTask();
                   }
                   setEditModalVisible(false);
                 }}
