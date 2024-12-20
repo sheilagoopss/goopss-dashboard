@@ -1843,8 +1843,8 @@ function NewPlanView({
       };
 
       // Find Other Tasks section or create it if it doesn't exist
-      let otherTasksSection = plan.sections.find(section => section.title === "Other Tasks");
-      let updatedSections;
+      const otherTasksSection = plan.sections.find(section => section.title === "Other Tasks");
+      let updatedSections; // Keep this as 'let' since it is reassigned
 
       if (otherTasksSection) {
         // Update existing Other Tasks section
