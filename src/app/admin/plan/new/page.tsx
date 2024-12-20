@@ -1753,7 +1753,6 @@ function NewPlanView({
 
     // If it's a new task that hasn't been saved yet
     if (newTask) {
-      // Just update the local state
       setNewTask(prev => {
         if (!prev) return prev;
         return {
@@ -1764,63 +1763,20 @@ function NewPlanView({
     } 
     // If it's an existing task being edited
     else if (editingTask) {
-      // Update both UI and Firestore
-      try {
-        setEditingTask(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            subtasks: [...(prev.subtasks || []), subtask]
-          };
-        });
-
-        // Then update Firestore if it's an existing task
-        if (editingCustomer || selectedCustomer) {
-          const customerId = editingCustomer?.id || selectedCustomer?.id;
-          const planRef = doc(db, "plans", customerId!);
-          const planDoc = await getDoc(planRef);
-
-          if (planDoc.exists()) {
-            const plan = planDoc.data() as Plan;
-            const updatedSections = plan.sections.map(section => ({
-              ...section,
-              tasks: section.tasks.map(t => {
-                if (t.id === editingTask.id) {
-                  return {
-                    ...t,
-                    subtasks: [...(t.subtasks || []), subtask]
-                  };
-                }
-                return t;
-              })
-            }));
-
-            await updateDoc(planRef, {
-              sections: updatedSections,
-              updatedAt: new Date().toISOString()
-            });
-
-            // Update local state
-            if (selectedCustomer) {
-              setPlans(prev => ({
-                ...prev!,
-                sections: updatedSections
-              }));
-            } else {
-              setAllPlans(prev => ({
-                ...prev,
-                [customerId!]: {
-                  sections: updatedSections
-                }
-              }));
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error adding subtask:", error);
-        message.error("Failed to add subtask");
-        return;
-      }
+      // Just update the UI state, don't save to Firestore yet
+      setEditingTask(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          subtasks: [...(prev.subtasks || []), subtask]
+        };
+      });
+      
+      // Update unsavedTask state to track changes
+      setUnsavedTask(prev => ({
+        ...(prev || editingTask),
+        subtasks: [...(editingTask.subtasks || []), subtask]
+      }));
     }
 
     // Clear the input
@@ -1832,8 +1788,8 @@ function NewPlanView({
   const handleSaveNewTask = async () => {
     try {
       // Validate the task has required fields
-      if (!newTask?.task || !newTask?.section) {
-        message.error("Please fill in all required fields");
+      if (!newTask?.task) {
+        message.error("Please enter a task name");
         return;
       }
 
@@ -1853,43 +1809,95 @@ function NewPlanView({
       }
 
       const plan = planDoc.data() as Plan;
-      const updatedSections = plan.sections.map(section => {
-        if (section.title === newTask.section) {
-          return {
-            ...section,
-            tasks: [...section.tasks, newTask]
-          };
-        }
-        return section;
-      });
+      
+      // Create the task object - always in Other Tasks section
+      const taskToSave = {
+        id: newTask.id,
+        task: newTask.task,
+        section: "Other Tasks", // Force section to be Other Tasks
+        progress: newTask.progress || "To Do",
+        frequency: newTask.frequency || "One Time",
+        isActive: newTask.isActive ?? true,
+        dueDate: newTask.dueDate || null,
+        completedDate: newTask.completedDate || null,
+        current: newTask.current || 0,
+        goal: newTask.goal || 0,
+        notes: newTask.notes || "",
+        assignedTeamMembers: newTask.assignedTeamMembers || [],
+        subtasks: (newTask.subtasks || []).map(subtask => ({
+          id: subtask.id,
+          text: subtask.text,
+          isCompleted: subtask.isCompleted || false,
+          completedDate: subtask.completedDate || null,
+          completedBy: subtask.completedBy || null,
+          createdAt: subtask.createdAt || new Date().toISOString(),
+          createdBy: subtask.createdBy || user?.email || "unknown"
+        })),
+        files: newTask.files || [],
+        createdAt: newTask.createdAt || new Date().toISOString(),
+        createdBy: newTask.createdBy || user?.email || "unknown",
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || "unknown",
+        order: newTask.order || 0,
+        daysAfterJoin: newTask.daysAfterJoin || null
+      };
 
-      // Save everything to Firestore
-      await updateDoc(planRef, {
-        sections: updatedSections,
-        updatedAt: new Date().toISOString()
-      });
+      // Find Other Tasks section or create it if it doesn't exist
+      let otherTasksSection = plan.sections.find(section => section.title === "Other Tasks");
+      let updatedSections;
 
-      // Update local state
-      if (selectedCustomer) {
+      if (otherTasksSection) {
+        // Update existing Other Tasks section
+        updatedSections = plan.sections.map(section => {
+          if (section.title === "Other Tasks") {
+            return {
+              ...section,
+              tasks: [...(section.tasks || []), taskToSave]
+            };
+          }
+          return section;
+        });
+      } else {
+        // Create Other Tasks section if it doesn't exist
+        updatedSections = [
+          ...plan.sections,
+          {
+            title: "Other Tasks",
+            tasks: [taskToSave]
+          }
+        ];
+      }
+
+      // Log the data being saved for debugging
+      console.log('Saving task:', taskToSave);
+      console.log('Updated sections:', updatedSections);
+
+      // Save to Firestore
+      try {
+        await updateDoc(planRef, {
+          sections: updatedSections,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Update local state
         setPlans(prev => ({
           ...prev!,
           sections: updatedSections
         }));
-      } else {
-        setAllPlans(prev => ({
-          ...prev,
-          [customerId]: {
-            sections: updatedSections
-          }
-        }));
-      }
 
-      // Clear states
-      setNewTask(null);
-      setEditModalVisible(false);
-      message.success("Task created successfully");
+        // Clear states
+        setNewTask(null);
+        setEditModalVisible(false);
+        message.success("Task created successfully");
+        
+        // Reload the plan to ensure we have the latest data
+        await loadPlan();
+      } catch (error) {
+        console.error('Error updating Firestore:', error);
+        message.error("Failed to save task to database");
+      }
     } catch (error) {
-      console.error("Error saving new task:", error);
+      console.error("Error in handleSaveNewTask:", error);
       message.error("Failed to create task");
     }
   };
@@ -1901,47 +1909,49 @@ function NewPlanView({
     >
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Task Management</h1>
-        <Button
-          onClick={() => {
-            const today = new Date();
-            const date = today.getDate().toString().padStart(2, "0");
-            const month = (today.getMonth() + 1).toString().padStart(2, "0");
-            const random = Math.floor(Math.random() * 1000)
-              .toString()
-              .padStart(3, "0"); // 3 digits
-            const newTaskId = `task-${date}${month}${random}`;
+        {selectedCustomer && ( // Only show button when a customer is selected
+          <Button
+            onClick={() => {
+              const today = new Date();
+              const date = today.getDate().toString().padStart(2, "0");
+              const month = (today.getMonth() + 1).toString().padStart(2, "0");
+              const random = Math.floor(Math.random() * 1000)
+                .toString()
+                .padStart(3, "0");
+              const newTaskId = `task-${date}${month}${random}`;
 
-            setNewTask({
-              id: newTaskId,
-              task: "",
-              section: "Other Tasks",
-              progress: "To Do",
-              frequency: "One Time",
-              isActive: true,
-              dueDate: null,
-              completedDate: null,
-              current: 0,
-              goal: 0,
-              notes: "",
-              assignedTeamMembers: [],
-              subtasks: [],
-              files: [],
-              createdAt: new Date().toISOString(),
-              createdBy: user?.email || "unknown",
-              updatedAt: new Date().toISOString(),
-              updatedBy: user?.email || "unknown",
-              order: 0,  // Add this line
-              daysAfterJoin: null  // Add this line
-            });
-            setEditingTask(null);
-            setEditingCustomer(null);
-            setEditModalVisible(true);
-          }}
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Custom Task
-        </Button>
+              setNewTask({
+                id: newTaskId,
+                task: "",
+                section: "Other Tasks",
+                progress: "To Do",
+                frequency: "One Time",
+                isActive: true,
+                dueDate: null,
+                completedDate: null,
+                current: 0,
+                goal: 0,
+                notes: "",
+                assignedTeamMembers: [],
+                subtasks: [],
+                files: [],
+                createdAt: new Date().toISOString(),
+                createdBy: user?.email || "unknown",
+                updatedAt: new Date().toISOString(),
+                updatedBy: user?.email || "unknown",
+                order: 0,  // Add this line
+                daysAfterJoin: null  // Add this line
+              });
+              setEditingTask(null);
+              setEditingCustomer(null);
+              setEditModalVisible(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Custom Task
+          </Button>
+        )}
       </div>
 
       <FiltersSection />
@@ -2687,7 +2697,8 @@ function NewPlanView({
                   <div>
                     <Label className="text-sm font-semibold">Subtasks</Label>
                     <div className="mt-2 space-y-2">
-                      {editingTask?.subtasks?.map((subtask) => (
+                      {/* Show subtasks from either newTask or editingTask */}
+                      {(newTask?.subtasks || editingTask?.subtasks || []).map((subtask) => (
                         <div
                           key={subtask.id}
                           className="flex items-center justify-between bg-secondary/20 p-2 rounded"
@@ -2697,62 +2708,76 @@ function NewPlanView({
                               id={subtask.id}
                               checked={subtask.isCompleted}
                               onCheckedChange={(checked) => {
-                                if (editingTask && editingCustomer) {
-                                  handleSubtaskComplete(
-                                    editingTask,
-                                    subtask.id,
-                                    checked as boolean,
-                                    editingCustomer.id
-                                  );
-                                } else if (editingTask && selectedCustomer) {
-                                  // Handle single customer view
-                                  handleSubtaskComplete(
-                                    editingTask,
-                                    subtask.id,
-                                    checked as boolean,
-                                    selectedCustomer.id
-                                  );
+                                if (newTask) {
+                                  // For new tasks, just update the local state
+                                  setNewTask(prev => ({
+                                    ...prev!,
+                                    subtasks: prev!.subtasks.map(st => 
+                                      st.id === subtask.id 
+                                        ? { ...st, isCompleted: checked as boolean }
+                                        : st
+                                    )
+                                  }));
+                                } else if (editingTask) {
+                                  // For existing tasks, update local state only
+                                  setEditingTask(prev => ({
+                                    ...prev!,
+                                    subtasks: prev!.subtasks.map(st => 
+                                      st.id === subtask.id 
+                                        ? { 
+                                            ...st, 
+                                            isCompleted: checked as boolean,
+                                            completedDate: checked ? new Date().toISOString() : null,
+                                            completedBy: checked ? user?.email || "unknown" : null
+                                          }
+                                        : st
+                                    )
+                                  }));
+                                  
+                                  // Update unsaved changes
+                                  setUnsavedTask(prev => ({
+                                    ...(prev || editingTask),
+                                    subtasks: editingTask.subtasks.map(st => 
+                                      st.id === subtask.id 
+                                        ? { 
+                                            ...st, 
+                                            isCompleted: checked as boolean,
+                                            completedDate: checked ? new Date().toISOString() : null,
+                                            completedBy: checked ? user?.email || "unknown" : null
+                                          }
+                                        : st
+                                    )
+                                  }));
                                 }
                               }}
                             />
                             <div className="flex flex-col">
-                              <span
-                                className={`text-sm ${
-                                  subtask.isCompleted ? "line-through" : ""
-                                }`}
-                              >
+                              <span className={`text-sm ${subtask.isCompleted ? "line-through" : ""}`}>
                                 {subtask.text}
                               </span>
                               <div className="flex flex-col text-xs text-muted-foreground">
                                 <span>
                                   Added by{" "}
                                   {teamMembers.find(
-                                    (m) => m.email === subtask.createdBy,
+                                    (m) => m.email === subtask.createdBy
                                   )?.name || subtask.createdBy}{" "}
                                   on{" "}
                                   {subtask.createdAt
-                                    ? format(
-                                        new Date(subtask.createdAt),
-                                        "MMM dd, yyyy",
-                                      )
+                                    ? format(new Date(subtask.createdAt), "MMM dd, yyyy")
                                     : "Unknown date"}
                                 </span>
-                                {subtask.isCompleted &&
-                                  subtask.completedDate && (
-                                    <span>
-                                      Completed by{" "}
-                                      {teamMembers.find(
-                                        (m) => m.email === subtask.completedBy,
-                                      )?.name || subtask.completedBy}{" "}
-                                      on{" "}
-                                      {subtask.completedDate
-                                        ? format(
-                                            new Date(subtask.completedDate),
-                                            "MMM dd, yyyy",
-                                          )
-                                        : "Unknown date"}
-                                    </span>
-                                  )}
+                                {subtask.isCompleted && subtask.completedDate && (
+                                  <span>
+                                    Completed by{" "}
+                                    {teamMembers.find(
+                                      (m) => m.email === subtask.completedBy
+                                    )?.name || subtask.completedBy}{" "}
+                                    on{" "}
+                                    {subtask.completedDate
+                                      ? format(new Date(subtask.completedDate), "MMM dd, yyyy")
+                                      : "Unknown date"}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2760,11 +2785,20 @@ function NewPlanView({
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              handleTaskChange({
-                                subtasks: editingTask?.subtasks?.filter(
-                                  (st) => st.id !== subtask.id
-                                ) || []
-                              });
+                              if (newTask) {
+                                // For new tasks, just update the local state
+                                setNewTask(prev => ({
+                                  ...prev!,
+                                  subtasks: prev!.subtasks.filter(st => st.id !== subtask.id)
+                                }));
+                              } else if (editingTask) {
+                                // For existing tasks, handle as before
+                                handleTaskChange({
+                                  subtasks: editingTask.subtasks.filter(
+                                    (st) => st.id !== subtask.id
+                                  )
+                                });
+                              }
                             }}
                           >
                             <X className="h-4 w-4" />
@@ -2785,9 +2819,7 @@ function NewPlanView({
                         />
                         <Button
                           className="text-sm"
-                          onClick={() => {
-                            handleAddSubtask();
-                          }}
+                          onClick={handleAddSubtask}
                         >
                           Add
                         </Button>
