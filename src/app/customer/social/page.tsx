@@ -1,16 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  addDoc,
-  updateDoc,
-  doc,
-  orderBy,
-} from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import CustomersDropdown from "@/components/common/CustomersDropdown";
@@ -27,12 +18,7 @@ import {
   Col,
   Row,
 } from "antd";
-import {
-  useFacebookSchedule,
-  useInstagramSchedule,
-  useSocialDelete,
-  useSocialUpdate,
-} from "@/hooks/useSocial";
+import { useSocialDelete, useSocialUpdate } from "@/hooks/useSocial";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -50,7 +36,7 @@ import PostEditModal from "@/components/social/PostEdit";
 import ConnectedAccountCard from "@/components/social/ConnectedAccountCard";
 import FacebookPages from "@/components/social/FacebookPages";
 import InstagramAccounts from "@/components/social/InstagramAccounts";
-import { useTaskCreate } from "@/hooks/useTask";
+import useSavePost from "@/hooks/useSavePost";
 
 interface EtsyListing {
   id: string;
@@ -65,12 +51,10 @@ interface EtsyListing {
 
 const Social: React.FC = () => {
   const { isAdmin, customerData } = useAuth();
-  const { schedulePosts } = useFacebookSchedule();
   const { updatePost, isUpdating } = useSocialUpdate();
   const { deletePost } = useSocialDelete();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
-  const { createTask } = useTaskCreate();
-  const { schedulePosts: scheduleInstagramPosts } = useInstagramSchedule();
+  const { savePost, isSavingPost } = useSavePost();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -89,7 +73,6 @@ const Social: React.FC = () => {
   const [editablePost, setEditablePost] = useState<ISocialPost | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
-  const [isSavingPost, setIsSavingPost] = useState(false);
 
   const columns = [
     {
@@ -284,141 +267,31 @@ const Social: React.FC = () => {
   const handleSavePost = async (
     newPosts: Omit<ISocialPost, "id">[],
   ): Promise<boolean> => {
-    setIsSavingPost(true);
     if (!selectedCustomer) {
       console.error("No customer selected");
       return false;
     }
 
-    try {
-      const socialCollection = collection(db, "socials");
-      const savedPosts: ISocialPost[] = [];
+    const savedPosts = await savePost({
+      customer: selectedCustomer,
+      listing: currentListing || undefined,
+      newPosts,
+    });
 
-      for (const post of newPosts) {
-        if (!post.content.trim()) {
-          console.error(`Empty content for ${post.platform} post. Skipping.`);
-          continue;
-        }
-
-        const docRef = await addDoc(socialCollection, {
-          ...post,
-          scheduledDate: post.scheduledDate,
-          dateCreated: new Date(),
-          imageUrl: currentListing?.primaryImage,
-          scheduled: post.platform === "pinterest" ? false : null,
-        });
-
-        savedPosts.push({
-          id: docRef.id,
-          ...post,
-          imageUrl: currentListing?.primaryImage,
-        });
-      }
-
-      if (savedPosts.length === 0) {
-        console.error("No posts were saved due to empty content");
-        return false;
-      }
-
-      // Update the scheduled_post_date in the listing
-      if (currentListing) {
-        const listingRef = doc(db, "listings", currentListing.id);
-        await updateDoc(listingRef, {
-          scheduled_post_date: savedPosts[0].scheduledDate?.toISOString(),
-        });
-      }
-
-      switch (savedPosts[0].platform) {
-        case "facebook":
-          {
-            const schedulePostPromises = savedPosts.map((post) =>
-              schedulePosts({
-                customerId: selectedCustomer.id,
-                postId: post.id,
-              }),
-            );
-            const schedulePostResponses = await Promise.all(
-              schedulePostPromises,
-            );
-            await createTask({
-              customerId: selectedCustomer.id,
-              taskName: "Schedule Facebook Post",
-              teamMemberName: "Social Media",
-              category: "FacebookPagePost",
-              listingId: currentListing?.id,
-            });
-
-            if (schedulePostResponses.some((response) => !response?.data)) {
-              console.error("Error scheduling posts:", schedulePostResponses);
-            }
-          }
-          break;
-        case "instagram":
-          {
-            const schedulePostPromises = savedPosts.map((post) =>
-              scheduleInstagramPosts({
-                customerId: selectedCustomer.id,
-                postId: post.id,
-              }),
-            );
-            const schedulePostResponses = await Promise.all(
-              schedulePostPromises,
-            );
-
-            if (schedulePostResponses.some((response) => !response?.data)) {
-              console.error("Error scheduling posts:", schedulePostResponses);
-            }
-            await createTask({
-              customerId: selectedCustomer.id,
-              taskName: "Schedule Instagram Post",
-              teamMemberName: "Social Media",
-              category: "InstagramPost",
-              listingId: currentListing?.id,
-            });
-          }
-          break;
-        case "pinterest":
-          {
-            await createTask({
-              customerId: selectedCustomer.id,
-              taskName: "Schedule Pinterest Post",
-              teamMemberName: "Social Media",
-              category: "PinterestBanner",
-              listingId: currentListing?.id,
-            });
-          }
-          break;
-        case "facebookGroup":
-          {
-            await createTask({
-              customerId: selectedCustomer.id,
-              taskName: "Schedule Facebook Group Post",
-              teamMemberName: "Social Media",
-              category: "FacebookGroupPost",
-              listingId: currentListing?.id,
-            });
-          }
-          break;
-        default:
-          break;
-      }
-
-      // Update local state
-      setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
-
-      // Refresh listings and posts
-      fetchListings();
-      fetchPostsForMonth(currentMonth);
-
-      setIsPostCreationModalOpen(false);
-      setCurrentListing(null);
-      return true;
-    } catch (error) {
-      console.error("Error saving post:", error);
+    if (!savedPosts) {
       return false;
-    } finally {
-      setIsSavingPost(false);
     }
+
+    // Update local state
+    setCalendarPosts((prevPosts) => [...prevPosts, ...savedPosts]);
+
+    // Refresh listings and posts
+    fetchListings();
+    fetchPostsForMonth(currentMonth);
+
+    setIsPostCreationModalOpen(false);
+    setCurrentListing(null);
+    return true;
   };
 
   const fetchPosts = useCallback(async () => {
