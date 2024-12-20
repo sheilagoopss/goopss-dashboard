@@ -29,6 +29,7 @@ import {
 } from "antd";
 import {
   useFacebookSchedule,
+  useInstagramSchedule,
   useSocialDelete,
   useSocialUpdate,
 } from "@/hooks/useSocial";
@@ -69,6 +70,7 @@ const Social: React.FC = () => {
   const { deletePost } = useSocialDelete();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
   const { createTask } = useTaskCreate();
+  const { schedulePosts: scheduleInstagramPosts } = useInstagramSchedule();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
     null,
@@ -353,6 +355,19 @@ const Social: React.FC = () => {
           break;
         case "instagram":
           {
+            const schedulePostPromises = savedPosts.map((post) =>
+              scheduleInstagramPosts({
+                customerId: selectedCustomer.id,
+                postId: post.id,
+              }),
+            );
+            const schedulePostResponses = await Promise.all(
+              schedulePostPromises,
+            );
+
+            if (schedulePostResponses.some((response) => !response?.data)) {
+              console.error("Error scheduling posts:", schedulePostResponses);
+            }
             await createTask({
               customerId: selectedCustomer.id,
               taskName: "Schedule Instagram Post",
@@ -628,7 +643,6 @@ const Social: React.FC = () => {
           />
         )}
       </div>
-
       {customerData && customerData?.isSuperCustomer && (
         <div
           style={{

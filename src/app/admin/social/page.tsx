@@ -12,36 +12,26 @@ import {
   updateDoc,
   doc,
   orderBy,
-  getDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { useAuth } from "@/contexts/AuthContext";
 import CustomersDropdown from "@/components/common/CustomersDropdown";
 import { ICustomer } from "@/types/Customer";
 import {
-  Modal,
   Button,
-  DatePicker,
-  Radio,
   Input,
   Table,
   Card,
   Typography,
-  Space,
   Image,
   Divider,
-  message,
   Popconfirm,
   Avatar,
   Col,
   Row,
-  Form,
-  Select,
-  Skeleton,
 } from "antd";
 import FacebookButton from "@/components/common/FacebookButton";
 import PinterestButton from "@/components/common/PinterestButton";
-import dayjs from "dayjs";
 import {
   useFacebookSchedule,
   useInstagramSchedule,
@@ -57,8 +47,10 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import { useCustomerUpdate } from "@/hooks/useCustomer";
-import { usePinterestBoard } from "@/hooks/usePinterest";
 import { ISocialPost } from "@/types/Social";
+import { useTaskCreate } from "@/hooks/useTask";
+import PostCreationModal from "@/components/social/PostCreation";
+import PostEditModal from "@/components/social/PostEdit";
 
 interface EtsyListing {
   id: string;
@@ -71,751 +63,7 @@ interface EtsyListing {
   etsyLink?: string;
 }
 
-const { TextArea } = Input;
-const { Title, Text } = Typography;
-
-const PostCreationModal: React.FC<{
-  isOpen: boolean;
-  listing: EtsyListing | null;
-  customerId: string;
-  onSave: (posts: Omit<ISocialPost, "id">[]) => Promise<boolean>;
-  onCancel: () => void;
-  isSaving: boolean;
-}> = ({ isOpen, listing, customerId, onSave, onCancel, isSaving }) => {
-  const [form] = Form.useForm();
-  const { fetchBoards, isFetchingBoards } = usePinterestBoard();
-  const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
-  const [platform, setPlatform] = useState<
-    "facebook" | "instagram" | "both" | "pinterest" | "facebookGroup"
-  >("facebook");
-  const [facebookContent, setFacebookContent] = useState("");
-  const [instagramContent, setInstagramContent] = useState("");
-  const [facebookGroupContent, setFacebookGroupContent] = useState("");
-  const [pinterestBoards, setPinterestBoards] = useState<any[]>([]);
-  const [isGeneratingContent, setIsGeneratingContent] = useState(false);
-
-  useEffect(() => {
-    setScheduledDate(null);
-    setPlatform("facebook");
-    setFacebookContent("");
-    setInstagramContent("");
-    setFacebookGroupContent("");
-  }, [isOpen, listing, customerId]);
-
-  const handleGenerateContent = async () => {
-    setIsGeneratingContent(true);
-    try {
-      // First fetch customer data
-      const customerDoc = await getDoc(doc(db, "customers", customerId));
-      if (!customerDoc.exists()) {
-        throw new Error("Customer not found");
-      }
-
-      // Fetch only specific listing fields
-      const listingDoc = await getDoc(doc(db, "listings", listing?.id || ""));
-      const listingData = listingDoc.exists() ? listingDoc.data() : null;
-
-      // Structure listing data with only the fields we need
-      const listingInfo = {
-        title: listingData?.optimizedTitle || listingData?.listingTitle || "", //listing title
-        description:
-          listingData?.optimizedDescription ||
-          listingData?.listingDescription ||
-          "", //listing description
-        primaryImage: listingData?.primaryImage || "", //listing image lin
-        etsyLink: listingData?.etsyLink || "", //listing link
-        store_name: listingData?.store_name || "", //store name
-      };
-
-      const customerData = customerDoc.data();
-
-      // Get all the required customer fields
-      const customerInfo = {
-        industry: customerData.industry || "", // industry
-        about: customerData.about || "", // store about
-        target_audience: customerData.target_audience || "", // target audience
-        content_tone: customerData.content_tone || "", // content tone
-        etsy_store_url: customerData.etsy_store_url || "", // etsy store url
-        past_facebook_posts: customerData.past_facebook_posts || "", // past facebook posts
-        past_instagram_posts: customerData.past_instagram_posts || "", // past instagram posts
-        content_guideline: customerData.content_guideline || "", // content guideline or restriction like what not to post or use first person etc
-        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || "", // instagram hashtags that goopss will use
-        competitor_social: customerData.competitor_social || "", // competitor social
-      };
-
-      const payload = [
-        {
-          image_path: listingInfo.primaryImage || "",
-          store_name: listingInfo.store_name || "",
-          about: customerInfo.about || "",
-          description: listingInfo.description || "",
-          url: listingInfo.etsyLink || "",
-          content_guideline: customerInfo.content_guideline || "",
-          content_tone: customerInfo.content_tone || "", // new field to incorporate to prompt
-          target_audience: customerInfo.target_audience || "", // new field to incorporate to prompt
-          goopss_hashtags: customerInfo.instagram_hashtags_goopss || "", // new field to incorporate to prompt
-          past_facebook_posts: customerInfo.past_facebook_posts || "", // new field to incorporate to prompt
-          past_instagram_posts: customerInfo.past_instagram_posts || "", // new field to incorporate to prompt
-        },
-      ];
-
-      const API_URL = "https://goopss.onrender.com/gen_posts_dashboard";
-
-      // Make the POST request
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate content");
-      }
-
-      const data = await response.json();
-
-      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-        const firstResult = data.result[0];
-
-        // Always set both contents regardless of platform selection
-        setFacebookContent(firstResult.facebook_post || "");
-        setInstagramContent(firstResult.instagram_post || "");
-        setFacebookGroupContent(firstResult.facebook_post || "");
-      } else {
-        throw new Error("Failed to generate content. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error generating content:", error);
-      message.error("Failed to generate content. Please try again.");
-    } finally {
-      setIsGeneratingContent(false);
-    }
-  };
-
-  const handleSave = () => {
-    if (!scheduledDate) {
-      Modal.error({ content: "Please select a date before saving the post." });
-      return;
-    }
-
-    const basePost = {
-      scheduledDate, // This is already a Date object now
-      dateCreated: new Date(),
-      listingId: listing?.listingID || "",
-      customerId,
-    };
-
-    const postsToSave: Omit<ISocialPost, "id">[] = [];
-
-    if (platform === "both") {
-      if (facebookContent.trim()) {
-        postsToSave.push({
-          ...basePost,
-          platform: "facebook",
-          content: facebookContent,
-        });
-      }
-      if (instagramContent.trim()) {
-        postsToSave.push({
-          ...basePost,
-          platform: "instagram",
-          content: instagramContent,
-        });
-      }
-    } else if (platform === "facebook" && facebookContent.trim()) {
-      postsToSave.push({
-        ...basePost,
-        platform: "facebook",
-        content: facebookContent,
-      });
-    } else if (platform === "facebookGroup" && facebookGroupContent.trim()) {
-      postsToSave.push({
-        ...basePost,
-        platform: "facebookGroup",
-        content: facebookGroupContent,
-      });
-    } else if (platform === "instagram" && instagramContent.trim()) {
-      postsToSave.push({
-        ...basePost,
-        platform: "instagram",
-        content: instagramContent,
-      });
-    } else if (platform === "pinterest") {
-      const values = form.getFieldsValue();
-      const data = {
-        boardId: values.pinterestBoard,
-        content: {
-          title: values.pinterestTitle,
-          description: values.pinterestDescription,
-          link: listing?.etsyLink,
-          media_source: {
-            source_type: "image_url",
-            url: listing?.primaryImage,
-          },
-        },
-        customerId,
-      };
-      postsToSave.push({
-        ...basePost,
-        content: data.content.title || "",
-        platform: "pinterest",
-        pinterest: data,
-      });
-    }
-
-    if (postsToSave.length === 0) {
-      Modal.error({
-        content:
-          "Please enter content for at least one platform before saving.",
-      });
-      return;
-    }
-
-    onSave(postsToSave).then((success) => {
-      if (success) {
-        form.resetFields();
-      }
-    });
-  };
-
-  const handleCancel = () => {
-    setScheduledDate(null);
-    setPlatform("facebook");
-    setFacebookContent("");
-    setInstagramContent("");
-    setFacebookGroupContent("");
-    onCancel();
-  };
-
-  useEffect(() => {
-    fetchBoards({ customerId }).then((boards) => {
-      setPinterestBoards(boards);
-    });
-  }, [customerId, fetchBoards]);
-
-  const disabledDate = (current: dayjs.Dayjs) => {
-    // Can't select days before today
-    return current && current < dayjs().startOf('day');
-  };
-
-  const disabledTime = (date: dayjs.Dayjs | null) => {
-    const now = dayjs();
-    const selectedDate = date || now;
-    
-    // If it's today, we need to check the time
-    if (selectedDate.isSame(now, 'day')) {
-      const currentHour = now.hour();
-      const currentMinute = now.minute();
-      
-      return {
-        // Block all past hours AND the current hour if we're too close to next hour
-        disabledHours: () => {
-          const hours = Array.from({ length: currentHour }, (_, i) => i);
-          // If we're within 12 minutes of the next hour, also disable current hour
-          if (currentMinute > 48) {
-            hours.push(currentHour);
-          }
-          return hours;
-        },
-        disabledMinutes: (selectedHour: number) => {
-          // If selected hour is current hour, disable minutes up to current minute + 12
-          if (selectedHour === currentHour) {
-            return Array.from(
-              { length: currentMinute + 12 }, 
-              (_, i) => i
-            );
-          }
-          // If selected hour is next hour but we're within 12 minutes of it
-          else if (selectedHour === currentHour + 1 && currentMinute > 48) {
-            return Array.from(
-              { length: currentMinute - 48 }, 
-              (_, i) => i
-            );
-          }
-          return [];
-        },
-      };
-    }
-
-    return {};
-  };
-
-  return (
-    <Modal
-      title={`Create Post for ${listing?.listingTitle}`}
-      open={isOpen}
-      onCancel={handleCancel}
-      width={800}
-      style={{ top: 20 }}
-      footer={[
-        <Button key="cancel" onClick={handleCancel}>
-          Cancel
-        </Button>,
-        platform === "facebook" || platform === "both" ? (
-          <Popconfirm
-            title="Are you sure you want to schedule this post?"
-            onConfirm={handleSave}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button key="save" type="primary" loading={isSaving}>
-              Save
-            </Button>
-          </Popconfirm>
-        ) : (
-          <Button
-            key="save"
-            type="primary"
-            onClick={handleSave}
-            loading={isSaving}
-          >
-            Save
-          </Button>
-        ),
-      ]}
-    >
-      <Space direction="vertical" style={{ width: "100%", marginTop: "32px" }} size="large">
-        <Radio.Group
-          onChange={(e) => setPlatform(e.target.value)}
-          value={platform}
-        >
-          <Radio value="facebook">Facebook Page</Radio>
-          <Radio value="facebookGroup">Facebook Group</Radio>
-          <Radio value="instagram">Instagram</Radio>
-          <Radio value="both">Facebook Page & Instagram</Radio>
-          <Divider />
-          <Radio value="pinterest">Pinterest</Radio>
-        </Radio.Group>
-
-        {platform !== "pinterest" && (
-          <Button
-            onClick={handleGenerateContent}
-            type="default"
-            loading={isGeneratingContent}
-          >
-            Generate Content
-          </Button>
-        )}
-
-        {(platform === "facebook" || platform === "both") && (
-          <div>
-            <Text strong>Facebook Content:</Text>
-            <TextArea
-              value={facebookContent}
-              onChange={(e) => setFacebookContent(e.target.value)}
-              placeholder="Facebook content"
-              autoSize={{ minRows: 6, maxRows: 12 }}
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                marginTop: "8px",
-              }}
-            />
-          </div>
-        )}
-
-        {platform === "facebookGroup" && (
-          <div>
-            <Text strong>Facebook Group Content:</Text>
-            <TextArea
-              value={facebookGroupContent}
-              onChange={(e) => setFacebookGroupContent(e.target.value)}
-              placeholder="Facebook Group content"
-              autoSize={{ minRows: 6, maxRows: 12 }}
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                marginTop: "8px",
-              }}
-            />
-          </div>
-        )}
-
-        {(platform === "instagram" || platform === "both") && (
-          <div>
-            <Text strong>Instagram Content:</Text>
-            <TextArea
-              value={instagramContent}
-              onChange={(e) => setInstagramContent(e.target.value)}
-              placeholder="Instagram content"
-              autoSize={{ minRows: 6, maxRows: 12 }}
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                marginTop: "8px",
-              }}
-            />
-          </div>
-        )}
-        {platform === "pinterest" && (
-          <div>
-            <Form layout="vertical" form={form}>
-              <div style={{ display: "flex", gap: "2ch" }}>
-                <Image
-                  src={listing?.primaryImage}
-                  alt={listing?.listingTitle}
-                  width={200}
-                />
-                <Typography.Link href={listing?.etsyLink} target="_blank">
-                  <Typography.Text strong>Link: </Typography.Text>
-                  {listing?.etsyLink}
-                </Typography.Link>
-              </div>
-
-              <Form.Item
-                label="Title"
-                name="pinterestTitle"
-                rules={[{ required: true, message: "Please enter a title" }]}
-              >
-                <Input placeholder="Enter Pinterest post title" />
-              </Form.Item>
-              <Form.Item
-                label="Description"
-                name="pinterestDescription"
-                rules={[
-                  { required: true, message: "Please enter a description" },
-                ]}
-              >
-                <TextArea
-                  placeholder="Enter Pinterest post description"
-                  autoSize={{ minRows: 4, maxRows: 8 }}
-                />
-              </Form.Item>
-              {isFetchingBoards ? (
-                <Skeleton.Input active />
-              ) : (
-                <Form.Item
-                  label="Select Board"
-                  name="pinterestBoard"
-                  rules={[{ required: true, message: "Please select a board" }]}
-                >
-                  <Select placeholder="Select a Pinterest board">
-                    {pinterestBoards.map((board) => (
-                      <Select.Option key={board.id} value={board.id}>
-                        {board.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              )}
-            </Form>
-          </div>
-        )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
-          <DatePicker
-            showTime
-            style={{ width: "300px" }}
-            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-            disabledDate={disabledDate}
-            disabledTime={disabledTime}
-            showNow={false}
-            placeholder="Select date and time"
-          />
-        </div>
-      </Space>
-    </Modal>
-  );
-};
-const PostEditModal: React.FC<{
-  isOpen: boolean;
-  listing: EtsyListing | null;
-  customerId: string;
-  post: ISocialPost;
-  onSave: (post: ISocialPost) => void;
-  onCancel: () => void;
-  isUpdating: boolean;
-}> = ({ isOpen, listing, customerId, onSave, onCancel, post, isUpdating }) => {
-  const [scheduledDate, setScheduledDate] = useState<Date | null>(
-    dayjs(post?.scheduledDate).toDate() || null,
-  );
-  // const [platform, setPlatform] = useState<"facebook" | "instagram" | "both">(
-  //   post?.platform || "facebook",
-  // );
-  const [facebookContent, setFacebookContent] = useState(
-    post?.platform === "facebook" ? post?.content || "" : "",
-  );
-  const [instagramContent, setInstagramContent] = useState(
-    post?.platform === "instagram" ? post?.content || "" : "",
-  );
-
-  const handleGenerateContent = async () => {
-    try {
-      // First fetch customer data
-      const customerDoc = await getDoc(doc(db, "customers", customerId));
-      if (!customerDoc.exists()) {
-        throw new Error("Customer not found");
-      }
-
-      // Fetch only specific listing fields
-      const listingDoc = await getDoc(doc(db, "listings", listing?.id || ""));
-      const listingData = listingDoc.exists() ? listingDoc.data() : null;
-
-      // Structure listing data with only the fields we need
-      const listingInfo = {
-        title: listingData?.optimizedTitle || listingData?.listingTitle || "", //listing title
-        description:
-          listingData?.optimizedDescription ||
-          listingData?.listingDescription ||
-          "", //listing description
-        primaryImage: listingData?.primaryImage || "", //listing image lin
-        etsyLink: listingData?.etsyLink || "", //listing link
-        store_name: listingData?.store_name || "", //store name
-      };
-
-      const customerData = customerDoc.data();
-
-      // Get all the required customer fields
-      const customerInfo = {
-        industry: customerData.industry || "", // industry
-        about: customerData.about || "", // store about
-        target_audience: customerData.target_audience || "", // target audience
-        content_tone: customerData.content_tone || "", // content tone
-        etsy_store_url: customerData.etsy_store_url || "", // etsy store url
-        past_facebook_posts: customerData.past_facebook_posts || "", // past facebook posts
-        past_instagram_posts: customerData.past_instagram_posts || "", // past instagram posts
-        content_guideline: customerData.content_guideline || "", // content guideline or restriction like what not to post or use first person etc
-        instagram_hashtags_goopss: customerData.instagram_hashtags_goopss || "", // instagram hashtags that goopss will use
-        competitor_social: customerData.competitor_social || "", // competitor social
-      };
-
-      const payload = [
-        {
-          image_path: listingInfo.primaryImage || "",
-          store_name: listingInfo.store_name || "",
-          about: customerInfo.about || "",
-          description: listingInfo.description || "",
-          url: listingInfo.etsyLink || "",
-          content_guideline: customerInfo.content_guideline || "",
-          content_tone: customerInfo.content_tone || "", // new field to incorporate to prompt
-          target_audience: customerInfo.target_audience || "", // new field to incorporate to prompt
-          goopss_hashtags: customerInfo.instagram_hashtags_goopss || "", // new field to incorporate to prompt
-          past_facebook_posts: customerInfo.past_facebook_posts || "", // new field to incorporate to prompt
-          past_instagram_posts: customerInfo.past_instagram_posts || "", // new field to incorporate to prompt
-        },
-      ];
-
-      const API_URL = "https://goopss.onrender.com/gen_posts_dashboard";
-
-      // Make the POST request
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate content");
-      }
-
-      const data = await response.json();
-
-      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-        const firstResult = data.result[0];
-
-        // Always set both contents regardless of platform selection
-        setFacebookContent(firstResult.facebook_post || "");
-        setInstagramContent(firstResult.instagram_post || "");
-      } else {
-        throw new Error("Failed to generate content. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error generating content:", error);
-      message.error("Failed to generate content. Please try again.");
-    }
-  };
-
-  const handleSave = () => {
-    if (!scheduledDate) {
-      Modal.error({ content: "Please select a date before saving the post." });
-      return;
-    }
-
-    const basePost = {
-      id: post.id,
-      scheduledDate,
-      dateCreated: new Date(),
-      listingId: post.listingId || "",
-      customerId,
-    };
-
-    let postsToSave: ISocialPost | null = null;
-
-    if (post.platform === "facebook" && facebookContent.trim()) {
-      postsToSave = {
-        ...basePost,
-        platform: "facebook",
-        content: facebookContent,
-      };
-    } else if (post.platform === "instagram" && instagramContent.trim()) {
-      postsToSave = {
-        ...basePost,
-        platform: "instagram",
-        content: instagramContent,
-      };
-    }
-
-    if (!postsToSave) {
-      Modal.error({
-        content:
-          "Please enter content for at least one platform before saving.",
-      });
-      return;
-    }
-
-    onSave(postsToSave);
-  };
-
-  const handleCancel = () => {
-    setScheduledDate(null);
-    setFacebookContent("");
-    setInstagramContent("");
-    onCancel();
-  };
-
-  const disabledDate = (current: dayjs.Dayjs) => {
-    // Can't select days before today
-    return current && current < dayjs().startOf('day');
-  };
-
-  const disabledTime = (date: dayjs.Dayjs | null) => {
-    const now = dayjs();
-    const selectedDate = date || now;
-    
-    // If it's today, we need to check the time
-    if (selectedDate.isSame(now, 'day')) {
-      const currentHour = now.hour();
-      const currentMinute = now.minute();
-      
-      return {
-        // Block all past hours AND the current hour if we're too close to next hour
-        disabledHours: () => {
-          const hours = Array.from({ length: currentHour }, (_, i) => i);
-          // If we're within 12 minutes of the next hour, also disable current hour
-          if (currentMinute > 48) {
-            hours.push(currentHour);
-          }
-          return hours;
-        },
-        disabledMinutes: (selectedHour: number) => {
-          // If selected hour is current hour, disable minutes up to current minute + 12
-          if (selectedHour === currentHour) {
-            return Array.from(
-              { length: currentMinute + 12 }, 
-              (_, i) => i
-            );
-          }
-          // If selected hour is next hour but we're within 12 minutes of it
-          else if (selectedHour === currentHour + 1 && currentMinute > 48) {
-            return Array.from(
-              { length: currentMinute - 48 }, 
-              (_, i) => i
-            );
-          }
-          return [];
-        },
-      };
-    }
-
-    return {};
-  };
-
-  return (
-    <Modal
-      title={`Create Post for ${listing?.listingTitle}`}
-      open={isOpen}
-      onCancel={handleCancel}
-      width={800}
-      style={{ top: 20 }}
-      footer={[
-        <Button key="cancel" onClick={handleCancel}>
-          Cancel
-        </Button>,
-        post.platform === "facebook" ? (
-          <Popconfirm
-            title="Are you sure you want to schedule this post?"
-            onConfirm={handleSave}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button key="save" type="primary">
-              Update
-            </Button>
-          </Popconfirm>
-        ) : (
-          <Button
-            key="save"
-            type="primary"
-            onClick={handleSave}
-            loading={isUpdating}
-          >
-            Update
-          </Button>
-        ),
-      ]}
-    >
-      {post.platform === "facebook" ? <FacebookFilled /> : <InstagramFilled />}
-      <Space direction="vertical" style={{ width: "100%", marginTop: "32px" }} size="large">
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <Text strong style={{ whiteSpace: "nowrap" }}>Schedule Date and Time:</Text>
-          <DatePicker
-            showTime
-            style={{ width: "300px" }}
-            value={dayjs(scheduledDate)}
-            onChange={(date) => setScheduledDate(date ? date.toDate() : null)}
-            disabledDate={disabledDate}
-            disabledTime={disabledTime}
-            showNow={false}
-            placeholder="Select date and time"
-          />
-        </div>
-
-        <Button onClick={handleGenerateContent} type="default">
-          Generate Content
-        </Button>
-
-        {post.platform === "facebook" && (
-          <div>
-            <Text strong>Facebook Content:</Text>
-            <TextArea
-              value={facebookContent}
-              onChange={(e) => setFacebookContent(e.target.value)}
-              placeholder="Facebook content"
-              autoSize={{ minRows: 6, maxRows: 12 }}
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                marginTop: "8px",
-              }}
-            />
-          </div>
-        )}
-
-        {post.platform === "instagram" && (
-          <div>
-            <Text strong>Instagram Content:</Text>
-            <TextArea
-              value={instagramContent}
-              onChange={(e) => setInstagramContent(e.target.value)}
-              placeholder="Instagram content"
-              autoSize={{ minRows: 6, maxRows: 12 }}
-              style={{
-                whiteSpace: "pre-line",
-                fontSize: "14px",
-                marginTop: "8px",
-              }}
-            />
-          </div>
-        )}
-      </Space>
-    </Modal>
-  );
-};
+const { Title } = Typography;
 
 const Social: React.FC = () => {
   const { isAdmin, customerData } = useAuth();
@@ -823,6 +71,7 @@ const Social: React.FC = () => {
   const { schedulePosts: scheduleInstagramPosts } = useInstagramSchedule();
   const { updatePost, isUpdating } = useSocialUpdate();
   const { deletePost } = useSocialDelete();
+  const { createTask } = useTaskCreate();
   const { updateCustomer, isLoading: isUpdatingCustomer } = useCustomerUpdate();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<ICustomer | null>(
@@ -930,7 +179,7 @@ const Social: React.FC = () => {
         const listingsCollection = collection(db, "listings");
         const q = query(
           listingsCollection,
-          where("customer_id", "==", selectedCustomer.customer_id),
+          where("customer_id", "==", selectedCustomer.id),
           orderBy("listingID"),
         );
 
@@ -1097,6 +346,13 @@ const Social: React.FC = () => {
             if (schedulePostResponses.some((response) => !response?.data)) {
               console.error("Error scheduling posts:", schedulePostResponses);
             }
+            await createTask({
+              customerId: selectedCustomer.id,
+              taskName: "Schedule Facebook Post",
+              teamMemberName: "Social Media",
+              category: "FacebookPagePost",
+              listingId: currentListing?.id,
+            });
           }
           break;
         case "instagram":
@@ -1114,6 +370,35 @@ const Social: React.FC = () => {
             if (schedulePostResponses.some((response) => !response?.data)) {
               console.error("Error scheduling posts:", schedulePostResponses);
             }
+            await createTask({
+              customerId: selectedCustomer.id,
+              taskName: "Schedule Instagram Post",
+              teamMemberName: "Social Media",
+              category: "InstagramPost",
+              listingId: currentListing?.id,
+            });
+          }
+          break;
+        case "facebookGroup":
+          {
+            await createTask({
+              customerId: selectedCustomer.id,
+              taskName: "Schedule Facebook Group Post",
+              teamMemberName: "Social Media",
+              category: "FacebookGroupPost",
+              listingId: currentListing?.id,
+            });
+          }
+          break;
+        case "pinterest":
+          {
+            await createTask({
+              customerId: selectedCustomer.id,
+              taskName: "Schedule Pinterest Post",
+              teamMemberName: "Social Media",
+              category: "PinterestBanner",
+              listingId: currentListing?.id,
+            });
           }
           break;
         default:

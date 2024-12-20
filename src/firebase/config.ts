@@ -1,8 +1,17 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
+// const firebaseConfig = {
+//   apiKey: "AIzaSyDckKYqZNT4bdE51UoxFu9Mglc6ZDLnFTM",
+//   authDomain: "goopss-testing.firebaseapp.com",
+//   projectId: "goopss-testing",
+//   storageBucket: "goopss-testing.firebasestorage.app",
+//   messagingSenderId: "727749770526",
+//   appId: "1:727749770526:web:de63a4f5c5af53837c5d0f",
+// };
+// LIVE
 const firebaseConfig = {
   apiKey: "AIzaSyAxrhmVhtFCRVWp_ZwQMXRNBryoRn7RS0I",
   authDomain: "goopss-user-admin-dashboard.firebaseapp.com",
@@ -15,7 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const auth = getAuth(app)
+export const auth = getAuth(app);
 
 console.log("Firebase initialized:", app);
 console.log("Firestore initialized:", db);
